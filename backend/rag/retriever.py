@@ -4,6 +4,7 @@ from langchain.vectorstores import FAISS
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.schema import Document
 import asyncio
+from bson import ObjectId
 
 from models.user import User
 from models.content import Content, ContentWithEmbedding

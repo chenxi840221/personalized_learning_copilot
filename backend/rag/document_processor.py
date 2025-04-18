@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 import re
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
+from bson import ObjectId
 
 from models.content import Content, ContentWithEmbedding
 from utils.db_manager import get_db

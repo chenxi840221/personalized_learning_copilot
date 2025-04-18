@@ -10,6 +10,7 @@ const ContentPage = () => {
   const [error, setError] = useState('');
   const [activeSubject, setActiveSubject] = useState(subject || 'All');
   const [activeType, setActiveType] = useState('All');
+  const [isRetrying, setIsRetrying] = useState(false);
   
   // Available subjects and content types
   const subjects = ['All', 'Mathematics', 'Science', 'English'];
@@ -37,14 +38,15 @@ const ContentPage = () => {
         setContentItems(data);
       } catch (err) {
         console.error('Error fetching content:', err);
-        setError('Failed to load content');
+        setError(err.message || 'Failed to load content. Please try again.');
       } finally {
         setIsLoading(false);
+        setIsRetrying(false);
       }
     };
     
     fetchContent();
-  }, [activeSubject, activeType]);
+  }, [activeSubject, activeType, isRetrying]);
   
   // Set active subject from URL param on mount
   useEffect(() => {
@@ -52,6 +54,11 @@ const ContentPage = () => {
       setActiveSubject(subject);
     }
   }, [subject]);
+  
+  // Handle retry when fetch fails
+  const handleRetry = () => {
+    setIsRetrying(true);
+  };
   
   return (
     <div className="container mx-auto px-4 py-8">
@@ -71,6 +78,7 @@ const ContentPage = () => {
               className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={activeSubject}
               onChange={(e) => setActiveSubject(e.target.value)}
+              disabled={isLoading}
             >
               {subjects.map(subj => (
                 <option key={subj} value={subj}>
@@ -89,6 +97,7 @@ const ContentPage = () => {
               className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={activeType}
               onChange={(e) => setActiveType(e.target.value)}
+              disabled={isLoading}
             >
               {contentTypes.map(type => (
                 <option key={type} value={type}>
@@ -102,26 +111,48 @@ const ContentPage = () => {
         {/* Error Message */}
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            {error}
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="font-bold">Error loading content</p>
+                <p>{error}</p>
+              </div>
+              <button 
+                onClick={handleRetry}
+                className="bg-red-200 hover:bg-red-300 text-red-800 font-bold py-1 px-3 rounded"
+              >
+                Retry
+              </button>
+            </div>
           </div>
         )}
         
-        {/* Content Items */}
+        {/* Loading State */}
         {isLoading ? (
           <div className="text-center py-12">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
             <p className="mt-4 text-gray-600">Loading content...</p>
           </div>
         ) : contentItems.length > 0 ? (
+          /* Content Items */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {contentItems.map(content => (
               <ContentRecommendation key={content.id} content={content} />
             ))}
           </div>
         ) : (
+          /* No Content Found */
           <div className="text-center py-12 text-gray-500">
-            <p className="text-lg">No content found for the selected filters.</p>
-            <p className="mt-2">Try changing your filter options.</p>
+            <svg 
+              className="mx-auto h-12 w-12 text-gray-400" 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 12H4" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 4v16M17 4v16" />
+            </svg>
+            <p className="mt-2 text-lg">No content found for the selected filters.</p>
+            <p className="mt-1">Try changing your filter options or select "All" to see all available content.</p>
           </div>
         )}
       </div>

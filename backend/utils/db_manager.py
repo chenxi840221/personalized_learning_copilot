@@ -1,6 +1,7 @@
 import logging
 import motor.motor_asyncio
 from typing import Optional
+from bson import ObjectId
 from config.settings import Settings
 
 # Initialize settings
@@ -18,7 +19,16 @@ async def init_db():
     global client, db
     try:
         # Create MongoDB client
-        client = motor.motor_asyncio.AsyncIOMotorClient(settings.MONGODB_URL)
+        client = motor.motor_asyncio.AsyncIOMotorClient(
+            settings.MONGODB_URL, 
+            serverSelectionTimeoutMS=5000
+        )
+        
+        # Check connection
+        await client.admin.command('ping')
+        logger.info("Successfully connected to MongoDB")
+        
+        # Set database
         db = client[settings.MONGODB_DB_NAME]
         
         # Create indexes for faster queries
@@ -30,10 +40,11 @@ async def init_db():
         await db.learning_plans.create_index("student_id")
         await db.learning_plans.create_index("subject")
         
-        logger.info("Database connection established")
+        logger.info(f"Database initialized: {settings.MONGODB_DB_NAME}")
         return db
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
+        # In a production app, you might want to implement retry logic here
         raise
 
 async def get_db():
@@ -145,3 +156,15 @@ async def initialize_db():
     await init_db()
     await seed_sample_data()
     return db
+
+async def check_db_connection():
+    """Check if database connection is active."""
+    try:
+        global client
+        if client:
+            await client.admin.command('ping')
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"Database connection check failed: {e}")
+        return False
