@@ -1,0 +1,10 @@
+{
+  "template_id": "template_8f153462",
+  "name": "primary-reporting-template-annotated",
+  "status": "completed",
+  "extraction_date": "2025-04-18T15:57:05.656011",
+  "structure": {
+    "error": "(401) Access denied due to invalid subscription key or wrong API endpoint. Make sure to provide a valid key for an active subscription and use a correct regional API endpoint for your resource.\nCode: 401\nMessage: Access denied due to invalid subscription key or wrong API endpoint. Make sure to provide a valid key for an active subscription and use a correct regional API endpoint for your resource.",
+    "status": "failed"
+  }
+}
