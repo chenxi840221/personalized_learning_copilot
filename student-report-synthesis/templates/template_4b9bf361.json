@@ -1,0 +1,876 @@
+{
+  "template_id": "template_4b9bf361",
+  "name": "1",
+  "status": "completed",
+  "extraction_date": "2025-04-19T10:13:13.449160",
+  "file_type": "word",
+  "structure": {
+    "pages": [
+      {
+        "page_number": 1,
+        "width": 8.2639,
+        "height": 11.6806,
+        "text_sections": [
+          {
+            "text": "Student report format",
+            "bounding_box": [
+              1.0731,
+              1.096,
+              2.4045,
+              1.096,
+              2.4045,
+              1.2536,
+              1.0731,
+              1.2536
+            ],
+            "position": [
+              1.0731,
+              1.096
+            ]
+          },
+          {
+            "text": "The following sample layout is intended as a guide and is not a prescribed student report format.",
+            "bounding_box": [
+              1.0721,
+              1.4247,
+              6.9873,
+              1.4244,
+              6.9873,
+              1.59,
+              1.0721,
+              1.5903
+            ],
+            "position": [
+              1.0721,
+              1.4247
+            ]
+          },
+          {
+            "text": "Schools may determine the format of student reporting in partnership with students, parents, carers",
+            "bounding_box": [
+              1.0726,
+              1.5976,
+              7.1666,
+              1.5987,
+              7.1666,
+              1.7645,
+              1.0726,
+              1.7635
+            ],
+            "position": [
+              1.0726,
+              1.5976
+            ]
+          },
+          {
+            "text": "and the school community.",
+            "bounding_box": [
+              1.0674,
+              1.7631,
+              2.731,
+              1.7674,
+              2.7306,
+              1.9265,
+              1.0672,
+              1.9222
+            ],
+            "position": [
+              1.0674,
+              1.7631
+            ]
+          },
+          {
+            "text": "COVER PAGE",
+            "bounding_box": [
+              1.0779,
+              2.2646,
+              2.3841,
+              2.2659,
+              2.3839,
+              2.466,
+              1.0777,
+              2.4647
+            ],
+            "position": [
+              1.0779,
+              2.2646
+            ]
+          },
+          {
+            "text": "A cover page can be used to display the following information:",
+            "bounding_box": [
+              1.0666,
+              2.7606,
+              4.8979,
+              2.7551,
+              4.8982,
+              2.9268,
+              1.0668,
+              2.9315
+            ],
+            "position": [
+              1.0666,
+              2.7606
+            ]
+          },
+          {
+            "text": "school name",
+            "bounding_box": [
+              1.0705,
+              3.1008,
+              1.8736,
+              3.099,
+              1.8739,
+              3.24,
+              1.0708,
+              3.2418
+            ],
+            "position": [
+              1.0705,
+              3.1008
+            ]
+          },
+          {
+            "text": "school logo",
+            "bounding_box": [
+              1.0699,
+              3.4343,
+              1.7874,
+              3.4341,
+              1.7874,
+              3.5919,
+              1.0699,
+              3.5921
+            ],
+            "position": [
+              1.0699,
+              3.4343
+            ]
+          },
+          {
+            "text": "student name",
+            "bounding_box": [
+              1.0706,
+              3.7652,
+              1.9276,
+              3.7655,
+              1.9275,
+              3.9107,
+              1.0706,
+              3.9104
+            ],
+            "position": [
+              1.0706,
+              3.7652
+            ]
+          },
+          {
+            "text": "student photo",
+            "bounding_box": [
+              1.0704,
+              4.0999,
+              1.925,
+              4.0987,
+              1.9252,
+              4.2557,
+              1.0706,
+              4.2569
+            ],
+            "position": [
+              1.0704,
+              4.0999
+            ]
+          },
+          {
+            "text": "student class name",
+            "bounding_box": [
+              1.0704,
+              4.4323,
+              2.2827,
+              4.4315,
+              2.2828,
+              4.5795,
+              1.0705,
+              4.5809
+            ],
+            "position": [
+              1.0704,
+              4.4323
+            ]
+          },
+          {
+            "text": "title of document and date e.g. Student Report Semester 1 2019",
+            "bounding_box": [
+              1.0689,
+              4.7523,
+              5.0228,
+              4.7488,
+              5.0229,
+              4.9198,
+              1.069,
+              4.922
+            ],
+            "position": [
+              1.0689,
+              4.7523
+            ]
+          },
+          {
+            "text": "teacher name (generalist or homeroom) and signature",
+            "bounding_box": [
+              1.0678,
+              5.0874,
+              4.4134,
+              5.0891,
+              4.4132,
+              5.2625,
+              1.0676,
+              5.2591
+            ],
+            "position": [
+              1.0678,
+              5.0874
+            ]
+          },
+          {
+            "text": "member of principal class name and signature",
+            "bounding_box": [
+              1.0701,
+              5.4222,
+              3.9302,
+              5.4234,
+              3.9301,
+              5.5914,
+              1.07,
+              5.5902
+            ],
+            "position": [
+              1.0701,
+              5.4222
+            ]
+          },
+          {
+            "text": "INSIDE COVER PAGE",
+            "bounding_box": [
+              1.0701,
+              5.9278,
+              3.0865,
+              5.927,
+              3.0866,
+              6.1299,
+              1.0702,
+              6.1307
+            ],
+            "position": [
+              1.0701,
+              5.9278
+            ]
+          },
+          {
+            "text": "A page may be used to explain the format of reports to parents/carers including:",
+            "bounding_box": [
+              1.0684,
+              6.4181,
+              5.9831,
+              6.4166,
+              5.9831,
+              6.5955,
+              1.0685,
+              6.597
+            ],
+            "position": [
+              1.0684,
+              6.4181
+            ]
+          },
+          {
+            "text": "the purpose of the report",
+            "bounding_box": [
+              1.0663,
+              6.762,
+              2.6149,
+              6.7586,
+              2.6152,
+              6.9252,
+              1.0666,
+              6.9286
+            ],
+            "position": [
+              1.0663,
+              6.762
+            ]
+          },
+          {
+            "text": "contents of the report",
+            "bounding_box": [
+              1.0713,
+              7.0918,
+              2.4076,
+              7.0921,
+              2.4075,
+              7.2517,
+              1.0713,
+              7.2515
+            ],
+            "position": [
+              1.0713,
+              7.0918
+            ]
+          },
+          {
+            "text": "definitions of achievement and progress",
+            "bounding_box": [
+              1.0702,
+              7.4161,
+              3.5403,
+              7.4241,
+              3.5397,
+              7.5892,
+              1.0697,
+              7.5811
+            ],
+            "position": [
+              1.0702,
+              7.4161
+            ]
+          },
+          {
+            "text": "how to read the ratings and scales",
+            "bounding_box": [
+              1.0696,
+              7.7553,
+              3.2039,
+              7.7557,
+              3.2038,
+              7.9218,
+              1.0695,
+              7.9214
+            ],
+            "position": [
+              1.0696,
+              7.7553
+            ]
+          },
+          {
+            "text": "how to interpret any tables",
+            "bounding_box": [
+              1.0683,
+              8.085,
+              2.7142,
+              8.0894,
+              2.7138,
+              8.2528,
+              1.0679,
+              8.2498
+            ],
+            "position": [
+              1.0683,
+              8.085
+            ]
+          },
+          {
+            "text": "the importance of parent/carer-student-teacher conferences to discuss the report",
+            "bounding_box": [
+              1.0684,
+              8.4148,
+              6.0455,
+              8.4149,
+              6.0455,
+              8.5848,
+              1.0684,
+              8.5848
+            ],
+            "position": [
+              1.0684,
+              8.4148
+            ]
+          },
+          {
+            "text": "INITIAL PAGE",
+            "bounding_box": [
+              1.0699,
+              8.9332,
+              2.3721,
+              8.9309,
+              2.3724,
+              9.1244,
+              1.0702,
+              9.1254
+            ],
+            "position": [
+              1.0699,
+              8.9332
+            ]
+          },
+          {
+            "text": "Schools may want to include a page with student personal information including:",
+            "bounding_box": [
+              1.0738,
+              9.4169,
+              6.0055,
+              9.4203,
+              6.0054,
+              9.5902,
+              1.0737,
+              9.5868
+            ],
+            "position": [
+              1.0738,
+              9.4169
+            ]
+          },
+          {
+            "text": "personal comment from the student's main teacher or homeroom teacher; this may relate to",
+            "bounding_box": [
+              1.0729,
+              9.7559,
+              6.7105,
+              9.7528,
+              6.7106,
+              9.9107,
+              1.073,
+              9.9144
+            ],
+            "position": [
+              1.0729,
+              9.7559
+            ]
+          },
+          {
+            "text": "capabilities, work habits, behaviours, effort and extra-curricular activities and is evidence-based",
+            "bounding_box": [
+              1.0752,
+              9.9235,
+              6.9356,
+              9.9165,
+              6.9358,
+              10.0729,
+              1.0754,
+              10.0799
+            ],
+            "position": [
+              1.0752,
+              9.9235
+            ]
+          },
+          {
+            "text": "rather than subjective",
+            "bounding_box": [
+              1.0703,
+              10.09,
+              2.4152,
+              10.0912,
+              2.415,
+              10.2424,
+              1.0701,
+              10.2411
+            ],
+            "position": [
+              1.0703,
+              10.09
+            ]
+          }
+        ]
+      },
+      {
+        "page_number": 2,
+        "width": 8.2639,
+        "height": 11.6806,
+        "text_sections": [
+          {
+            "text": "personal and social capability (or all capabilities) rating and comments on student achievement and",
+            "bounding_box": [
+              1.0716,
+              1.1001,
+              7.175,
+              1.0893,
+              7.1753,
+              1.2538,
+              1.072,
+              1.266
+            ],
+            "position": [
+              1.0716,
+              1.1001
+            ]
+          },
+          {
+            "text": "growth",
+            "bounding_box": [
+              1.0672,
+              1.2827,
+              1.5008,
+              1.2687,
+              1.5054,
+              1.413,
+              1.0717,
+              1.427
+            ],
+            "position": [
+              1.0672,
+              1.2827
+            ]
+          },
+          {
+            "text": "attendance information and data including days absent and days late",
+            "bounding_box": [
+              1.0684,
+              1.5983,
+              5.3207,
+              1.597,
+              5.3208,
+              1.7602,
+              1.0685,
+              1.7617
+            ],
+            "position": [
+              1.0684,
+              1.5983
+            ]
+          },
+          {
+            "text": "SUBJECT PAGES",
+            "bounding_box": [
+              1.0715,
+              2.1048,
+              2.7255,
+              2.1047,
+              2.7255,
+              2.3008,
+              1.0715,
+              2.3009
+            ],
+            "position": [
+              1.0715,
+              2.1048
+            ]
+          },
+          {
+            "text": "The subject pages provide an opportunity for teachers to report their judgements made based on",
+            "bounding_box": [
+              1.0726,
+              2.5928,
+              7.0191,
+              2.5936,
+              7.0191,
+              2.7604,
+              1.0726,
+              2.76
+            ],
+            "position": [
+              1.0726,
+              2.5928
+            ]
+          },
+          {
+            "text": "quality evidence of what each student achieved against the achievement standards, this may",
+            "bounding_box": [
+              1.0712,
+              2.7564,
+              6.7841,
+              2.7607,
+              6.784,
+              2.932,
+              1.0711,
+              2.9277
+            ],
+            "position": [
+              1.0712,
+              2.7564
+            ]
+          },
+          {
+            "text": "include:",
+            "bounding_box": [
+              1.0681,
+              2.9357,
+              1.5612,
+              2.9354,
+              1.5613,
+              3.0751,
+              1.0682,
+              3.0754
+            ],
+            "position": [
+              1.0681,
+              2.9357
+            ]
+          },
+          {
+            "text": "curriculum area overview",
+            "bounding_box": [
+              1.0704,
+              3.2705,
+              2.6329,
+              3.268,
+              2.6332,
+              3.4152,
+              1.0706,
+              3.4177
+            ],
+            "position": [
+              1.0704,
+              3.2705
+            ]
+          },
+          {
+            "text": "level of achievement and progress displayed along a continuum",
+            "bounding_box": [
+              1.0711,
+              3.5879,
+              4.9985,
+              3.5942,
+              4.9982,
+              3.7628,
+              1.0709,
+              3.7564
+            ],
+            "position": [
+              1.0711,
+              3.5879
+            ]
+          },
+          {
+            "text": "teacher comments on student achievement and progress",
+            "bounding_box": [
+              1.0666,
+              3.9183,
+              4.5916,
+              3.9242,
+              4.5913,
+              4.0928,
+              1.0663,
+              4.0868
+            ],
+            "position": [
+              1.0666,
+              3.9183
+            ]
+          },
+          {
+            "text": "areas of strength and areas of improvement",
+            "bounding_box": [
+              1.0686,
+              4.2618,
+              3.7874,
+              4.2589,
+              3.7875,
+              4.4234,
+              1.0688,
+              4.4258
+            ],
+            "position": [
+              1.0686,
+              4.2618
+            ]
+          },
+          {
+            "text": "ways to help the student continue to learn and develop",
+            "bounding_box": [
+              1.0668,
+              4.5896,
+              4.4425,
+              4.588,
+              4.4426,
+              4.7591,
+              1.0669,
+              4.7608
+            ],
+            "position": [
+              1.0668,
+              4.5896
+            ]
+          },
+          {
+            "text": "ways for parents to assist their child's learning",
+            "bounding_box": [
+              1.0661,
+              4.9211,
+              3.9185,
+              4.9189,
+              3.9186,
+              5.091,
+              1.0662,
+              5.0931
+            ],
+            "position": [
+              1.0661,
+              4.9211
+            ]
+          },
+          {
+            "text": "age-related rating for English, mathematics and science",
+            "bounding_box": [
+              1.0693,
+              5.2608,
+              4.5154,
+              5.2528,
+              4.5159,
+              5.4209,
+              1.0698,
+              5.4296
+            ],
+            "position": [
+              1.0693,
+              5.2608
+            ]
+          },
+          {
+            "text": "five-point scale rating the quality of achievement and progress",
+            "bounding_box": [
+              1.067,
+              5.5843,
+              4.8993,
+              5.5877,
+              4.8991,
+              5.7621,
+              1.0668,
+              5.7587
+            ],
+            "position": [
+              1.067,
+              5.5843
+            ]
+          },
+          {
+            "text": "PARENT/CARER COMMENT",
+            "bounding_box": [
+              1.0725,
+              6.0989,
+              3.6863,
+              6.0979,
+              3.6864,
+              6.3006,
+              1.0726,
+              6.3017
+            ],
+            "position": [
+              1.0725,
+              6.0989
+            ]
+          },
+          {
+            "text": "Schools have the option of having a separate page inviting parent feedback or comments on their",
+            "bounding_box": [
+              1.0746,
+              6.5813,
+              7.0637,
+              6.5831,
+              7.0637,
+              6.7585,
+              1.0746,
+              6.7577
+            ],
+            "position": [
+              1.0746,
+              6.5813
+            ]
+          },
+          {
+            "text": "child's report.",
+            "bounding_box": [
+              1.0708,
+              6.761,
+              1.9048,
+              6.765,
+              1.9041,
+              6.9208,
+              1.07,
+              6.9168
+            ],
+            "position": [
+              1.0708,
+              6.761
+            ]
+          },
+          {
+            "text": "STUDENT COMMENT",
+            "bounding_box": [
+              1.0715,
+              7.2618,
+              3.0612,
+              7.2624,
+              3.0612,
+              7.4657,
+              1.0715,
+              7.4653
+            ],
+            "position": [
+              1.0715,
+              7.2618
+            ]
+          },
+          {
+            "text": "Schools have the option of having a separate page to provide an opportunity for students to",
+            "bounding_box": [
+              1.0737,
+              7.7531,
+              6.6965,
+              7.7527,
+              6.6965,
+              7.9262,
+              1.0737,
+              7.9266
+            ],
+            "position": [
+              1.0737,
+              7.7531
+            ]
+          },
+          {
+            "text": "comment on their achievements, progress, school highlights and learning goals.",
+            "bounding_box": [
+              1.0732,
+              7.922,
+              5.9795,
+              7.9258,
+              5.9793,
+              8.0914,
+              1.073,
+              8.0868
+            ],
+            "position": [
+              1.0732,
+              7.922
+            ]
+          },
+          {
+            "text": "For more information, please visit:",
+            "bounding_box": [
+              1.0734,
+              8.2505,
+              3.1726,
+              8.252,
+              3.1725,
+              8.4157,
+              1.0733,
+              8.4142
+            ],
+            "position": [
+              1.0734,
+              8.2505
+            ]
+          }
+        ]
+      }
+    ],
+    "tables": [],
+    "headings": [
+      "COVER PAGE",
+      "A cover page can be used to display the following information:",
+      "INSIDE COVER PAGE",
+      "A page may be used to explain the format of reports to parents/carers including:",
+      "INITIAL PAGE",
+      "Schools may want to include a page with student personal information including:",
+      "SUBJECT PAGES",
+      "include:",
+      "PARENT/CARER COMMENT",
+      "STUDENT COMMENT",
+      "For more information, please visit:"
+    ],
+    "paragraphs": [],
+    "name": "1",
+    "extraction_date": "2025-04-19T10:13:13.446834",
+    "status": "completed"
+  }
+}
