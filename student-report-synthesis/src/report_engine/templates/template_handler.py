@@ -10,6 +10,85 @@ import re
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
+# In src/report_engine/templates/template_handler.py
+
+import base64
+import os
+from pathlib import Path
+
+class TemplateHandler:
+    # ... existing code ...
+    
+    def __init__(self, templates_dir: str = "templates", static_dir: str = "static"):
+        """
+        Initialize the template handler.
+        
+        Args:
+            templates_dir: Directory containing HTML templates
+            static_dir: Directory containing static files (images, etc.)
+        """
+        self.templates_dir = Path(templates_dir)
+        self.static_dir = Path(static_dir)
+        self.env = self._init_jinja_env()
+    
+    def _init_jinja_env(self) -> Optional[Environment]:
+        """Initialize the Jinja2 environment for template rendering."""
+        if Environment is None:
+            logger.warning("Jinja2 not available. Install it with: pip install jinja2")
+            return None
+        
+        try:
+            env = Environment(
+                loader=FileSystemLoader(self.templates_dir),
+                autoescape=select_autoescape(['html', 'xml']),
+                trim_blocks=True,
+                lstrip_blocks=True
+            )
+            
+            # Add functions to get embedded images
+            env.globals['get_image_base64'] = self.get_image_base64
+            
+            logger.info(f"Jinja2 environment initialized with templates from: {self.templates_dir}")
+            return env
+        except Exception as e:
+            logger.error(f"Failed to initialize Jinja2 environment: {str(e)}")
+            return None
+    
+    def get_image_base64(self, image_path: str) -> str:
+        """
+        Get base64 encoded image for embedding in HTML.
+        
+        Args:
+            image_path: Path to the image relative to static directory
+            
+        Returns:
+            Base64 encoded image string with data URI prefix
+        """
+        try:
+            full_path = self.static_dir / image_path
+            if not full_path.exists():
+                logger.warning(f"Image not found: {full_path}")
+                return ""
+                
+            mime_types = {
+                '.png': 'image/png',
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg', 
+                '.gif': 'image/gif',
+                '.svg': 'image/svg+xml'
+            }
+            
+            ext = full_path.suffix.lower()
+            mime_type = mime_types.get(ext, 'application/octet-stream')
+            
+            with open(full_path, "rb") as image_file:
+                encoded = base64.b64encode(image_file.read()).decode('utf-8')
+                
+            return f"data:{mime_type};base64,{encoded}"
+            
+        except Exception as e:
+            logger.error(f"Failed to encode image {image_path}: {str(e)}")
+            return ""
 
 # HTML template handling
 try:
