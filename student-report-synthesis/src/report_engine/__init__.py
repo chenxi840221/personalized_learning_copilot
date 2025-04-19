@@ -15,5 +15,4 @@ Modules:
 
 from src.report_engine.enhanced_report_generator import EnhancedReportGenerator
 from src.report_engine.student_data_generator import StudentProfile, SchoolProfile, StudentDataGenerator
-
 __version__ = "1.0.0"

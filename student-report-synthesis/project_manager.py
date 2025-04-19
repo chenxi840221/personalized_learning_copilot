@@ -16,6 +16,14 @@ from typing import List, Dict, Any, Optional
 
 # Import project components
 from content_generators import ContentGenerator
+
+# Try to import additional content generators if available
+try:
+    from content_generators_part2 import ContentGenerator as ContentGeneratorPart2
+    content_generator_part2 = ContentGeneratorPart2()
+except ImportError:
+    content_generator_part2 = None
+
 from template_generators import TemplateGenerator
 
 # Configure logging
@@ -65,23 +73,28 @@ class ProjectManager:
         # Define Python modules and their content
         self.python_modules = {
             # Main modules
-            "main.py": self.content_generator.get_main_py_content(),
-            "generate_reports.py": self.content_generator.get_generate_reports_py_content(),
-            "generate_dalle_reports.py": self.content_generator.get_generate_dalle_reports_content(),
-            "enhanced_pdf_converter.py": self.content_generator.get_enhanced_pdf_converter_content(),
+            "main.py": self._get_content_or_fallback('get_main_py_content'),
+            "generate_reports.py": self._get_content_or_fallback('get_generate_reports_py_content'),
+            "generate_dalle_reports.py": self._get_content_or_fallback('get_generate_dalle_reports_content', 
+                "#!/usr/bin/env python3\n\"\"\"\nDALL-E Report Generator\n\nUtility for generating reports with DALL-E images.\n\"\"\"\n\n# Implementation placeholder\n"),
+            "enhanced_pdf_converter.py": self._get_content_or_fallback('get_enhanced_pdf_converter_content',
+                "#!/usr/bin/env python3\n\"\"\"\nEnhanced PDF Converter\n\nUtility for converting HTML reports to PDF.\n\"\"\"\n\n# Implementation placeholder\n"),
             
             # src package
             "src/__init__.py": '"""Student Report Generation System package."""\n',
             
             # report_engine package
-            "src/report_engine/__init__.py": self.content_generator.get_report_engine_init_content(),
+            "src/report_engine/__init__.py": self._get_content_or_fallback('get_report_engine_init_content', 
+                '"""Report Engine Package for Student Report Generation System."""\n\nfrom src.report_engine.enhanced_report_generator import EnhancedReportGenerator\n'),
             "src/report_engine/enhanced_report_generator.py": None,  # Large file, load from source
             "src/report_engine/student_data_generator.py": None,  # Large file, load from source
             
             # AI module
-            "src/report_engine/ai/__init__.py": self.content_generator.get_ai_init_content(),
+            "src/report_engine/ai/__init__.py": self._get_content_or_fallback('get_ai_init_content',
+                '"""AI package for content generation using Azure OpenAI."""\n\nfrom src.report_engine.ai.ai_content_generator import AIContentGenerator\n'),
             "src/report_engine/ai/ai_content_generator.py": None,  # Large file, load from source
-            "src/report_engine/ai/dalle_image_generator.py": self.content_generator.get_dalle_image_generator_content(),
+            "src/report_engine/ai/dalle_image_generator.py": self._get_content_or_fallback('get_dalle_image_generator_content',
+                '"""DALL-E Image Generator module for creating images."""\n\n# Implementation placeholder\n'),
             
             # Styles module
             "src/report_engine/styles/__init__.py": '"""Styles package for report styles."""\n\nfrom src.report_engine.styles.report_styles import ReportStyle, ReportStyleHandler, get_style_handler\n',
@@ -93,7 +106,8 @@ class ProjectManager:
             
             # Utils module
             "src/report_engine/utils/__init__.py": '"""Utils package for utility functions."""\n\nfrom src.report_engine.utils.pdf_utils import convert_html_to_pdf\n',
-            "src/report_engine/utils/pdf_utils.py": self.content_generator.get_pdf_utils_content(),
+            "src/report_engine/utils/pdf_utils.py": self._get_content_or_fallback('get_pdf_utils_content',
+                '"""PDF Utilities Module for converting HTML to PDF."""\n\n# Implementation placeholder\n'),
         }
         
         # Define templates
@@ -104,12 +118,48 @@ class ProjectManager:
         
         # Define configuration files
         self.config_files = {
-            ".env.example": self.content_generator.get_env_example_content(),
-            "requirements.txt": self.content_generator.get_requirements_content(),
+            ".env.example": self._get_content_or_fallback('get_env_example_content',
+                "# Azure OpenAI API credentials\nOPENAI_ENDPOINT=\nOPENAI_KEY=\nOPENAI_DEPLOYMENT=gpt-4o\n"),
+            "requirements.txt": self._get_content_or_fallback('get_requirements_content', 
+                "# Core dependencies\nopenai>=1.0.0\npython-dotenv==1.0.0\n"),
             "setup.py": None,          # Load from source
-            "README.md": None,         # Load from source
-            "DALLE_INTEGRATION.md": self.content_generator.get_dalle_integration_readme()
+            "README.md": self._get_content_or_fallback('get_readme_content', 
+                "# Student Report Generation System\n\nAI-powered system for generating student reports.\n"),
+            "DALLE_INTEGRATION.md": self._get_content_or_fallback('get_dalle_integration_readme',
+                "# DALL-E Integration\n\nInformation about DALL-E integration features.\n")
         }
+    
+    def _get_content_or_fallback(self, method_name, fallback=None):
+        """
+        Get content from a method or use fallback content if the method doesn't exist.
+        
+        Args:
+            method_name: Name of the method to call
+            fallback: Fallback content to use if the method doesn't exist
+            
+        Returns:
+            Content from the method or fallback content
+        """
+        # Try getting from main content generator
+        if hasattr(self.content_generator, method_name):
+            try:
+                return getattr(self.content_generator, method_name)()
+            except Exception as e:
+                logger.warning(f"Error getting content from {method_name}: {str(e)}")
+        
+        # Try getting from part2 content generator if available
+        if content_generator_part2 and hasattr(content_generator_part2, method_name):
+            try:
+                return getattr(content_generator_part2, method_name)()
+            except Exception as e:
+                logger.warning(f"Error getting content from part2.{method_name}: {str(e)}")
+        
+        # Use fallback if provided
+        if fallback is not None:
+            return fallback
+        
+        # Create a generic placeholder
+        return f"\"\"\"Placeholder for content from {method_name}.\"\"\"\n\n# TODO: Implement this\n"
 
     def create_directories(self):
         """Create all project directories."""
@@ -270,9 +320,11 @@ Replace this with the actual implementation.
                     file_name = os.path.basename(file_path)
                     
                     if file_name == "requirements.txt":
-                        placeholder_content = self.content_generator.get_requirements_content()
+                        placeholder_content = self._get_content_or_fallback('get_requirements_content',
+                            "# Core dependencies\nopenai>=1.0.0\npython-dotenv==1.0.0\n")
                     elif file_name == "README.md":
-                        placeholder_content = self.content_generator.get_readme_content()
+                        placeholder_content = self._get_content_or_fallback('get_readme_content',
+                            "# Student Report Generation System\n\nAI-powered system for generating student reports.\n")
                     else:
                         placeholder_content = f"# Placeholder for {file_name}\n# Replace with actual content\n"
                     
@@ -283,8 +335,11 @@ Replace this with the actual implementation.
         # Create .gitignore file
         gitignore_file = self.base_dir / ".gitignore"
         if not gitignore_file.exists():
+            gitignore_content = self._get_content_or_fallback('get_gitignore_content',
+                "# Python\n__pycache__/\n*.py[cod]\n*$py.class\n\n# Virtual environments\nvenv/\nenv/\n\n# Environment variables\n.env\n\n# Generated reports\noutput/\n\n# Logs\nlogs/\n*.log\n")
+            
             with open(gitignore_file, "w") as f:
-                f.write(self.content_generator.get_gitignore_content())
+                f.write(gitignore_content)
             logger.info("Created .gitignore file")
 
 

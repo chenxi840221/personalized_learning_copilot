@@ -1,128 +1,135 @@
 # Student Report Generation System
 
-An AI-powered system for generating personalized student reports that follow Australian educational standards with support for different state/territory formats (ACT, NSW, etc.).
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
 
-## Overview
+An AI-powered system for generating personalized student reports following Australian educational standards with support for different state/territory formats (ACT, NSW, etc.).
 
-This system automates the creation of student academic reports by leveraging Azure OpenAI's GPT-4o to generate realistic, personalized report comments. It supports multiple Australian educational standards and formats, allowing schools to produce professional and consistent reports across different states and territories.
+## 📋 Overview
 
-## Features
+This system automates the creation of student academic reports by leveraging Azure OpenAI's GPT-4o to generate realistic, personalized report comments. It supports multiple Australian educational standards and formats, allowing schools to produce consistent and professional reports across different states and territories.
 
-### Core Functionality
-- **AI-Generated Content**: Uses Azure OpenAI's GPT-4o to generate realistic, personalized report comments based on student achievement and effort levels
-- **Multiple Report Styles**: Supports different Australian state/territory formats (ACT, NSW, QLD, VIC, etc.)
-- **Personalized Assessment**: Generates comments tailored to specific subjects and student profiles
-- **Batch Processing**: Generate multiple reports at once with unique synthetic student profiles
-- **Multiple Output Formats**: Export reports as PDF or HTML with professionally formatted layouts
+### 🎯 Key Features
 
-### Technical Features
-- **Customizable Templates**: HTML-based templates for easy customization
-- **Robust PDF Generation**: Multiple PDF conversion methods for maximum reliability
-- **Realistic Student Data**: Generate synthetic student profiles for testing with diverse demographics
-- **Style Management**: Easily configure different grading scales, subjects, and terminology
-- **Command-Line Interface**: Simple CLI for generating reports individually or in batches
+- **🤖 AI-Generated Content**: Uses Azure OpenAI's GPT-4o to generate realistic, personalized report comments based on student achievement and effort levels
+- **🏫 Multiple Report Styles**: Supports different Australian educational standards (ACT, NSW, QLD, VIC, etc.)
+- **👨‍🎓 Synthetic Student Profiles**: Generates diverse, realistic student profiles for testing
+- **📊 Customizable Assessments**: Creates comments tailored to specific subjects and student profiles
+- **⚡ Batch Processing**: Generate multiple reports simultaneously with unique student profiles
+- **📄 Multiple Output Formats**: Export reports as PDF or HTML with professionally formatted layouts
+- **🖼️ DALL-E Image Generation**: Optional integration to create school logos and student photos
 
-## System Architecture
-
-### Core Components
-- **AI Content Generator**: Interfaces with Azure OpenAI to generate personalized report comments
-- **Report Style Handling**: Manages different grading scales and formats by state/territory
-- **Template System**: HTML-based template rendering for consistent report formatting
-- **PDF Generation**: Multiple fallback methods to ensure reliable PDF production
-- **Student Data Generator**: Creates realistic synthetic student profiles for testing
-
-### Directory Structure
-```
-student-report-synthesis/
-├── src/
-│   └── report_engine/
-│       ├── ai/                 # AI content generation using Azure OpenAI
-│       ├── styles/             # Report style handling for different standards
-│       ├── templates/          # HTML template handling and rendering
-│       ├── utils/              # Utility functions (PDF conversion, etc.)
-│       ├── student_data_generator.py  # Synthetic student profile generation
-│       └── enhanced_report_generator.py  # Main report generation logic
-├── report_styles/              # JSON configurations for different report formats
-├── templates/                  # HTML templates for report rendering
-├── output/                     # Generated reports are saved here
-├── main.py                     # Main entry point to run a single report
-├── generate_reports.py         # CLI for generating individual or batch reports
-├── enhanced_pdf_converter.py   # Standalone tool for HTML to PDF conversion
-└── manage_project.py           # Project management utilities
-```
-
-## Setup
+## 🛠️ Installation
 
 ### Prerequisites
+
 - Python 3.8 or higher
 - Azure OpenAI API access
 - Required Python packages (see requirements.txt)
 
-### Installation
-1. Clone the repository:
+### Steps
+
+1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/student-report-synthesis.git
+   git clone https://github.com/yourusername/student-report-synthesis.git
    cd student-report-synthesis
    ```
 
-2. Install dependencies:
+2. **Set up a virtual environment (recommended)**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows, use: venv\Scripts\activate
+   ```
+
+3. **Install dependencies**
    ```bash
    pip install -r requirements.txt
    ```
 
-3. Configure environment variables in `.env` file:
-   ```
-   OPENAI_ENDPOINT=https://your-openai.openai.azure.com/
-   OPENAI_KEY=your-openai-key
-   OPENAI_DEPLOYMENT=gpt-4o
+4. **Configure environment variables**
+   - Create a `.env` file in the project root
+   - Add your Azure OpenAI credentials:
+     ```
+     OPENAI_ENDPOINT=https://your-openai.openai.azure.com/
+     OPENAI_KEY=your-openai-key
+     OPENAI_DEPLOYMENT=gpt-4o
+     ```
+
+5. **Set up project directories**
+   ```bash
+   python manage_project.py setup
    ```
 
 ### Optional Dependencies
-For PDF generation:
-- WeasyPrint (recommended for best quality)
-- xhtml2pdf (fallback)
-- wkhtmltopdf (command-line tool, recommended for enhanced PDF handling)
 
-## Usage
+For enhanced PDF generation:
+- **WeasyPrint** (recommended for best quality)
+  ```bash
+  pip install weasyprint
+  ```
+- **xhtml2pdf** (fallback option)
+  ```bash
+  pip install xhtml2pdf
+  ```
+- **wkhtmltopdf** (external tool for improved rendering)
+  - Download from: https://wkhtmltopdf.org/downloads.html
 
-### Basic Usage
+## 🚀 Usage
+
+### Quick Start
+
 Generate a sample report with default settings:
 ```bash
 python main.py
 ```
 
 ### Command-line Interface
+
 The system provides a comprehensive command-line interface for report generation:
 
-#### Generate a single report:
+#### Generate a single report
+
 ```bash
 python generate_reports.py single --style act --format pdf --comment-length standard
 ```
 
-#### Generate multiple reports in batch:
+#### Generate multiple reports in batch
+
 ```bash
 python generate_reports.py batch --num 10 --style nsw --format pdf
 ```
 
-#### List available report styles:
+#### List available report styles
+
 ```bash
 python generate_reports.py styles
 ```
 
-#### Validate your setup:
+#### Validate your setup
+
 ```bash
 python generate_reports.py validate
 ```
 
 ### Command Options
+
 - `--style`: Report style (generic, act, nsw, qld, vic, etc.)
 - `--format`: Output format (pdf, html)
 - `--comment-length`: Length of generated comments (brief, standard, detailed)
 - `--output`: Custom output file path (for single reports)
 - `--num`: Number of reports to generate (for batch mode)
 - `--batch-id`: Custom batch ID (for batch mode)
+- `--images`: Enable DALL-E image generation (requires Azure OpenAI DALL-E access)
 
-## Report Styles
+### DALL-E Image Integration
+
+For reports with AI-generated images:
+
+```bash
+python generate_dalle_reports.py single --style act --badge-style modern
+```
+
+## 🏫 Supported Report Styles
 
 The system supports multiple Australian educational jurisdiction styles:
 
@@ -134,51 +141,149 @@ The system supports multiple Australian educational jurisdiction styles:
 | qld | Queensland format |
 | vic | Victoria format |
 
-Additional styles can be added by creating new JSON configuration files in the `report_styles` directory.
+Each style includes:
+- Jurisdiction-specific subject names
+- Custom achievement and effort scales
+- Specialized report layouts and terminology
 
-## Customization
+## 📁 Project Structure
+
+```
+student-report-synthesis/
+├── src/
+│   └── report_engine/
+│       ├── ai/                 # AI content generation
+│       │   ├── ai_content_generator.py  # GPT-4o integration
+│       │   └── dalle_image_generator.py # DALL-E integration
+│       ├── styles/             # Report style handling
+│       ├── templates/          # HTML template handling
+│       ├── utils/              # Utility functions
+│       ├── student_data_generator.py  # Synthetic profiles
+│       └── enhanced_report_generator.py  # Main generator
+├── report_styles/              # Style configurations (JSON)
+├── templates/                  # HTML templates
+├── static/                     # Static assets
+│   └── images/
+│       └── logos/              # School and jurisdiction logos
+├── output/                     # Generated reports
+├── main.py                     # Main entry point
+├── generate_reports.py         # CLI for report generation
+├── generate_dalle_reports.py   # DALL-E integration demo
+└── manage_project.py           # Project setup utility
+```
+
+## ✨ Customization
 
 ### Templates
-Report templates are HTML files located in the `templates` directory. They can be customized to match your school's branding and layout preferences.
+
+Report templates are HTML files located in the `templates/` directory. They can be customized to match your school's branding and layout preferences.
+
+```bash
+# Example: Create a new template for Queensland reports
+cp templates/nsw_template.html templates/qld_template.html
+# Edit qld_template.html with your preferred changes
+```
 
 ### Report Styles
-Each report style is defined in a JSON file in the `report_styles` directory. You can customize:
+
+Each report style is defined in a JSON file in the `report_styles/` directory. You can customize:
+
 - Subject names
 - Achievement scales
 - Effort scales
 - Additional assessment criteria
 
 ### AI Prompts
-The AI prompts used to generate report comments can be found in `src/report_engine/ai/ai_content_generator.py` and can be adjusted to match your school's tone and content requirements.
 
-## Development
+The AI prompts used to generate report comments can be found in `src/report_engine/ai/ai_content_generator.py`. You can adjust these to match your school's tone and content requirements.
 
-### Project Structure
-The codebase follows a modular structure with clear separation of concerns:
-- **AI Generation**: Handled by the `AIContentGenerator` class
-- **Report Styles**: Managed by the `ReportStyleHandler` class
-- **Templates**: Managed by the `TemplateHandler` class
-- **Student Data**: Generated by the `StudentDataGenerator` class
-- **Report Generation**: Orchestrated by the `EnhancedReportGenerator` class
+## 💻 Development
 
 ### Adding a New Report Style
+
 1. Create a new JSON file in `report_styles/` (e.g., `sa.json` for South Australia)
 2. Define the style properties (subjects, achievement scale, effort scale, etc.)
 3. Optionally create a corresponding HTML template in `templates/` (e.g., `sa_template.html`)
 
+Example JSON configuration:
+```json
+{
+  "name": "South Australia Student Report",
+  "description": "South Australia school report format",
+  "subjects": ["English", "Mathematics", "Science", "HASS", ...],
+  "achievement_scale": [
+    {"code": "A", "label": "Excellent", "description": "..."},
+    ...
+  ],
+  "effort_scale": [
+    {"code": "E", "label": "Excellent", "description": "..."},
+    ...
+  ],
+  "template_file": "sa_template.html"
+}
+```
+
 ### Creating Custom Templates
-Templates use Jinja2 syntax and have access to the following data:
-- `data.student`: Student information (name, grade, class, teacher, etc.)
-- `data.school`: School information (name, principal, etc.)
-- `data.subjects`: Subject assessments (subject, achievement, effort, comment)
-- `data.general_comment`: Overall student comment
-- `data.attendance`: Attendance information
 
-## License
+Templates use Jinja2 syntax and have access to the following data structure:
 
-[Specify your license here]
+```python
+{
+  "student": {
+    "name": {"first_name": "...", "last_name": "...", "full_name": "..."},
+    "gender": "male/female/non-binary",
+    "grade": "Year 3",
+    "class": "3A",
+    "teacher": {"title": "Mr.", "last_name": "Smith", "full_name": "Mr. Smith"}
+  },
+  "school": {
+    "name": "Example Primary School",
+    "type": "Primary School",
+    "state": "act",
+    "suburb": "Canberra",
+    "principal": "Dr. Jane Doe"
+  },
+  "subjects": [
+    {
+      "subject": "English",
+      "achievement": {"code": "B", "label": "High"},
+      "effort": {"code": "E", "label": "Excellent"},
+      "comment": "..."
+    },
+    ...
+  ],
+  "general_comment": "...",
+  "attendance": {
+    "present_days": 45,
+    "absent_days": 5,
+    "late_days": 2,
+    "attendance_rate": 90.0
+  },
+  "semester": "1",
+  "year": 2025,
+  "report_date": "19 April 2025"
+}
+```
 
-## Acknowledgements
+## 🧪 Testing
+
+Run the test suite:
+
+```bash
+pytest
+```
+
+For coverage analysis:
+
+```bash
+pytest --cov=src tests/
+```
+
+## 📝 License
+
+[MIT License](LICENSE)
+
+## 🙏 Acknowledgements
 
 - This project uses Azure OpenAI services for AI-generated content
 - PDF conversion uses multiple libraries including WeasyPrint and xhtml2pdf

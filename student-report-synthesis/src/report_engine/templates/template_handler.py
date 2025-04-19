@@ -8,16 +8,32 @@ and rendering them with student data to create reports.
 import os
 import re
 import logging
+import base64
 from pathlib import Path
 from typing import Dict, Any, Optional
-# In src/report_engine/templates/template_handler.py
 
-import base64
-import os
-from pathlib import Path
+# HTML template handling - import Jinja2 first before defining classes
+try:
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
+except ImportError:
+    logging.warning("Jinja2 not installed. Template rendering will not be available.")
+    Environment = None
+    FileSystemLoader = None
+    select_autoescape = None
+
+# PDF conversion
+try:
+    import xhtml2pdf.pisa as pisa
+except ImportError:
+    logging.warning("xhtml2pdf not installed. HTML to PDF conversion will not be available.")
+    pisa = None
+
+# Set up logging
+logger = logging.getLogger(__name__)
+
 
 class TemplateHandler:
-    # ... existing code ...
+    """Handler for report templates and rendering."""
     
     def __init__(self, templates_dir: str = "templates", static_dir: str = "static"):
         """
@@ -89,56 +105,6 @@ class TemplateHandler:
         except Exception as e:
             logger.error(f"Failed to encode image {image_path}: {str(e)}")
             return ""
-
-# HTML template handling
-try:
-    from jinja2 import Environment, FileSystemLoader, select_autoescape
-except ImportError:
-    logging.warning("Jinja2 not installed. Template rendering will not be available.")
-    Environment = None
-
-# PDF conversion
-try:
-    import xhtml2pdf.pisa as pisa
-except ImportError:
-    logging.warning("xhtml2pdf not installed. HTML to PDF conversion will not be available.")
-    pisa = None
-
-# Set up logging
-logger = logging.getLogger(__name__)
-
-
-class TemplateHandler:
-    """Handler for report templates and rendering."""
-    
-    def __init__(self, templates_dir: str = "templates"):
-        """
-        Initialize the template handler.
-        
-        Args:
-            templates_dir: Directory containing HTML templates
-        """
-        self.templates_dir = Path(templates_dir)
-        self.env = self._init_jinja_env()
-        
-    def _init_jinja_env(self) -> Optional[Environment]:
-        """Initialize the Jinja2 environment for template rendering."""
-        if Environment is None:
-            logger.warning("Jinja2 not available. Install it with: pip install jinja2")
-            return None
-        
-        try:
-            env = Environment(
-                loader=FileSystemLoader(self.templates_dir),
-                autoescape=select_autoescape(['html', 'xml']),
-                trim_blocks=True,
-                lstrip_blocks=True
-            )
-            logger.info(f"Jinja2 environment initialized with templates from: {self.templates_dir}")
-            return env
-        except Exception as e:
-            logger.error(f"Failed to initialize Jinja2 environment: {str(e)}")
-            return None
     
     def render_template(self, template_name: str, data: Dict[str, Any]) -> Optional[str]:
         """
@@ -895,27 +861,3 @@ class TemplateHandler:
 </body>
 </html>
 """
-
-
-# Update the templates package __init__.py to import this module
-def update_templates_init():
-    """Update the templates package __init__.py to import this module."""
-    init_path = Path(__file__).parent / "__init__.py"
-    
-    if init_path.exists():
-        with open(init_path, "r") as f:
-            content = f.read()
-        
-        if "from src.report_engine.templates.template_handler import TemplateHandler" not in content:
-            with open(init_path, "a") as f:
-                f.write("\nfrom src.report_engine.templates.template_handler import TemplateHandler\n")
-    
-    logger.info("Updated templates package __init__.py")
-
-
-# Automatically update the templates package __init__.py when this module is imported
-if __name__ != "__main__":
-    try:
-        update_templates_init()
-    except Exception as e:
-        logger.error(f"Failed to update templates package __init__.py: {str(e)}")
