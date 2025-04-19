@@ -1,0 +1,40 @@
+{
+  "batch_id": "batch_68b49641",
+  "template_id": "primary-reporting-template-annotated_7a673f92",
+  "template_name": "primary-reporting-template-annotated",
+  "num_reports": 5,
+  "reports": [
+    {
+      "id": "report_1",
+      "student_name": "Alexander Martin",
+      "path": "output/batch_68b49641/report_1.pdf",
+      "status": "generated"
+    },
+    {
+      "id": "report_2",
+      "student_name": "Olivia Harris",
+      "path": "output/batch_68b49641/report_2.pdf",
+      "status": "generated"
+    },
+    {
+      "id": "report_3",
+      "student_name": "Daniel Hernandez",
+      "path": "output/batch_68b49641/report_3.pdf",
+      "status": "generated"
+    },
+    {
+      "id": "report_4",
+      "student_name": "Emma Walker",
+      "path": "output/batch_68b49641/report_4.pdf",
+      "status": "generated"
+    },
+    {
+      "id": "report_5",
+      "student_name": "Harper Lewis",
+      "path": "output/batch_68b49641/report_5.pdf",
+      "status": "generated"
+    }
+  ],
+  "status": "completed",
+  "completion_time": "2025-04-19T12:05:14.790139"
+}

@@ -7,406 +7,482 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.10.5/cdn.min.js" defer></script>
 </head>
-<body class="bg-gray-100 min-h-screen">
-    <div x-data="app()" class="container mx-auto px-4 py-8">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-center text-blue-800">Student Report Synthesis System</h1>
-            <p class="text-center text-gray-600">Generate standardized student reports following Australian education guidelines</p>
-        </header>
-
-        <!-- System Status Banner -->
-        <div x-show="systemStatus" :class="systemStatus.status === 'healthy' ? 'bg-green-100 border-green-400 text-green-700' : 'bg-red-100 border-red-400 text-red-700'" class="border px-4 py-3 rounded relative mb-6">
-            <span x-text="systemStatus.status === 'healthy' ? 'System is operational' : 'System has issues'"></span>
-            <span x-show="!systemStatus.document_client" class="block mt-1 text-sm">Warning: Document Intelligence client not connected</span>
-            <span x-show="!systemStatus.openai_client" class="block mt-1 text-sm">Warning: OpenAI client not connected</span>
+<body class="bg-gray-100" x-data="app()">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-center text-blue-800">Student Report Synthesis System</h1>
+        <p class="text-center text-gray-600 mb-8">Generate standardized student reports following Australian education guidelines</p>
+        
+        <!-- Status Messages -->
+        <div x-show="statusMessage" :class="statusSuccess ? 'bg-green-100 border-green-400 text-green-700' : 'bg-red-100 border-red-400 text-red-700'" class="border px-4 py-3 rounded relative mb-6">
+            <span x-text="statusMessage"></span>
+            <span class="absolute top-0 bottom-0 right-0 px-4 py-3" @click="statusMessage = ''">
+                <svg class="fill-current h-6 w-6" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                    <title>Close</title>
+                    <path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/>
+                </svg>
+            </span>
+        </div>
+        
+        <!-- System Status -->
+        <div class="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded mb-8">
+            <div class="flex items-center">
+                <div class="mr-2">
+                    <svg class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div>
+                    <p class="font-bold">System Status</p>
+                    <p class="text-sm" x-text="systemStatus"></p>
+                </div>
+            </div>
         </div>
 
-        <!-- Error Message -->
-        <div x-show="errorMessage" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6">
-            <span class="block sm:inline" x-text="errorMessage"></span>
-            <button @click="errorMessage = ''" class="absolute top-0 bottom-0 right-0 px-4 py-3">
-                <svg class="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/></svg>
-            </button>
+        <!-- Tabs -->
+        <div class="mb-6">
+            <ul class="flex border-b">
+                <li class="-mb-px mr-1" @click="activeTab = 'upload'">
+                    <a :class="activeTab === 'upload' ? 'border-l border-t border-r rounded-t bg-white text-blue-700' : 'text-blue-500 hover:text-blue-800'" class="inline-block py-2 px-4 font-semibold" href="#">
+                        1. Upload Templates
+                    </a>
+                </li>
+                <li class="mr-1" @click="activeTab = 'generate'">
+                    <a :class="activeTab === 'generate' ? 'border-l border-t border-r rounded-t bg-white text-blue-700' : 'text-blue-500 hover:text-blue-800'" class="inline-block py-2 px-4 font-semibold" href="#">
+                        2. Generate Reports
+                    </a>
+                </li>
+                <li class="mr-1" @click="activeTab = 'download'">
+                    <a :class="activeTab === 'download' ? 'border-l border-t border-r rounded-t bg-white text-blue-700' : 'text-blue-500 hover:text-blue-800'" class="inline-block py-2 px-4 font-semibold" href="#">
+                        3. Download Reports
+                    </a>
+                </li>
+            </ul>
         </div>
 
-        <div class="bg-white shadow-md rounded-lg p-6 mb-8">
-            <h2 class="text-xl font-semibold mb-4">1. Upload Report Templates</h2>
+        <!-- Upload Template Tab -->
+        <div x-show="activeTab === 'upload'" class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-bold mb-4">Upload Report Templates</h2>
             <form @submit.prevent="uploadTemplate" class="space-y-4">
                 <div>
-                    <label for="templateName" class="block text-sm font-medium text-gray-700">Template Name</label>
-                    <input type="text" id="templateName" x-model="newTemplate.name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
+                    <label for="templateName" class="block text-gray-700 font-bold mb-2">Template Name</label>
+                    <input type="text" id="templateName" x-model="templateName" class="w-full px-3 py-2 border border-gray-300 rounded-md" required>
                 </div>
                 <div>
-                    <label for="templateFile" class="block text-sm font-medium text-gray-700">Template PDF</label>
-                    <input type="file" id="templateFile" @change="handleFileChange" accept=".pdf" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" required>
+                    <label for="templateFile" class="block text-gray-700 font-bold mb-2">Template PDF or Word Document</label>
+                    <input type="file" id="templateFile" @change="handleFileSelect" class="w-full px-3 py-2 border border-gray-300 rounded-md" accept=".pdf,.doc,.docx" required>
+                    <p class="text-sm text-gray-500 mt-1">Supported formats: PDF, DOC, DOCX</p>
                 </div>
                 <div>
-                    <button 
-                        type="submit" 
-                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                        :disabled="isUploading"
-                    >
-                        <span x-show="isUploading" class="mr-2">
-                            <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                        </span>
-                        <span x-text="isUploading ? 'Uploading...' : 'Upload Template'"></span>
+                    <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                        Upload Template
                     </button>
                 </div>
             </form>
-        </div>
 
-        <div class="bg-white shadow-md rounded-lg p-6 mb-8">
-            <h2 class="text-xl font-semibold mb-4">2. Available Templates</h2>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200" x-show="!isLoadingTemplates">
-                        <template x-for="template in templates" :key="template.template_id">
-                            <tr>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" x-text="template.name"></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <span x-show="template.status === 'completed'" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                        Completed
-                                    </span>
-                                    <span x-show="template.status === 'processing'" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                                        Processing
-                                    </span>
-                                    <span x-show="template.status === 'failed'" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                                        Failed
-                                    </span>
-                                    <span x-show="template.status === 'unknown'" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                                        Unknown
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="formatDate(template.extraction_date)"></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                    <button 
-                                        @click="selectTemplate(template)" 
-                                        :disabled="template.status !== 'completed'"
-                                        :class="{'bg-blue-600 hover:bg-blue-700 text-white': template.status === 'completed', 'bg-gray-400 cursor-not-allowed text-gray-200': template.status !== 'completed'}"
-                                        class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                        Use Template
-                                    </button>
-                                </td>
-                            </tr>
-                        </template>
-                        <tr x-show="templates.length === 0 && !isLoadingTemplates">
-                            <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">No templates available. Please upload a template first.</td>
-                        </tr>
-                    </tbody>
-                    <tbody x-show="isLoadingTemplates">
-                        <tr>
-                            <td colspan="4" class="px-6 py-4 text-center">
-                                <div class="flex justify-center">
-                                    <svg class="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div x-show="selectedTemplate" class="bg-white shadow-md rounded-lg p-6 mb-8">
-            <h2 class="text-xl font-semibold mb-4">3. Generate Reports</h2>
-            <div class="mb-4">
-                <p class="text-gray-700">Selected Template: <span class="font-medium" x-text="selectedTemplate ? selectedTemplate.name : ''"></span></p>
-            </div>
-            <form @submit.prevent="generateReports" class="space-y-4">
-                <div>
-                    <label for="numSamples" class="block text-sm font-medium text-gray-700">Number of Reports</label>
-                    <input type="number" id="numSamples" x-model="reportRequest.num_samples" min="1" max="20" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
-                    <p class="mt-1 text-xs text-gray-500">Maximum 20 reports per batch</p>
-                </div>
-                <div>
-                    <button 
-                        type="submit" 
-                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                        :disabled="isGenerating"
-                    >
-                        <span x-show="isGenerating" class="mr-2">
-                            <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                        </span>
-                        <span x-text="isGenerating ? 'Generating...' : 'Generate Reports'"></span>
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <div x-show="currentBatch" class="bg-white shadow-md rounded-lg p-6 mb-8">
-            <h2 class="text-xl font-semibold mb-4">4. Report Generation Status</h2>
-            <div class="mb-4">
-                <p class="text-gray-700">Batch ID: <span class="font-medium" x-text="currentBatch ? currentBatch.batch_id : ''"></span></p>
-                <p class="text-gray-700">Status: 
-                    <span x-show="currentBatch && currentBatch.status === 'completed'" class="font-medium text-green-600">Completed</span>
-                    <span x-show="currentBatch && currentBatch.status === 'processing'" class="font-medium text-yellow-600">Processing</span>
-                    <span x-show="currentBatch && currentBatch.status === 'failed'" class="font-medium text-red-600">Failed</span>
-                </p>
-                <div x-show="currentBatch && currentBatch.status === 'processing'" class="mt-2">
-                    <div class="w-full bg-gray-200 rounded-full h-2.5">
-                        <div class="bg-blue-600 h-2.5 rounded-full" :style="`width: ${currentBatch.progress}%`"></div>
-                    </div>
-                    <p class="text-sm text-gray-600 mt-1">
-                        <span x-text="currentBatch.completed"></span> of <span x-text="currentBatch.total"></span> reports generated
-                    </p>
-                </div>
-                <div x-show="currentBatch && currentBatch.status === 'failed'" class="mt-2">
-                    <p class="text-sm text-red-600">Error: <span x-text="currentBatch.error || 'Unknown error'"></span></p>
-                </div>
-            </div>
-
-            <div x-show="currentBatch && currentBatch.status === 'completed' && currentBatch.reports && currentBatch.reports.length > 0">
-                <h3 class="text-lg font-medium mb-2">Generated Reports</h3>
+            <div class="mt-8">
+                <h3 class="text-lg font-bold mb-4">Available Templates</h3>
                 <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
+                    <table class="min-w-full bg-white">
+                        <thead>
                             <tr>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Grade</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                    Name
+                                </th>
+                                <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                    Status
+                                </th>
+                                <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                    Date
+                                </th>
+                                <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                    Actions
+                                </th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            <template x-for="report in currentBatch.reports" :key="report.report_id">
+                        <tbody>
+                            <template x-if="templates.length === 0">
                                 <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" x-text="report.student_name"></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="report.grade_level"></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="report.compliance_score + '%'"></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                        <a 
-                                            :href="`/reports/${currentBatch.batch_id}/${report.report_id}/download/`" 
-                                            target="_blank"
-                                            class="text-blue-600 hover:text-blue-900">
-                                            Download PDF
-                                        </a>
+                                    <td colspan="4" class="py-4 px-6 border-b border-gray-200 text-center">
+                                        No templates available. Please upload a template first.
+                                    </td>
+                                </tr>
+                            </template>
+                            <template x-for="template in templates" :key="template.id">
+                                <tr>
+                                    <td class="py-2 px-4 border-b border-gray-200" x-text="template.name"></td>
+                                    <td class="py-2 px-4 border-b border-gray-200">
+                                        <span :class="template.status === 'ready' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'" class="px-2 py-1 rounded-full text-xs" x-text="template.status"></span>
+                                    </td>
+                                    <td class="py-2 px-4 border-b border-gray-200" x-text="formatDate(template.upload_date)"></td>
+                                    <td class="py-2 px-4 border-b border-gray-200">
+                                        <button @click="selectTemplate(template)" class="bg-blue-500 hover:bg-blue-700 text-white text-xs py-1 px-2 rounded">
+                                            Select
+                                        </button>
                                     </td>
                                 </tr>
                             </template>
                         </tbody>
                     </table>
                 </div>
-                <div class="mt-4">
-                    <a 
-                        :href="`/reports/${currentBatch.batch_id}/download-all/`" 
-                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                        Download All Reports (ZIP)
-                    </a>
+            </div>
+        </div>
+
+        <!-- Generate Reports Tab -->
+        <div x-show="activeTab === 'generate'" class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-bold mb-4">Generate Student Reports</h2>
+            
+            <div x-show="!selectedTemplate.id" class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4">
+                <p>Please select a template first from the "Upload Templates" tab.</p>
+            </div>
+            
+            <div x-show="selectedTemplate.id">
+                <div class="mb-4">
+                    <p class="text-gray-700">Selected Template: <span class="font-bold" x-text="selectedTemplate.name"></span></p>
+                </div>
+                
+                <form @submit.prevent="generateReports" class="space-y-4">
+                    <div>
+                        <label for="numReports" class="block text-gray-700 font-bold mb-2">Number of Reports</label>
+                        <input type="number" id="numReports" x-model="numReports" min="1" max="20" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <p class="text-sm text-gray-500 mt-1">Generate between 1 and 20 reports</p>
+                    </div>
+                    <div>
+                        <button type="submit" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+                            Generate Reports
+                        </button>
+                    </div>
+                </form>
+                
+                <div class="mt-8" x-show="batches.length > 0">
+                    <h3 class="text-lg font-bold mb-4">Generated Report Batches</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full bg-white">
+                            <thead>
+                                <tr>
+                                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                        Batch ID
+                                    </th>
+                                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                        Template
+                                    </th>
+                                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                        Reports
+                                    </th>
+                                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                        Status
+                                    </th>
+                                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                        Actions
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="batch in batches" :key="batch.batch_id">
+                                    <tr>
+                                        <td class="py-2 px-4 border-b border-gray-200" x-text="batch.batch_id"></td>
+                                        <td class="py-2 px-4 border-b border-gray-200" x-text="batch.template_name"></td>
+                                        <td class="py-2 px-4 border-b border-gray-200" x-text="batch.num_reports"></td>
+                                        <td class="py-2 px-4 border-b border-gray-200">
+                                            <span :class="batch.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'" class="px-2 py-1 rounded-full text-xs" x-text="batch.status"></span>
+                                        </td>
+                                        <td class="py-2 px-4 border-b border-gray-200">
+                                            <button @click="viewBatch(batch)" class="bg-blue-500 hover:bg-blue-700 text-white text-xs py-1 px-2 rounded">
+                                                View
+                                            </button>
+                                            <button @click="downloadAllReports(batch.batch_id)" class="bg-green-500 hover:bg-green-700 text-white text-xs py-1 px-2 rounded ml-2">
+                                                Download All
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
+
+        <!-- Download Reports Tab -->
+        <div x-show="activeTab === 'download'" class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-bold mb-4">Download Student Reports</h2>
+            
+            <div x-show="!selectedBatch.batch_id" class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4">
+                <p>No batch selected. Please go to the "Generate Reports" tab to select a batch.</p>
+            </div>
+            
+            <div x-show="selectedBatch.batch_id">
+                <div class="mb-4">
+                    <p class="text-gray-700">Batch ID: <span class="font-bold" x-text="selectedBatch.batch_id"></span></p>
+                    <p class="text-gray-700">Template: <span class="font-bold" x-text="selectedBatch.template_name"></span></p>
+                    <p class="text-gray-700">Status: 
+                        <span :class="selectedBatch.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'" class="px-2 py-1 rounded-full text-xs" x-text="selectedBatch.status"></span>
+                    </p>
+                </div>
+                
+                <div class="flex justify-end mb-4">
+                    <button @click="downloadAllReports(selectedBatch.batch_id)" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+                        Download All Reports
+                    </button>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="min-w-full bg-white">
+                        <thead>
+                            <tr>
+                                <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                    Report ID
+                                </th>
+                                <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                    Student Name
+                                </th>
+                                <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                    Status
+                                </th>
+                                <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="report in selectedBatch.reports || []" :key="report.id">
+                                <tr>
+                                    <td class="py-2 px-4 border-b border-gray-200" x-text="report.id"></td>
+                                    <td class="py-2 px-4 border-b border-gray-200" x-text="report.student_name || 'Unnamed Student'"></td>
+                                    <td class="py-2 px-4 border-b border-gray-200">
+                                        <span :class="report.status === 'generated' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'" class="px-2 py-1 rounded-full text-xs" x-text="report.status"></span>
+                                    </td>
+                                    <td class="py-2 px-4 border-b border-gray-200">
+                                        <button x-show="report.status === 'generated'" @click="downloadReport(selectedBatch.batch_id, report.id)" class="bg-blue-500 hover:bg-blue-700 text-white text-xs py-1 px-2 rounded">
+                                            Download
+                                        </button>
+                                        <span x-show="report.status !== 'generated'" class="text-gray-500 text-xs">Not available</span>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <script>
         function app() {
             return {
-                apiUrl: '', // Base API URL - empty string if running on same domain
-                newTemplate: {
-                    name: '',
-                    file: null
-                },
-                templates: [],
-                selectedTemplate: null,
-                reportRequest: {
-                    template_id: '',
-                    num_samples: 5,
-                },
-                currentBatch: null,
-                statusInterval: null,
-                errorMessage: '',
-                isUploading: false,
-                isGenerating: false,
-                isLoadingTemplates: true,
-                systemStatus: null,
-
+                activeTab: 'upload',
+                statusMessage: '',
+                statusSuccess: true,
+                systemStatus: 'Checking system status...',
+                templateName: '',
+                templateFile: null,
+                templates: [], // Explicitly initialize as an empty array
+                selectedTemplate: {},
+                numReports: 5,
+                batches: [], // Explicitly initialize as an empty array
+                selectedBatch: { reports: [] }, // Initialize with an empty reports array
+                
                 init() {
                     this.checkSystemHealth();
-                    this.fetchTemplates();
-                },
-
-                formatDate(dateString) {
-                    if (!dateString) return 'N/A';
-                    const date = new Date(dateString);
-                    return date.toLocaleString();
+                    this.loadTemplates();
                 },
                 
                 async checkSystemHealth() {
                     try {
-                        const response = await fetch(`${this.apiUrl}/health`);
-                        if (response.ok) {
-                            this.systemStatus = await response.json();
+                        const response = await fetch('/health');
+                        const data = await response.json();
+                        
+                        if (data.status === 'healthy') {
+                            this.systemStatus = 'System is operational';
                         } else {
-                            this.systemStatus = { status: 'unhealthy', document_client: false, openai_client: false };
+                            this.systemStatus = 'System is partially operational. Some features may be limited.';
                         }
                     } catch (error) {
+                        this.systemStatus = 'System status check failed. Some features may be unavailable.';
                         console.error('Health check failed:', error);
-                        this.systemStatus = { status: 'unhealthy', document_client: false, openai_client: false };
                     }
                 },
-
-                handleFileChange(event) {
-                    this.newTemplate.file = event.target.files[0];
-                    console.log('File selected:', this.newTemplate.file);
+                
+                handleFileSelect(event) {
+                    this.templateFile = event.target.files[0];
                 },
-
+                
                 async uploadTemplate() {
-                    if (!this.newTemplate.name || !this.newTemplate.file) {
-                        this.errorMessage = 'Please provide a template name and file';
+                    if (!this.templateName || !this.templateFile) {
+                        this.showError('Please provide a template name and file');
                         return;
                     }
-
-                    this.isUploading = true;
-                    this.errorMessage = '';
                     
                     const formData = new FormData();
-                    formData.append('template_file', this.newTemplate.file);
-                    formData.append('template_name', this.newTemplate.name);
-
+                    formData.append('template_name', this.templateName);
+                    formData.append('template_file', this.templateFile);
+                    
                     try {
-                        console.log('Uploading:', this.newTemplate.name, this.newTemplate.file);
-                        
-                        const response = await fetch(`${this.apiUrl}/templates/upload/`, {
+                        const response = await fetch('/templates/upload/', {
                             method: 'POST',
                             body: formData
                         });
-
-                        console.log('Upload response status:', response.status);
                         
-                        if (!response.ok) {
-                            const errorText = await response.text();
-                            console.error('Error response:', errorText);
-                            throw new Error(`Upload failed: ${response.status} ${errorText}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.showSuccess('Template uploaded successfully');
+                            this.templateName = '';
+                            document.getElementById('templateFile').value = '';
+                            this.templateFile = null;
+                            // Reload templates after successful upload
+                            await this.loadTemplates();
+                        } else {
+                            const errorData = await response.json();
+                            this.showError(`Failed to upload template: ${errorData.detail}`);
                         }
-
-                        const data = await response.json();
-                        console.log('Upload successful:', data);
-                        
-                        this.templates.push(data);
-                        this.newTemplate.name = '';
-                        document.getElementById('templateFile').value = '';
-                        
-                        // Set a timer to refresh the template list in 5 seconds
-                        setTimeout(() => this.fetchTemplates(), 5000);
-                        
-                        alert('Template uploaded successfully!');
                     } catch (error) {
-                        console.error('Error uploading template:', error);
-                        this.errorMessage = `Failed to upload template: ${error.message}`;
-                    } finally {
-                        this.isUploading = false;
+                        this.showError('Failed to upload template: Network error');
+                        console.error('Upload error:', error);
                     }
                 },
-
-                async fetchTemplates() {
-                    this.isLoadingTemplates = true;
+                
+                async loadTemplates() {
                     try {
-                        const response = await fetch(`${this.apiUrl}/templates/`);
-                        if (!response.ok) {
-                            throw new Error(`HTTP error ${response.status}`);
+                        const response = await fetch('/templates/');
+                        if (response.ok) {
+                            const data = await response.json();
+                            // Ensure templates is always an array
+                            this.templates = Array.isArray(data.templates) ? data.templates : [];
+                            console.log('Templates loaded:', this.templates);
+                        } else {
+                            console.error('Failed to load templates');
+                            this.templates = []; // Reset to empty array on error
                         }
-                        this.templates = await response.json();
                     } catch (error) {
-                        console.error('Error fetching templates:', error);
-                        this.errorMessage = `Failed to fetch templates: ${error.message}`;
-                    } finally {
-                        this.isLoadingTemplates = false;
+                        console.error('Error loading templates:', error);
+                        this.templates = []; // Reset to empty array on error
                     }
                 },
-
+                
                 selectTemplate(template) {
-                    this.selectedTemplate = template;
-                    this.reportRequest.template_id = template.template_id;
+                    this.selectedTemplate = template || {};
+                    if (template && template.name) {
+                        this.showSuccess(`Template "${template.name}" selected`);
+                        this.activeTab = 'generate';
+                    }
                 },
-
+                
                 async generateReports() {
-                    if (!this.selectedTemplate) {
-                        this.errorMessage = 'Please select a template first';
+                    if (!this.selectedTemplate.id) {
+                        this.showError('Please select a template first');
                         return;
                     }
-
-                    this.isGenerating = true;
-                    this.errorMessage = '';
+                    
+                    const formData = new FormData();
+                    formData.append('template_id', this.selectedTemplate.id);
+                    formData.append('num_reports', this.numReports);
                     
                     try {
-                        const response = await fetch(`${this.apiUrl}/reports/generate/`, {
+                        const response = await fetch('/reports/generate/', {
                             method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(this.reportRequest)
+                            body: formData
                         });
-
-                        if (!response.ok) {
-                            const errorText = await response.text();
-                            throw new Error(`Generation failed: ${response.status} ${errorText}`);
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.showSuccess(`Started generating ${this.numReports} reports`);
+                            
+                            // Add the new batch to our list
+                            if (data.batch_id) {
+                                // Initialize batches array if needed
+                                if (!Array.isArray(this.batches)) {
+                                    this.batches = [];
+                                }
+                                
+                                // Wait a moment to ensure report generation has started
+                                setTimeout(() => this.checkBatchStatus(data.batch_id), 1000);
+                            }
+                        } else {
+                            const errorData = await response.json();
+                            this.showError(`Failed to generate reports: ${errorData.detail}`);
                         }
-
-                        const data = await response.json();
-                        this.currentBatch = {
-                            batch_id: data.batch_id,
-                            status: data.status,
-                            progress: 0,
-                            total: this.reportRequest.num_samples,
-                            completed: 0,
-                            reports: []
-                        };
-
-                        // Start polling for status updates
-                        this.startStatusPolling();
                     } catch (error) {
-                        console.error('Error generating reports:', error);
-                        this.errorMessage = `Failed to generate reports: ${error.message}`;
-                    } finally {
-                        this.isGenerating = false;
+                        this.showError('Failed to generate reports: Network error');
+                        console.error('Generation error:', error);
                     }
                 },
-
-                startStatusPolling() {
-                    // Clear any existing interval
-                    if (this.statusInterval) {
-                        clearInterval(this.statusInterval);
+                
+                async checkBatchStatus(batchId) {
+                    try {
+                        const response = await fetch(`/reports/status/${batchId}/`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            
+                            // Initialize batches array if needed
+                            if (!Array.isArray(this.batches)) {
+                                this.batches = [];
+                            }
+                            
+                            // Add or update batch in our list
+                            const existingIndex = this.batches.findIndex(b => b.batch_id === batchId);
+                            if (existingIndex >= 0) {
+                                this.batches[existingIndex] = data;
+                            } else {
+                                this.batches.push(data);
+                            }
+                            
+                            // If still processing, check again in a moment
+                            if (data.status === 'processing') {
+                                setTimeout(() => this.checkBatchStatus(batchId), 2000);
+                            } else if (data.status === 'completed') {
+                                this.showSuccess(`Reports generated successfully`);
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error checking batch status:', error);
                     }
-
-                    // Poll every 3 seconds
-                    this.statusInterval = setInterval(async () => {
-                        if (!this.currentBatch || this.currentBatch.status !== 'processing') {
-                            clearInterval(this.statusInterval);
-                            return;
-                        }
-
-                        try {
-                            const response = await fetch(`${this.apiUrl}/reports/status/${this.currentBatch.batch_id}/`);
-                            if (!response.ok) {
-                                throw new Error(`HTTP error ${response.status}`);
-                            }
-                            this.currentBatch = await response.json();
-
-                            // Stop polling if the batch is completed or failed
-                            if (this.currentBatch.status !== 'processing') {
-                                clearInterval(this.statusInterval);
-                            }
-                        } catch (error) {
-                            console.error('Error fetching status:', error);
-                            this.errorMessage = `Failed to fetch status: ${error.message}`;
-                            clearInterval(this.statusInterval);
-                        }
-                    }, 3000);
+                },
+                
+                viewBatch(batch) {
+                    // Ensure batch has a reports array
+                    if (batch && !Array.isArray(batch.reports)) {
+                        batch.reports = [];
+                    }
+                    this.selectedBatch = batch || { reports: [] };
+                    this.activeTab = 'download';
+                },
+                
+                downloadReport(batchId, reportId) {
+                    if (batchId && reportId) {
+                        window.open(`/reports/${batchId}/${reportId}/download/`, '_blank');
+                    }
+                },
+                
+                downloadAllReports(batchId) {
+                    if (batchId) {
+                        window.open(`/reports/${batchId}/download-all/`, '_blank');
+                    }
+                },
+                
+                showSuccess(message) {
+                    if (message) {
+                        this.statusMessage = message;
+                        this.statusSuccess = true;
+                        setTimeout(() => this.statusMessage = '', 5000);
+                    }
+                },
+                
+                showError(message) {
+                    if (message) {
+                        this.statusMessage = message;
+                        this.statusSuccess = false;
+                        setTimeout(() => this.statusMessage = '', 8000);
+                    }
+                },
+                
+                formatDate(dateString) {
+                    if (!dateString) return 'Unknown';
+                    try {
+                        const date = new Date(dateString);
+                        return date.toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' });
+                    } catch (error) {
+                        return 'Invalid date';
+                    }
                 }
             };
         }

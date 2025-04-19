@@ -1,0 +1,3412 @@
+{
+  "status": "success",
+  "tables": [
+    [
+      [
+        "Achievement",
+        "Description for parents/carers",
+        ""
+      ],
+      [
+        "Outstanding",
+        "A",
+        "Your child\u2019s achievement in this subject is outstanding. They confidently apply their knowledge and skills in a range of new and complex situations."
+      ],
+      [
+        "High",
+        "B",
+        "Your child\u2019s achievement in this subject is high. They confidently apply their knowledge and skills in a range of familiar and new situations."
+      ],
+      [
+        "Expected",
+        "C",
+        "Your child\u2019s achievement in this subject is at the expected standard. They apply their knowledge and skills in familiar situations."
+      ],
+      [
+        "Basic",
+        "D",
+        "Your child\u2019s achievement in this subject is basic. They apply their knowledge and skills in familiar situations with support."
+      ],
+      [
+        "Limited",
+        "E",
+        "Your child\u2019s achievement in this subject is limited. They apply their knowledge and skills in some familiar situations with significant support."
+      ]
+    ],
+    [
+      [
+        "Effort",
+        "Description for parents/carers",
+        ""
+      ],
+      [
+        "High",
+        "Your child actively participates and engages in most learning activities. They always try to complete and present work to a high standard.",
+        ""
+      ],
+      [
+        "Satisfactory",
+        "Your child actively participates and engages in most learning activities. They regularly try to complete and present work to the required standard.",
+        ""
+      ],
+      [
+        "Low",
+        "Your child sometimes participates and engages in learning activities. They occasionally try to complete and present work to the required standard.",
+        ""
+      ]
+    ],
+    [
+      [
+        "Social development and commitment to learning",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "",
+        "C",
+        "U",
+        "S",
+        "",
+        "C",
+        "U",
+        "S"
+      ],
+      [
+        "[Displays a positive attitude to learning]",
+        ":unselected:",
+        ":unselected:",
+        ":unselected:",
+        "[Respects class and school rules",
+        ":unselected:",
+        ":unselected:",
+        ":unselected:"
+      ],
+      [
+        "[Respects the rights and property of others]",
+        ":unselected:",
+        ":unselected:",
+        ":unselected:",
+        "[Shows initiative and enthusiasm",
+        ":unselected:",
+        ":unselected:",
+        ":unselected:"
+      ],
+      [
+        "[Respects class and school rules]",
+        ")\n:unselected:",
+        ":unselected:",
+        ":unselected:",
+        "[Helps and encourages others",
+        ":unselected:",
+        ":unselected:",
+        ":unselected:"
+      ]
+    ],
+    [
+      [
+        "Extra activities",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "[insert activity]",
+        "[insert activity]",
+        "",
+        "[insert activity]",
+        "[insert activity]"
+      ],
+      [
+        "[insert activity]",
+        "[insert activity]",
+        "",
+        "[insert activity]",
+        "[insert activity]"
+      ]
+    ],
+    [
+      [
+        "",
+        "dance",
+        "drama",
+        "music",
+        "visual arts"
+      ],
+      [
+        "Achievement",
+        "Select",
+        "Select",
+        "Select",
+        "Select"
+      ],
+      [
+        "Effort",
+        "Select",
+        "Select",
+        "Select",
+        "Select"
+      ]
+    ],
+    [
+      [
+        "",
+        "geography",
+        "history",
+        ""
+      ],
+      [
+        "Achievement",
+        "Select",
+        "Select",
+        ""
+      ],
+      [
+        "Effort",
+        "Select",
+        "Select",
+        ""
+      ]
+    ],
+    [
+      [
+        "",
+        "personal development, health",
+        "physical education"
+      ],
+      [
+        "Achievement",
+        "Select",
+        "Select"
+      ],
+      [
+        "Effort",
+        "Select",
+        "Select"
+      ]
+    ],
+    [
+      [
+        "Science and technology",
+        "Overall achievement Select Effort Select",
+        ""
+      ],
+      [
+        "",
+        "science",
+        "digital technologies"
+      ],
+      [
+        "Achievement",
+        "Select",
+        "Select"
+      ],
+      [
+        "Effort",
+        "Select",
+        "Select"
+      ]
+    ]
+  ],
+  "text_blocks": [
+    {
+      "text": "Understanding this report",
+      "bounding_box": [
+        [
+          0.2189,
+          0.3544
+        ],
+        [
+          3.2311,
+          0.3544
+        ],
+        [
+          3.2311,
+          0.5826
+        ],
+        [
+          0.2189,
+          0.5826
+        ]
+      ]
+    },
+    {
+      "text": "Standards referenced assessment is used in NSW schools. This means your child\u2019s performance is compared to a set of standards, not to other students. The table below shows the achievement scale used to report your child\u2019s achievement at this point in their learning. A variety of assessment opportunities were used to gather information about their learning this semester.",
+      "bounding_box": [
+        [
+          0.2052,
+          0.7311
+        ],
+        [
+          7.6016,
+          0.7311
+        ],
+        [
+          7.6016,
+          1.5918
+        ],
+        [
+          0.2052,
+          1.5918
+        ]
+      ]
+    },
+    {
+      "text": "You may request the school to provide you with written information that clearly shows your child\u2019s achievement compared to his or her peer group at school. This information will show you the number of children in the group in each of the achievement levels.",
+      "bounding_box": [
+        [
+          0.199,
+          1.7938
+        ],
+        [
+          7.8574,
+          1.7938
+        ],
+        [
+          7.8574,
+          2.4183
+        ],
+        [
+          0.199,
+          2.4183
+        ]
+      ]
+    },
+    {
+      "text": "Achievement",
+      "bounding_box": [
+        [
+          0.207,
+          2.5507
+        ],
+        [
+          1.4294,
+          2.5507
+        ],
+        [
+          1.4294,
+          2.8983
+        ],
+        [
+          0.1989,
+          2.8983
+        ]
+      ]
+    },
+    {
+      "text": "Description for parents/carers",
+      "bounding_box": [
+        [
+          1.4294,
+          2.5507
+        ],
+        [
+          8.0467,
+          2.5584
+        ],
+        [
+          8.0467,
+          2.906
+        ],
+        [
+          1.4294,
+          2.8983
+        ]
+      ]
+    },
+    {
+      "text": "Outstanding",
+      "bounding_box": [
+        [
+          0.1989,
+          2.8983
+        ],
+        [
+          1.4294,
+          2.8983
+        ],
+        [
+          1.4294,
+          3.5393
+        ],
+        [
+          0.1989,
+          3.5393
+        ]
+      ]
+    },
+    {
+      "text": "A",
+      "bounding_box": [
+        [
+          1.4294,
+          2.8983
+        ],
+        [
+          1.7961,
+          2.906
+        ],
+        [
+          1.788,
+          3.5393
+        ],
+        [
+          1.4294,
+          3.5393
+        ]
+      ]
+    },
+    {
+      "text": "Your child\u2019s achievement in this subject is outstanding. They confidently apply their knowledge and skills in a range of new and complex situations.",
+      "bounding_box": [
+        [
+          1.7961,
+          2.906
+        ],
+        [
+          8.0467,
+          2.906
+        ],
+        [
+          8.0467,
+          3.5393
+        ],
+        [
+          1.788,
+          3.5393
+        ]
+      ]
+    },
+    {
+      "text": "High",
+      "bounding_box": [
+        [
+          0.1989,
+          3.5393
+        ],
+        [
+          1.4294,
+          3.5393
+        ],
+        [
+          1.4213,
+          4.1649
+        ],
+        [
+          0.1907,
+          4.1649
+        ]
+      ]
+    },
+    {
+      "text": "B",
+      "bounding_box": [
+        [
+          1.4294,
+          3.5393
+        ],
+        [
+          1.788,
+          3.5393
+        ],
+        [
+          1.788,
+          4.1649
+        ],
+        [
+          1.4213,
+          4.1649
+        ]
+      ]
+    },
+    {
+      "text": "Your child\u2019s achievement in this subject is high. They confidently apply their knowledge and skills in a range of familiar and new situations.",
+      "bounding_box": [
+        [
+          1.788,
+          3.5393
+        ],
+        [
+          8.0467,
+          3.5393
+        ],
+        [
+          8.0467,
+          4.1726
+        ],
+        [
+          1.788,
+          4.1649
+        ]
+      ]
+    },
+    {
+      "text": "Expected",
+      "bounding_box": [
+        [
+          0.1907,
+          4.1649
+        ],
+        [
+          1.4213,
+          4.1649
+        ],
+        [
+          1.4213,
+          4.7982
+        ],
+        [
+          0.1907,
+          4.7982
+        ]
+      ]
+    },
+    {
+      "text": "C",
+      "bounding_box": [
+        [
+          1.4213,
+          4.1649
+        ],
+        [
+          1.788,
+          4.1649
+        ],
+        [
+          1.788,
+          4.7982
+        ],
+        [
+          1.4213,
+          4.7982
+        ]
+      ]
+    },
+    {
+      "text": "Your child\u2019s achievement in this subject is at the expected standard. They apply their knowledge and skills in familiar situations.",
+      "bounding_box": [
+        [
+          1.788,
+          4.1649
+        ],
+        [
+          8.0467,
+          4.1726
+        ],
+        [
+          8.0549,
+          4.7982
+        ],
+        [
+          1.788,
+          4.7982
+        ]
+      ]
+    },
+    {
+      "text": "Basic",
+      "bounding_box": [
+        [
+          0.1907,
+          4.7982
+        ],
+        [
+          1.4213,
+          4.7982
+        ],
+        [
+          1.4213,
+          5.4238
+        ],
+        [
+          0.1826,
+          5.4238
+        ]
+      ]
+    },
+    {
+      "text": "D",
+      "bounding_box": [
+        [
+          1.4213,
+          4.7982
+        ],
+        [
+          1.788,
+          4.7982
+        ],
+        [
+          1.7798,
+          5.4238
+        ],
+        [
+          1.4213,
+          5.4238
+        ]
+      ]
+    },
+    {
+      "text": "Your child\u2019s achievement in this subject is basic. They apply their knowledge and skills in familiar situations with support.",
+      "bounding_box": [
+        [
+          1.788,
+          4.7982
+        ],
+        [
+          8.0549,
+          4.7982
+        ],
+        [
+          8.0549,
+          5.4315
+        ],
+        [
+          1.7798,
+          5.4238
+        ]
+      ]
+    },
+    {
+      "text": "Limited",
+      "bounding_box": [
+        [
+          0.1826,
+          5.4238
+        ],
+        [
+          1.4213,
+          5.4238
+        ],
+        [
+          1.4131,
+          6.0649
+        ],
+        [
+          0.1826,
+          6.0649
+        ]
+      ]
+    },
+    {
+      "text": "E",
+      "bounding_box": [
+        [
+          1.4213,
+          5.4238
+        ],
+        [
+          1.7798,
+          5.4238
+        ],
+        [
+          1.7798,
+          6.0649
+        ],
+        [
+          1.4131,
+          6.0649
+        ]
+      ]
+    },
+    {
+      "text": "Your child\u2019s achievement in this subject is limited. They apply their knowledge and skills in some familiar situations with significant support.",
+      "bounding_box": [
+        [
+          1.7798,
+          5.4238
+        ],
+        [
+          8.0549,
+          5.4315
+        ],
+        [
+          8.0549,
+          6.0571
+        ],
+        [
+          1.7798,
+          6.0649
+        ]
+      ]
+    },
+    {
+      "text": "A summary of your child\u2019s effort in each subject for this semester is included. The table below shows the scale used to report your child\u2019s effort in each subject. This information may be useful to you in conversations with your child about their learning.",
+      "bounding_box": [
+        [
+          0.2043,
+          6.4051
+        ],
+        [
+          7.853,
+          6.4051
+        ],
+        [
+          7.853,
+          7.0296
+        ],
+        [
+          0.2043,
+          7.0296
+        ]
+      ]
+    },
+    {
+      "text": "Effort",
+      "bounding_box": [
+        [
+          0.1859,
+          7.1584
+        ],
+        [
+          1.3772,
+          7.1584
+        ],
+        [
+          1.369,
+          7.5082
+        ],
+        [
+          0.1941,
+          7.5082
+        ]
+      ]
+    },
+    {
+      "text": "Description for parents/carers",
+      "bounding_box": [
+        [
+          1.3772,
+          7.1584
+        ],
+        [
+          8.0597,
+          7.1584
+        ],
+        [
+          8.0515,
+          7.5082
+        ],
+        [
+          1.369,
+          7.5082
+        ]
+      ]
+    },
+    {
+      "text": "High",
+      "bounding_box": [
+        [
+          0.1941,
+          7.5082
+        ],
+        [
+          1.369,
+          7.5082
+        ],
+        [
+          1.369,
+          8.1394
+        ],
+        [
+          0.2022,
+          8.1394
+        ]
+      ]
+    },
+    {
+      "text": "Your child actively participates and engages in most learning activities. They always try to complete and present work to a high standard.",
+      "bounding_box": [
+        [
+          1.369,
+          7.5082
+        ],
+        [
+          8.0515,
+          7.5082
+        ],
+        [
+          8.0515,
+          8.147
+        ],
+        [
+          1.369,
+          8.1394
+        ]
+      ]
+    },
+    {
+      "text": "Satisfactory",
+      "bounding_box": [
+        [
+          0.2022,
+          8.1394
+        ],
+        [
+          1.369,
+          8.1394
+        ],
+        [
+          1.369,
+          8.7706
+        ],
+        [
+          0.2104,
+          8.7706
+        ]
+      ]
+    },
+    {
+      "text": "Your child actively participates and engages in most learning activities. They regularly try to complete and present work to the required standard.",
+      "bounding_box": [
+        [
+          1.369,
+          8.1394
+        ],
+        [
+          8.0515,
+          8.147
+        ],
+        [
+          8.0434,
+          8.7782
+        ],
+        [
+          1.369,
+          8.7706
+        ]
+      ]
+    },
+    {
+      "text": "Low",
+      "bounding_box": [
+        [
+          0.2104,
+          8.7706
+        ],
+        [
+          1.369,
+          8.7706
+        ],
+        [
+          1.369,
+          9.4017
+        ],
+        [
+          0.2186,
+          9.4017
+        ]
+      ]
+    },
+    {
+      "text": "Your child sometimes participates and engages in learning activities. They occasionally try to complete and present work to the required standard.",
+      "bounding_box": [
+        [
+          1.369,
+          8.7706
+        ],
+        [
+          8.0434,
+          8.7782
+        ],
+        [
+          8.0434,
+          9.4017
+        ],
+        [
+          1.369,
+          9.4017
+        ]
+      ]
+    },
+    {
+      "text": "Year",
+      "bounding_box": [
+        [
+          4.4722,
+          0.2288
+        ],
+        [
+          5.0037,
+          0.2288
+        ],
+        [
+          5.0037,
+          0.4106
+        ],
+        [
+          4.4722,
+          0.4106
+        ]
+      ]
+    },
+    {
+      "text": "[20xx]",
+      "bounding_box": [
+        [
+          5.1358,
+          0.1825
+        ],
+        [
+          5.8354,
+          0.1724
+        ],
+        [
+          5.8392,
+          0.4359
+        ],
+        [
+          5.1396,
+          0.4461
+        ]
+      ]
+    },
+    {
+      "text": "Semester",
+      "bounding_box": [
+        [
+          5.9824,
+          0.2258
+        ],
+        [
+          7.1022,
+          0.2258
+        ],
+        [
+          7.1022,
+          0.4108
+        ],
+        [
+          5.9824,
+          0.4108
+        ]
+      ]
+    },
+    {
+      "text": "[#]",
+      "bounding_box": [
+        [
+          7.2094,
+          0.1825
+        ],
+        [
+          7.5163,
+          0.1927
+        ],
+        [
+          7.5085,
+          0.4259
+        ],
+        [
+          7.2016,
+          0.4156
+        ]
+      ]
+    },
+    {
+      "text": "NSW Department of Education",
+      "bounding_box": [
+        [
+          0.2122,
+          0.3453
+        ],
+        [
+          2.5694,
+          0.3453
+        ],
+        [
+          2.5694,
+          0.4958
+        ],
+        [
+          0.2122,
+          0.4958
+        ]
+      ]
+    },
+    {
+      "text": "[School name]",
+      "bounding_box": [
+        [
+          0.2079,
+          1.0089
+        ],
+        [
+          2.1547,
+          1.0089
+        ],
+        [
+          2.1547,
+          1.3333
+        ],
+        [
+          0.2079,
+          1.3333
+        ]
+      ]
+    },
+    {
+      "text": "[Student full name]",
+      "bounding_box": [
+        [
+          0.3853,
+          2.0127
+        ],
+        [
+          1.8049,
+          2.0127
+        ],
+        [
+          1.8049,
+          2.2002
+        ],
+        [
+          0.3853,
+          2.2002
+        ]
+      ]
+    },
+    {
+      "text": "This report is issued without any corrections",
+      "bounding_box": [
+        [
+          5.15,
+          2.0418
+        ],
+        [
+          7.8429,
+          2.0418
+        ],
+        [
+          7.8429,
+          2.1703
+        ],
+        [
+          5.15,
+          2.1703
+        ]
+      ]
+    },
+    {
+      "text": "Stage [X] - [insert class name]",
+      "bounding_box": [
+        [
+          0.3904,
+          2.474
+        ],
+        [
+          2.6668,
+          2.474
+        ],
+        [
+          2.6668,
+          2.6717
+        ],
+        [
+          0.3904,
+          2.6717
+        ]
+      ]
+    },
+    {
+      "text": "[Student's",
+      "bounding_box": [
+        [
+          0.3904,
+          2.8238
+        ],
+        [
+          1.1496,
+          2.8187
+        ],
+        [
+          1.1509,
+          3.0013
+        ],
+        [
+          0.3916,
+          3.0063
+        ]
+      ]
+    },
+    {
+      "text": "Semester",
+      "bounding_box": [
+        [
+          2.0942,
+          2.8683
+        ],
+        [
+          2.8022,
+          2.8683
+        ],
+        [
+          2.8022,
+          2.9914
+        ],
+        [
+          2.0942,
+          2.9914
+        ]
+      ]
+    },
+    {
+      "text": "[#]",
+      "bounding_box": [
+        [
+          2.894,
+          2.8339
+        ],
+        [
+          3.1028,
+          2.839
+        ],
+        [
+          3.0986,
+          3.0114
+        ],
+        [
+          2.8898,
+          3.0063
+        ]
+      ]
+    },
+    {
+      "text": "[Teacher name]",
+      "bounding_box": [
+        [
+          3.8574,
+          2.4791
+        ],
+        [
+          5.0597,
+          2.474
+        ],
+        [
+          5.0605,
+          2.6616
+        ],
+        [
+          3.8582,
+          2.6667
+        ]
+      ]
+    },
+    {
+      "text": "report provides a summary of",
+      "bounding_box": [
+        [
+          3.2277,
+          2.8683
+        ],
+        [
+          5.3898,
+          2.8683
+        ],
+        [
+          5.3898,
+          3.0244
+        ],
+        [
+          3.2277,
+          3.0244
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          5.4349,
+          2.8441
+        ],
+        [
+          5.9216,
+          2.8441
+        ],
+        [
+          5.9216,
+          2.9962
+        ],
+        [
+          5.4349,
+          2.9962
+        ]
+      ]
+    },
+    {
+      "text": "progress across all key",
+      "bounding_box": [
+        [
+          6.1433,
+          2.8703
+        ],
+        [
+          7.835,
+          2.8703
+        ],
+        [
+          7.835,
+          3.0244
+        ],
+        [
+          6.1433,
+          3.0244
+        ]
+      ]
+    },
+    {
+      "text": "learning areas. For further information or questions regarding this report,",
+      "bounding_box": [
+        [
+          0.365,
+          3.2155
+        ],
+        [
+          5.675,
+          3.2155
+        ],
+        [
+          5.675,
+          3.3716
+        ],
+        [
+          0.365,
+          3.3716
+        ]
+      ]
+    },
+    {
+      "text": "please contact [School name]",
+      "bounding_box": [
+        [
+          0.3613,
+          3.539
+        ],
+        [
+          2.5861,
+          3.4888
+        ],
+        [
+          2.5907,
+          3.6907
+        ],
+        [
+          0.3659,
+          3.7409
+        ]
+      ]
+    },
+    {
+      "text": "at [School email]",
+      "bounding_box": [
+        [
+          0.3589,
+          3.8755
+        ],
+        [
+          1.6883,
+          3.8631
+        ],
+        [
+          1.69,
+          4.0507
+        ],
+        [
+          0.3606,
+          4.0631
+        ]
+      ]
+    },
+    {
+      "text": "or call",
+      "bounding_box": [
+        [
+          3.8598,
+          3.9119
+        ],
+        [
+          4.2872,
+          3.9119
+        ],
+        [
+          4.2872,
+          4.0331
+        ],
+        [
+          3.8598,
+          4.0331
+        ]
+      ]
+    },
+    {
+      "text": "[School phone number]",
+      "bounding_box": [
+        [
+          4.4006,
+          3.8631
+        ],
+        [
+          6.1396,
+          3.858
+        ],
+        [
+          6.1396,
+          4.0507
+        ],
+        [
+          4.4006,
+          4.0557
+        ]
+      ]
+    },
+    {
+      "text": "General comment",
+      "bounding_box": [
+        [
+          0.2096,
+          4.3307
+        ],
+        [
+          2.2822,
+          4.3307
+        ],
+        [
+          2.2822,
+          4.5187
+        ],
+        [
+          0.2096,
+          4.5187
+        ]
+      ]
+    },
+    {
+      "text": "[General comments will be written in plain English. Limit the use of education jargon.",
+      "bounding_box": [
+        [
+          0.2586,
+          4.7604
+        ],
+        [
+          4.9129,
+          4.7655
+        ],
+        [
+          4.9127,
+          4.9075
+        ],
+        [
+          0.2584,
+          4.9024
+        ]
+      ]
+    },
+    {
+      "text": "Recommended maximum length 200 words.",
+      "bounding_box": [
+        [
+          0.2535,
+          5.095
+        ],
+        [
+          2.7124,
+          5.095
+        ],
+        [
+          2.7124,
+          5.237
+        ],
+        [
+          0.2535,
+          5.237
+        ]
+      ]
+    },
+    {
+      "text": "Note: this can include information about key learning areas other than English and mathematics.]",
+      "bounding_box": [
+        [
+          0.2535,
+          5.4296
+        ],
+        [
+          5.6276,
+          5.4296
+        ],
+        [
+          5.6276,
+          5.5767
+        ],
+        [
+          0.2535,
+          5.5767
+        ]
+      ]
+    },
+    {
+      "text": "Social development and commitment to learning",
+      "bounding_box": [
+        [
+          0.1924,
+          6.9734
+        ],
+        [
+          8.0512,
+          6.9734
+        ],
+        [
+          8.0594,
+          7.2813
+        ],
+        [
+          0.1924,
+          7.2813
+        ]
+      ]
+    },
+    {
+      "text": "C",
+      "bounding_box": [
+        [
+          2.635,
+          7.2813
+        ],
+        [
+          3.1252,
+          7.2813
+        ],
+        [
+          3.1252,
+          7.6793
+        ],
+        [
+          2.635,
+          7.6793
+        ]
+      ]
+    },
+    {
+      "text": "U",
+      "bounding_box": [
+        [
+          3.1252,
+          7.2813
+        ],
+        [
+          3.6153,
+          7.2813
+        ],
+        [
+          3.6153,
+          7.6793
+        ],
+        [
+          3.1252,
+          7.6793
+        ]
+      ]
+    },
+    {
+      "text": "S",
+      "bounding_box": [
+        [
+          3.6153,
+          7.2813
+        ],
+        [
+          4.13,
+          7.2813
+        ],
+        [
+          4.13,
+          7.6868
+        ],
+        [
+          3.6153,
+          7.6793
+        ]
+      ]
+    },
+    {
+      "text": "C",
+      "bounding_box": [
+        [
+          6.5971,
+          7.2813
+        ],
+        [
+          7.0872,
+          7.2813
+        ],
+        [
+          7.0872,
+          7.6793
+        ],
+        [
+          6.5971,
+          7.6868
+        ]
+      ]
+    },
+    {
+      "text": "U",
+      "bounding_box": [
+        [
+          7.0872,
+          7.2813
+        ],
+        [
+          7.5774,
+          7.2813
+        ],
+        [
+          7.5774,
+          7.6793
+        ],
+        [
+          7.0872,
+          7.6793
+        ]
+      ]
+    },
+    {
+      "text": "S",
+      "bounding_box": [
+        [
+          7.5774,
+          7.2813
+        ],
+        [
+          8.0594,
+          7.2813
+        ],
+        [
+          8.0594,
+          7.6793
+        ],
+        [
+          7.5774,
+          7.6793
+        ]
+      ]
+    },
+    {
+      "text": "[Displays a positive attitude to learning]",
+      "bounding_box": [
+        [
+          0.1924,
+          7.6868
+        ],
+        [
+          2.635,
+          7.6793
+        ],
+        [
+          2.635,
+          8.1073
+        ],
+        [
+          0.1924,
+          8.1149
+        ]
+      ]
+    },
+    {
+      "text": "[Respects class and school rules",
+      "bounding_box": [
+        [
+          4.13,
+          7.6868
+        ],
+        [
+          6.5971,
+          7.6868
+        ],
+        [
+          6.5971,
+          8.1073
+        ],
+        [
+          4.1218,
+          8.1073
+        ]
+      ]
+    },
+    {
+      "text": "[Respects the rights and property of others]",
+      "bounding_box": [
+        [
+          0.1924,
+          8.1149
+        ],
+        [
+          2.635,
+          8.1073
+        ],
+        [
+          2.635,
+          8.5429
+        ],
+        [
+          0.1924,
+          8.5429
+        ]
+      ]
+    },
+    {
+      "text": "[Shows initiative and enthusiasm",
+      "bounding_box": [
+        [
+          4.1218,
+          8.1073
+        ],
+        [
+          6.5971,
+          8.1073
+        ],
+        [
+          6.5971,
+          8.5429
+        ],
+        [
+          4.1136,
+          8.5429
+        ]
+      ]
+    },
+    {
+      "text": "[Respects class and school rules]",
+      "bounding_box": [
+        [
+          0.1924,
+          8.5429
+        ],
+        [
+          2.635,
+          8.5429
+        ],
+        [
+          2.635,
+          8.9784
+        ],
+        [
+          0.1842,
+          8.9784
+        ]
+      ]
+    },
+    {
+      "text": ")",
+      "bounding_box": [
+        [
+          2.635,
+          8.5429
+        ],
+        [
+          3.117,
+          8.5429
+        ],
+        [
+          3.117,
+          8.9784
+        ],
+        [
+          2.635,
+          8.9784
+        ]
+      ]
+    },
+    {
+      "text": "[Helps and encourages others",
+      "bounding_box": [
+        [
+          4.1136,
+          8.5429
+        ],
+        [
+          6.5971,
+          8.5429
+        ],
+        [
+          6.5971,
+          8.9784
+        ],
+        [
+          4.1055,
+          8.9784
+        ]
+      ]
+    },
+    {
+      "text": "C \u2013 consistently U \u2013 usually S \u2013 sometimes",
+      "bounding_box": [
+        [
+          0.2034,
+          9.0862
+        ],
+        [
+          3.0088,
+          9.0862
+        ],
+        [
+          3.0088,
+          9.2163
+        ],
+        [
+          0.2034,
+          9.2163
+        ]
+      ]
+    },
+    {
+      "text": "Extra activities",
+      "bounding_box": [
+        [
+          0.1958,
+          9.3224
+        ],
+        [
+          8.0437,
+          9.3224
+        ],
+        [
+          8.0518,
+          9.7494
+        ],
+        [
+          0.1958,
+          9.7494
+        ]
+      ]
+    },
+    {
+      "text": "[insert activity]",
+      "bounding_box": [
+        [
+          0.1958,
+          9.7494
+        ],
+        [
+          2.1598,
+          9.7494
+        ],
+        [
+          2.1598,
+          10.1614
+        ],
+        [
+          0.1958,
+          10.1689
+        ]
+      ]
+    },
+    {
+      "text": "[insert activity]",
+      "bounding_box": [
+        [
+          2.1598,
+          9.7494
+        ],
+        [
+          4.1319,
+          9.7494
+        ],
+        [
+          4.1319,
+          10.1689
+        ],
+        [
+          2.1598,
+          10.1614
+        ]
+      ]
+    },
+    {
+      "text": "[insert activity]",
+      "bounding_box": [
+        [
+          4.1319,
+          9.7494
+        ],
+        [
+          6.0878,
+          9.7494
+        ],
+        [
+          6.0878,
+          10.1614
+        ],
+        [
+          4.1319,
+          10.1689
+        ]
+      ]
+    },
+    {
+      "text": "[insert activity]",
+      "bounding_box": [
+        [
+          6.0878,
+          9.7494
+        ],
+        [
+          8.0518,
+          9.7494
+        ],
+        [
+          8.0518,
+          10.1689
+        ],
+        [
+          6.0878,
+          10.1614
+        ]
+      ]
+    },
+    {
+      "text": "[insert activity]",
+      "bounding_box": [
+        [
+          0.1958,
+          10.1689
+        ],
+        [
+          2.1598,
+          10.1614
+        ],
+        [
+          2.1598,
+          10.5585
+        ],
+        [
+          0.1958,
+          10.5735
+        ]
+      ]
+    },
+    {
+      "text": "[insert activity]",
+      "bounding_box": [
+        [
+          2.1598,
+          10.1614
+        ],
+        [
+          4.1319,
+          10.1689
+        ],
+        [
+          4.1319,
+          10.566
+        ],
+        [
+          2.1598,
+          10.5585
+        ]
+      ]
+    },
+    {
+      "text": "[insert activity]",
+      "bounding_box": [
+        [
+          4.1319,
+          10.1689
+        ],
+        [
+          6.0878,
+          10.1614
+        ],
+        [
+          6.0878,
+          10.5585
+        ],
+        [
+          4.1319,
+          10.566
+        ]
+      ]
+    },
+    {
+      "text": "[insert activity]",
+      "bounding_box": [
+        [
+          6.0878,
+          10.1614
+        ],
+        [
+          8.0518,
+          10.1689
+        ],
+        [
+          8.0518,
+          10.5735
+        ],
+        [
+          6.0878,
+          10.5585
+        ]
+      ]
+    },
+    {
+      "text": "Attendance",
+      "bounding_box": [
+        [
+          3.6818,
+          10.8882
+        ],
+        [
+          4.5832,
+          10.8882
+        ],
+        [
+          4.5832,
+          11.0094
+        ],
+        [
+          3.6818,
+          11.0094
+        ]
+      ]
+    },
+    {
+      "text": "Whole days absent",
+      "bounding_box": [
+        [
+          0.3595,
+          11.3242
+        ],
+        [
+          1.5379,
+          11.3242
+        ],
+        [
+          1.5379,
+          11.4527
+        ],
+        [
+          0.3595,
+          11.4526
+        ]
+      ]
+    },
+    {
+      "text": "[#]",
+      "bounding_box": [
+        [
+          2.2713,
+          11.3206
+        ],
+        [
+          2.4082,
+          11.3257
+        ],
+        [
+          2.4082,
+          11.4575
+        ],
+        [
+          2.2713,
+          11.4524
+        ]
+      ]
+    },
+    {
+      "text": "Partial days absent",
+      "bounding_box": [
+        [
+          4.3038,
+          11.3242
+        ],
+        [
+          5.4732,
+          11.3242
+        ],
+        [
+          5.4732,
+          11.4527
+        ],
+        [
+          4.3038,
+          11.4526
+        ]
+      ]
+    },
+    {
+      "text": "[#]",
+      "bounding_box": [
+        [
+          6.1802,
+          11.2953
+        ],
+        [
+          6.3627,
+          11.2953
+        ],
+        [
+          6.3627,
+          11.4778
+        ],
+        [
+          6.1802,
+          11.4778
+        ]
+      ]
+    },
+    {
+      "text": "Year [20xx]",
+      "bounding_box": [
+        [
+          0.1969,
+          0.2586
+        ],
+        [
+          1.3435,
+          0.2586
+        ],
+        [
+          1.3435,
+          0.4867
+        ],
+        [
+          0.1969,
+          0.4867
+        ]
+      ]
+    },
+    {
+      "text": "Teacher",
+      "bounding_box": [
+        [
+          1.4522,
+          0.3003
+        ],
+        [
+          2.2336,
+          0.3003
+        ],
+        [
+          2.2336,
+          0.4517
+        ],
+        [
+          1.4522,
+          0.4517
+        ]
+      ]
+    },
+    {
+      "text": "[Teacher name]",
+      "bounding_box": [
+        [
+          2.2967,
+          0.2636
+        ],
+        [
+          3.8632,
+          0.2636
+        ],
+        [
+          3.8632,
+          0.4918
+        ],
+        [
+          2.2967,
+          0.4918
+        ]
+      ]
+    },
+    {
+      "text": "English",
+      "bounding_box": [
+        [
+          0.2464,
+          0.9719
+        ],
+        [
+          0.7284,
+          0.9719
+        ],
+        [
+          0.7284,
+          1.1004
+        ],
+        [
+          0.2464,
+          1.1004
+        ]
+      ]
+    },
+    {
+      "text": "Overall achievement Select",
+      "bounding_box": [
+        [
+          2.7321,
+          0.9632
+        ],
+        [
+          4.4108,
+          0.9632
+        ],
+        [
+          4.4108,
+          1.0849
+        ],
+        [
+          2.7321,
+          1.0849
+        ]
+      ]
+    },
+    {
+      "text": "Effort",
+      "bounding_box": [
+        [
+          5.8855,
+          0.9726
+        ],
+        [
+          6.203,
+          0.9726
+        ],
+        [
+          6.203,
+          1.0752
+        ],
+        [
+          5.8855,
+          1.0752
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          6.2359,
+          0.9531
+        ],
+        [
+          6.5959,
+          0.9582
+        ],
+        [
+          6.5959,
+          1.0748
+        ],
+        [
+          6.2359,
+          1.0697
+        ]
+      ]
+    },
+    {
+      "text": "Teacher\u2019s comments",
+      "bounding_box": [
+        [
+          0.2,
+          1.2323
+        ],
+        [
+          1.4676,
+          1.2323
+        ],
+        [
+          1.4676,
+          1.3343
+        ],
+        [
+          0.2,
+          1.3343
+        ]
+      ]
+    },
+    {
+      "text": "[Comments will be written in plain English. Limit the use of education jargon. Recommended maximum length 150 words. Identify areas of student strength and areas for further development. If referring to focus areas or other syllabus content, modify to plain English.]",
+      "bounding_box": [
+        [
+          0.2484,
+          1.5108
+        ],
+        [
+          7.7417,
+          1.5108
+        ],
+        [
+          7.7417,
+          2.18
+        ],
+        [
+          0.2484,
+          2.18
+        ]
+      ]
+    },
+    {
+      "text": "Mathematics",
+      "bounding_box": [
+        [
+          0.2461,
+          3.2176
+        ],
+        [
+          1.0708,
+          3.2176
+        ],
+        [
+          1.0708,
+          3.3185
+        ],
+        [
+          0.2461,
+          3.3185
+        ]
+      ]
+    },
+    {
+      "text": "Overall achievement",
+      "bounding_box": [
+        [
+          2.7321,
+          3.2181
+        ],
+        [
+          3.9902,
+          3.2181
+        ],
+        [
+          3.9902,
+          3.3209
+        ],
+        [
+          2.7321,
+          3.3209
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          4.0491,
+          3.2091
+        ],
+        [
+          4.4159,
+          3.2193
+        ],
+        [
+          4.4125,
+          3.341
+        ],
+        [
+          4.0458,
+          3.3308
+        ]
+      ]
+    },
+    {
+      "text": "Effort",
+      "bounding_box": [
+        [
+          5.8855,
+          3.2183
+        ],
+        [
+          6.203,
+          3.2183
+        ],
+        [
+          6.203,
+          3.3209
+        ],
+        [
+          5.8855,
+          3.3209
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          6.241,
+          3.199
+        ],
+        [
+          6.606,
+          3.199
+        ],
+        [
+          6.601,
+          3.3206
+        ],
+        [
+          6.241,
+          3.3206
+        ]
+      ]
+    },
+    {
+      "text": "Teacher\u2019s comments",
+      "bounding_box": [
+        [
+          0.2,
+          3.478
+        ],
+        [
+          1.4676,
+          3.478
+        ],
+        [
+          1.4676,
+          3.5799
+        ],
+        [
+          0.2,
+          3.5799
+        ]
+      ]
+    },
+    {
+      "text": "[Comments will be written in plain English. Limit the use of education jargon. Recommended maximum length 150 words.",
+      "bounding_box": [
+        [
+          0.2535,
+          3.7516
+        ],
+        [
+          6.9711,
+          3.7516
+        ],
+        [
+          6.9711,
+          3.8986
+        ],
+        [
+          0.2535,
+          3.8986
+        ]
+      ]
+    },
+    {
+      "text": "Identify areas of student strength and areas for further development. If referring to focus areas or other syllabus content, modify to plain English.]",
+      "bounding_box": [
+        [
+          0.2484,
+          4.0862
+        ],
+        [
+          7.7417,
+          4.0862
+        ],
+        [
+          7.7417,
+          4.4106
+        ],
+        [
+          0.2484,
+          4.4106
+        ]
+      ]
+    },
+    {
+      "text": "Creative arts",
+      "bounding_box": [
+        [
+          0.2427,
+          5.4655
+        ],
+        [
+          1.0709,
+          5.4655
+        ],
+        [
+          1.0709,
+          5.5682
+        ],
+        [
+          0.2427,
+          5.5682
+        ]
+      ]
+    },
+    {
+      "text": "Overall achievement Select",
+      "bounding_box": [
+        [
+          2.7321,
+          5.4601
+        ],
+        [
+          4.4159,
+          5.4601
+        ],
+        [
+          4.4159,
+          5.5817
+        ],
+        [
+          2.7321,
+          5.5817
+        ]
+      ]
+    },
+    {
+      "text": "Effort Select",
+      "bounding_box": [
+        [
+          5.8855,
+          5.4499
+        ],
+        [
+          6.601,
+          5.4499
+        ],
+        [
+          6.601,
+          5.5716
+        ],
+        [
+          5.8855,
+          5.5716
+        ]
+      ]
+    },
+    {
+      "text": "dance",
+      "bounding_box": [
+        [
+          1.8597,
+          5.6745
+        ],
+        [
+          3.411,
+          5.6967
+        ],
+        [
+          3.411,
+          6.0084
+        ],
+        [
+          1.8516,
+          6.0084
+        ]
+      ]
+    },
+    {
+      "text": "drama",
+      "bounding_box": [
+        [
+          3.411,
+          5.6967
+        ],
+        [
+          4.6764,
+          5.6967
+        ],
+        [
+          4.6846,
+          6.0084
+        ],
+        [
+          3.411,
+          6.0084
+        ]
+      ]
+    },
+    {
+      "text": "music",
+      "bounding_box": [
+        [
+          4.6764,
+          5.6967
+        ],
+        [
+          6.2276,
+          5.6967
+        ],
+        [
+          6.2276,
+          6.001
+        ],
+        [
+          4.6846,
+          6.0084
+        ]
+      ]
+    },
+    {
+      "text": "visual arts",
+      "bounding_box": [
+        [
+          6.2276,
+          5.6967
+        ],
+        [
+          8.0483,
+          5.6967
+        ],
+        [
+          8.0564,
+          6.0084
+        ],
+        [
+          6.2276,
+          6.001
+        ]
+      ]
+    },
+    {
+      "text": "Achievement",
+      "bounding_box": [
+        [
+          0.1942,
+          6.0084
+        ],
+        [
+          1.8516,
+          6.0084
+        ],
+        [
+          1.8516,
+          6.32
+        ],
+        [
+          0.1942,
+          6.3274
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          1.8516,
+          6.0084
+        ],
+        [
+          3.411,
+          6.0084
+        ],
+        [
+          3.411,
+          6.3126
+        ],
+        [
+          1.8516,
+          6.32
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          3.411,
+          6.0084
+        ],
+        [
+          4.6846,
+          6.0084
+        ],
+        [
+          4.7009,
+          6.3126
+        ],
+        [
+          3.411,
+          6.3126
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          4.6846,
+          6.0084
+        ],
+        [
+          6.2276,
+          6.001
+        ],
+        [
+          6.2358,
+          6.3126
+        ],
+        [
+          4.7009,
+          6.3126
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          6.2276,
+          6.001
+        ],
+        [
+          8.0564,
+          6.0084
+        ],
+        [
+          8.0646,
+          6.32
+        ],
+        [
+          6.2358,
+          6.3126
+        ]
+      ]
+    },
+    {
+      "text": "Effort",
+      "bounding_box": [
+        [
+          0.1942,
+          6.3274
+        ],
+        [
+          1.8516,
+          6.32
+        ],
+        [
+          1.8516,
+          6.6316
+        ],
+        [
+          0.1942,
+          6.639
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          1.8516,
+          6.32
+        ],
+        [
+          3.411,
+          6.3126
+        ],
+        [
+          3.411,
+          6.639
+        ],
+        [
+          1.8516,
+          6.6316
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          3.411,
+          6.3126
+        ],
+        [
+          4.7009,
+          6.3126
+        ],
+        [
+          4.7091,
+          6.6316
+        ],
+        [
+          3.411,
+          6.639
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          4.7009,
+          6.3126
+        ],
+        [
+          6.2358,
+          6.3126
+        ],
+        [
+          6.2358,
+          6.6316
+        ],
+        [
+          4.7091,
+          6.6316
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          6.2358,
+          6.3126
+        ],
+        [
+          8.0646,
+          6.32
+        ],
+        [
+          8.0646,
+          6.639
+        ],
+        [
+          6.2358,
+          6.6316
+        ]
+      ]
+    },
+    {
+      "text": "Human society and its environment",
+      "bounding_box": [
+        [
+          0.2464,
+          6.9408
+        ],
+        [
+          2.5808,
+          6.9408
+        ],
+        [
+          2.5808,
+          7.0693
+        ],
+        [
+          0.2464,
+          7.0693
+        ]
+      ]
+    },
+    {
+      "text": "Overall achievement Select",
+      "bounding_box": [
+        [
+          2.7321,
+          6.9241
+        ],
+        [
+          4.4113,
+          6.9319
+        ],
+        [
+          4.4108,
+          7.0519
+        ],
+        [
+          2.7316,
+          7.0441
+        ]
+      ]
+    },
+    {
+      "text": "Effort",
+      "bounding_box": [
+        [
+          5.8855,
+          6.9415
+        ],
+        [
+          6.203,
+          6.9415
+        ],
+        [
+          6.203,
+          7.0441
+        ],
+        [
+          5.8855,
+          7.0441
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          6.241,
+          6.9252
+        ],
+        [
+          6.5959,
+          6.9303
+        ],
+        [
+          6.5959,
+          7.0469
+        ],
+        [
+          6.241,
+          7.0418
+        ]
+      ]
+    },
+    {
+      "text": "geography",
+      "bounding_box": [
+        [
+          1.8532,
+          7.1415
+        ],
+        [
+          4.9663,
+          7.1778
+        ],
+        [
+          4.9581,
+          7.4828
+        ],
+        [
+          1.845,
+          7.4901
+        ]
+      ]
+    },
+    {
+      "text": "history",
+      "bounding_box": [
+        [
+          4.9663,
+          7.1778
+        ],
+        [
+          8.0549,
+          7.1778
+        ],
+        [
+          8.0549,
+          7.4828
+        ],
+        [
+          4.9581,
+          7.4828
+        ]
+      ]
+    },
+    {
+      "text": "Achievement",
+      "bounding_box": [
+        [
+          0.207,
+          7.4901
+        ],
+        [
+          1.845,
+          7.4901
+        ],
+        [
+          1.845,
+          7.795
+        ],
+        [
+          0.1989,
+          7.8023
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          1.845,
+          7.4901
+        ],
+        [
+          4.9581,
+          7.4828
+        ],
+        [
+          4.95,
+          7.795
+        ],
+        [
+          1.845,
+          7.795
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          4.9581,
+          7.4828
+        ],
+        [
+          8.0549,
+          7.4828
+        ],
+        [
+          8.063,
+          7.8023
+        ],
+        [
+          4.95,
+          7.795
+        ]
+      ]
+    },
+    {
+      "text": "Effort",
+      "bounding_box": [
+        [
+          0.1989,
+          7.8023
+        ],
+        [
+          1.845,
+          7.795
+        ],
+        [
+          1.845,
+          8.1218
+        ],
+        [
+          0.1907,
+          8.1218
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          1.845,
+          7.795
+        ],
+        [
+          4.95,
+          7.795
+        ],
+        [
+          4.95,
+          8.1218
+        ],
+        [
+          1.845,
+          8.1218
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          4.95,
+          7.795
+        ],
+        [
+          8.063,
+          7.8023
+        ],
+        [
+          8.063,
+          8.1291
+        ],
+        [
+          4.95,
+          8.1218
+        ]
+      ]
+    },
+    {
+      "text": "Personal development, health and physical education",
+      "bounding_box": [
+        [
+          0.2412,
+          8.4251
+        ],
+        [
+          2.195,
+          8.4251
+        ],
+        [
+          2.195,
+          8.748
+        ],
+        [
+          0.2412,
+          8.748
+        ]
+      ]
+    },
+    {
+      "text": "Overall achievement",
+      "bounding_box": [
+        [
+          2.7321,
+          8.5205
+        ],
+        [
+          3.9902,
+          8.5205
+        ],
+        [
+          3.9902,
+          8.6233
+        ],
+        [
+          2.7321,
+          8.6233
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          4.0559,
+          8.512
+        ],
+        [
+          4.4057,
+          8.512
+        ],
+        [
+          4.4057,
+          8.6286
+        ],
+        [
+          4.0559,
+          8.6286
+        ]
+      ]
+    },
+    {
+      "text": "Effort",
+      "bounding_box": [
+        [
+          5.8855,
+          8.5207
+        ],
+        [
+          6.203,
+          8.5207
+        ],
+        [
+          6.203,
+          8.6233
+        ],
+        [
+          5.8855,
+          8.6233
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          6.241,
+          8.5019
+        ],
+        [
+          6.5959,
+          8.5019
+        ],
+        [
+          6.5959,
+          8.6185
+        ],
+        [
+          6.241,
+          8.6185
+        ]
+      ]
+    },
+    {
+      "text": "personal development, health",
+      "bounding_box": [
+        [
+          1.8571,
+          8.8291
+        ],
+        [
+          4.9601,
+          8.8511
+        ],
+        [
+          4.952,
+          9.1667
+        ],
+        [
+          1.849,
+          9.1667
+        ]
+      ]
+    },
+    {
+      "text": "physical education",
+      "bounding_box": [
+        [
+          4.9601,
+          8.8511
+        ],
+        [
+          8.0469,
+          8.8511
+        ],
+        [
+          8.055,
+          9.1667
+        ],
+        [
+          4.952,
+          9.1667
+        ]
+      ]
+    },
+    {
+      "text": "Achievement",
+      "bounding_box": [
+        [
+          0.1875,
+          9.1667
+        ],
+        [
+          1.849,
+          9.1667
+        ],
+        [
+          1.849,
+          9.475
+        ],
+        [
+          0.1875,
+          9.4824
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          1.849,
+          9.1667
+        ],
+        [
+          4.952,
+          9.1667
+        ],
+        [
+          4.952,
+          9.475
+        ],
+        [
+          1.849,
+          9.475
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          4.952,
+          9.1667
+        ],
+        [
+          8.055,
+          9.1667
+        ],
+        [
+          8.0632,
+          9.4824
+        ],
+        [
+          4.952,
+          9.475
+        ]
+      ]
+    },
+    {
+      "text": "Effort",
+      "bounding_box": [
+        [
+          0.1875,
+          9.4824
+        ],
+        [
+          1.849,
+          9.475
+        ],
+        [
+          1.849,
+          9.798
+        ],
+        [
+          0.1875,
+          9.798
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          1.849,
+          9.475
+        ],
+        [
+          4.952,
+          9.475
+        ],
+        [
+          4.952,
+          9.798
+        ],
+        [
+          1.849,
+          9.798
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          4.952,
+          9.475
+        ],
+        [
+          8.0632,
+          9.4824
+        ],
+        [
+          8.0632,
+          9.798
+        ],
+        [
+          4.952,
+          9.798
+        ]
+      ]
+    },
+    {
+      "text": "Science and technology",
+      "bounding_box": [
+        [
+          0.1876,
+          10.0095
+        ],
+        [
+          1.8583,
+          10.0095
+        ],
+        [
+          1.8501,
+          10.2976
+        ],
+        [
+          0.1876,
+          10.2824
+        ]
+      ]
+    },
+    {
+      "text": "Overall achievement Select Effort Select",
+      "bounding_box": [
+        [
+          1.8583,
+          10.0095
+        ],
+        [
+          8.0437,
+          10.0246
+        ],
+        [
+          8.0518,
+          10.3355
+        ],
+        [
+          1.8501,
+          10.2976
+        ]
+      ]
+    },
+    {
+      "text": "science",
+      "bounding_box": [
+        [
+          1.8501,
+          10.2976
+        ],
+        [
+          4.352,
+          10.3355
+        ],
+        [
+          4.3438,
+          10.6464
+        ],
+        [
+          1.8501,
+          10.6464
+        ]
+      ]
+    },
+    {
+      "text": "digital technologies",
+      "bounding_box": [
+        [
+          4.352,
+          10.3355
+        ],
+        [
+          8.0518,
+          10.3355
+        ],
+        [
+          8.0518,
+          10.6464
+        ],
+        [
+          4.3438,
+          10.6464
+        ]
+      ]
+    },
+    {
+      "text": "Achievement",
+      "bounding_box": [
+        [
+          0.1876,
+          10.6464
+        ],
+        [
+          1.8501,
+          10.6464
+        ],
+        [
+          1.8501,
+          10.9572
+        ],
+        [
+          0.1876,
+          10.9648
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          1.8501,
+          10.6464
+        ],
+        [
+          4.3438,
+          10.6464
+        ],
+        [
+          4.3438,
+          10.9572
+        ],
+        [
+          1.8501,
+          10.9572
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          4.3438,
+          10.6464
+        ],
+        [
+          8.0518,
+          10.6464
+        ],
+        [
+          8.06,
+          10.9648
+        ],
+        [
+          4.3438,
+          10.9572
+        ]
+      ]
+    },
+    {
+      "text": "Effort",
+      "bounding_box": [
+        [
+          0.1876,
+          10.9648
+        ],
+        [
+          1.8501,
+          10.9572
+        ],
+        [
+          1.8501,
+          11.2757
+        ],
+        [
+          0.1876,
+          11.2832
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          1.8501,
+          10.9572
+        ],
+        [
+          4.3438,
+          10.9572
+        ],
+        [
+          4.3438,
+          11.2757
+        ],
+        [
+          1.8501,
+          11.2757
+        ]
+      ]
+    },
+    {
+      "text": "Select",
+      "bounding_box": [
+        [
+          4.3438,
+          10.9572
+        ],
+        [
+          8.06,
+          10.9648
+        ],
+        [
+          8.06,
+          11.2832
+        ],
+        [
+          4.3438,
+          11.2757
+        ]
+      ]
+    }
+  ],
+  "page_count": 1,
+  "document_type": "report_template"
+}

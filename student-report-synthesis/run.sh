@@ -4,7 +4,7 @@
 # Set environment variables (replace with your actual Azure service credentials)
 export FORM_RECOGNIZER_ENDPOINT=https://australiaeast.api.cognitive.microsoft.com/
 export FORM_RECOGNIZER_KEY=416d8e218d834fd6a2c72e4919247b2d
-export OPENAI_ENDPOINT=https://australiaeast.api.cognitive.microsoft.com/openai/deployments/gpt-4o/chat/completions?api-version=2025-01-01-preview
+export OPENAI_ENDPOINT=https://australiaeast.api.cognitive.microsoft.com/
 export OPENAI_KEY=2ece0e0981a949eba7ff8159f16e96de
 export OPENAI_DEPLOYMENT=gpt-4o
 

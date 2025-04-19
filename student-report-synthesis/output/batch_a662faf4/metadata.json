@@ -1,0 +1,40 @@
+{
+  "batch_id": "batch_a662faf4",
+  "template_id": "queensland_95dd1d23",
+  "template_name": "queensland",
+  "num_reports": 5,
+  "reports": [
+    {
+      "id": "report_1",
+      "student_name": "Ella Davis",
+      "path": "output/batch_a662faf4/report_1.pdf",
+      "status": "generated"
+    },
+    {
+      "id": "report_2",
+      "student_name": "James Rodriguez",
+      "path": "output/batch_a662faf4/report_2.pdf",
+      "status": "generated"
+    },
+    {
+      "id": "report_3",
+      "student_name": "Michael Anderson",
+      "path": "output/batch_a662faf4/report_3.pdf",
+      "status": "generated"
+    },
+    {
+      "id": "report_4",
+      "student_name": "Alexander Davis",
+      "path": "output/batch_a662faf4/report_4.pdf",
+      "status": "generated"
+    },
+    {
+      "id": "report_5",
+      "student_name": "Ella Jackson",
+      "path": "output/batch_a662faf4/report_5.pdf",
+      "status": "generated"
+    }
+  ],
+  "status": "completed",
+  "completion_time": "2025-04-19T12:07:02.867515"
+}
