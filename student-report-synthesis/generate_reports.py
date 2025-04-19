@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
 Command-line interface for the Student Report Generation System.
+
+This script provides a command-line interface for generating student reports
+with AI-generated content using Azure OpenAI.
 """
 
 import os
@@ -29,6 +32,7 @@ logging.basicConfig(
 os.makedirs("logs", exist_ok=True)
 
 logger = logging.getLogger(__name__)
+
 
 def main():
     """Main entry point for the report generator CLI."""
@@ -160,6 +164,7 @@ def main():
         parser.print_help()
         return 1
 
+
 def validate_setup(openai_endpoint, openai_key, form_recognizer_endpoint, form_recognizer_key):
     """Validate the setup and configuration."""
     print("Validating setup and configuration...")
@@ -221,7 +226,9 @@ def validate_setup(openai_endpoint, openai_key, form_recognizer_endpoint, form_r
             "openai": "openai",
             "jinja2": "jinja2",
             "xhtml2pdf": "xhtml2pdf.pisa",
-            "reportlab": "reportlab"
+            "reportlab": "reportlab",
+            "weasyprint": "weasyprint",
+            "beautifulsoup4": "bs4"
         }
         
         for name, module in dependencies.items():
@@ -229,11 +236,12 @@ def validate_setup(openai_endpoint, openai_key, form_recognizer_endpoint, form_r
                 __import__(module.split(".")[0])
                 print(f"✅ Dependency installed: {name}")
             except ImportError:
-                print(f"❌ Dependency missing: {name}")
+                print(f"⚠️ Dependency missing or optional: {name}")
     except Exception as e:
         print(f"❌ Error checking dependencies: {str(e)}")
     
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

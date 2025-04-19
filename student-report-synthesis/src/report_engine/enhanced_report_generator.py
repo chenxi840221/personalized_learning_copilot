@@ -11,6 +11,7 @@ import json
 import uuid
 import tempfile
 import subprocess
+import re
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
@@ -21,6 +22,13 @@ from src.report_engine.styles.report_styles import ReportStyle, get_style_handle
 from src.report_engine.ai.ai_content_generator import AIContentGenerator
 from src.report_engine.templates.template_handler import TemplateHandler
 from src.report_engine.student_data_generator import StudentProfile, SchoolProfile, StudentDataGenerator
+
+# Try to import utility functions
+try:
+    from src.report_engine.utils.pdf_utils import convert_html_to_pdf
+    has_pdf_utils = True
+except ImportError:
+    has_pdf_utils = False
 
 # PDF generation
 try:
@@ -295,6 +303,9 @@ class EnhancedReportGenerator:
             html_content = self.template_handler.render_template(template_name, data)
             
             if html_content:
+                # Ensure output directory exists
+                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                
                 # Write HTML to file
                 with open(output_path, "w", encoding="utf-8") as f:
                     f.write(html_content)
@@ -302,33 +313,408 @@ class EnhancedReportGenerator:
                 logger.info(f"Generated HTML report: {output_path}")
                 return output_path
             else:
-                logger.error("Failed to render template")
-                return ""
-            
+                # Fallback to a basic HTML if template rendering fails
+                simple_html = self._generate_simple_html_report(data)
+                
+                # Write the simple HTML to file
+                with open(output_path, "w", encoding="utf-8") as f:
+                    f.write(simple_html)
+                    
+                logger.warning(f"Used simple HTML fallback for report: {output_path}")
+                return output_path
         except Exception as e:
             logger.error(f"Error generating HTML report: {str(e)}")
             return ""
     
+    def _generate_simple_html_report(self, data: Dict[str, Any]) -> str:
+        """Generate a simple HTML report as fallback."""
+        student = data.get("student", {})
+        school = data.get("school", {})
+        subjects = data.get("subjects", [])
+        
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{student.get('name', {}).get('full_name', 'Student')} - School Report</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; }}
+        h1, h2, h3 {{ color: #003366; }}
+        table {{ width: 100%; border-collapse: collapse; margin: 15px 0; }}
+        th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+        th {{ background-color: #f2f2f2; }}
+        .comment {{ font-size: 0.9em; }}
+        .general-comment {{ background-color: #f5f5f5; padding: 10px; border-radius: 5px; margin: 15px 0; }}
+    </style>
+</head>
+<body>
+    <h1>{school.get('name', 'School')} Student Report</h1>
+    <h2>Student Information</h2>
+    <p><strong>Name:</strong> {student.get('name', {}).get('full_name', '')}</p>
+    <p><strong>Grade:</strong> {student.get('grade', '')}</p>
+    <p><strong>Class:</strong> {student.get('class', '')}</p>
+    <p><strong>Teacher:</strong> {student.get('teacher', {}).get('full_name', '')}</p>
+    
+    <h2>Academic Performance</h2>
+    <table>
+        <tr>
+            <th>Subject</th>
+            <th>Achievement</th>
+            <th>Effort</th>
+            <th>Comments</th>
+        </tr>
+"""
+        
+        # Add subject rows
+        for subject in subjects:
+            subj_name = subject.get('subject', '')
+            achievement = subject.get('achievement', {}).get('label', '')
+            achievement_code = subject.get('achievement', {}).get('code', '')
+            effort = subject.get('effort', {}).get('label', '')
+            effort_code = subject.get('effort', {}).get('code', '')
+            comment = subject.get('comment', '')
+            
+            achievement_display = f"{achievement} ({achievement_code})" if achievement_code else achievement
+            effort_display = f"{effort} ({effort_code})" if effort_code else effort
+            
+            html += f"""
+        <tr>
+            <td>{subj_name}</td>
+            <td>{achievement_display}</td>
+            <td>{effort_display}</td>
+            <td class="comment">{comment}</td>
+        </tr>"""
+        
+        # Add attendance 
+        attendance = data.get("attendance", {})
+        html += f"""
+    </table>
+    
+    <h2>Attendance</h2>
+    <table>
+        <tr>
+            <th>Days Present</th>
+            <th>Days Absent</th>
+            <th>Days Late</th>
+            <th>Attendance Rate</th>
+        </tr>
+        <tr>
+            <td>{attendance.get('present_days', 0)}</td>
+            <td>{attendance.get('absent_days', 0)}</td>
+            <td>{attendance.get('late_days', 0)}</td>
+            <td>{attendance.get('attendance_rate', 0)}%</td>
+        </tr>
+    </table>
+    
+    <h2>General Comment</h2>
+    <div class="general-comment">
+        {data.get('general_comment', '')}
+    </div>
+    
+    <h2>Signatures</h2>
+    <p><strong>Teacher:</strong> {student.get('teacher', {}).get('full_name', '')}</p>
+    <p><strong>Principal:</strong> {school.get('principal', '')}</p>
+    
+    <p><small>Report generated on {data.get('report_date', '')}</small></p>
+</body>
+</html>
+"""
+        return html
+    
     def _generate_pdf_report(self, data: Dict[str, Any], style: str, output_path: str) -> str:
         """Generate a PDF report."""
-        # Try using HTML to PDF conversion first
-        html_path = output_path.replace(".pdf", ".html")
-        html_output_path = self._generate_html_report(data, style, html_path)
-        
-        if html_output_path and os.path.exists(html_output_path):
-            # Try to convert HTML to PDF
-            if hasattr(self.template_handler, 'html_to_pdf') and self.template_handler.html_to_pdf(html_path, output_path):
-                # Remove temporary HTML file
-                try:
-                    os.remove(html_path)
-                except:
-                    pass
+        try:
+            # First generate an HTML version
+            html_path = output_path.replace(".pdf", ".html")
+            html_output_path = self._generate_html_report(data, style, html_path)
+            
+            if html_output_path and os.path.exists(html_output_path):
+                # Use PDF utils if available
+                if has_pdf_utils:
+                    from src.report_engine.utils.pdf_utils import convert_html_to_pdf
+                    if convert_html_to_pdf(html_path, output_path):
+                        logger.info(f"Generated PDF report using pdf_utils: {output_path}")
+                        return output_path
                 
-                logger.info(f"Generated PDF report: {output_path}")
-                return output_path
-        
-        # Fallback to direct PDF generation using ReportLab
-        return self._generate_reportlab_pdf(data, style, output_path)
+                # Try to convert HTML to PDF using WeasyPrint
+                try:
+                    from weasyprint import HTML, CSS
+                    
+                    # Custom CSS to enhance PDF rendering
+                    css_string = """
+                        @page {
+                            size: A4;
+                            margin: 1cm;
+                        }
+                        body {
+                            font-family: Arial, Helvetica, sans-serif;
+                        }
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            margin-bottom: 15px;
+                        }
+                        th, td {
+                            border: 1px solid #ddd;
+                            padding: 4px;
+                        }
+                        .rating {
+                            text-align: center;
+                            display: inline-block;
+                            height: 25px;
+                            line-height: 25px;
+                            vertical-align: middle;
+                            border: 1px solid #ddd;
+                            min-width: 25px;
+                            padding: 0 5px;
+                            margin: 0 2px;
+                        }
+                        .rating.selected {
+                            background-color: #003366;
+                            color: white;
+                        }
+                        .achievement-code, .effort-code {
+                            font-weight: bold;
+                            padding: 2px 5px;
+                            border-radius: 3px;
+                            display: inline-block;
+                        }
+                        .achievement-code {
+                            background-color: #e6f2ff;
+                        }
+                        .effort-code {
+                            background-color: #e6f7e6;
+                        }
+                        .subject-name {
+                            font-weight: bold;
+                        }
+                        .general-comment {
+                            padding: 10px;
+                            margin: 15px 0;
+                            border-left: 5px solid #003366;
+                            background-color: #f8f9fa;
+                        }
+                        .signature-box {
+                            width: 45%;
+                            text-align: center;
+                            display: inline-block;
+                        }
+                        .signature-line {
+                            border-top: 1px solid #000;
+                            margin-top: 30px;
+                            padding-top: 5px;
+                        }
+                    """
+                    custom_css = CSS(string=css_string)
+                    
+                    # Ensure output directory exists
+                    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+                    
+                    # Convert HTML to PDF
+                    HTML(filename=html_path).write_pdf(
+                        output_path,
+                        stylesheets=[custom_css]
+                    )
+                    
+                    logger.info(f"Generated PDF report with WeasyPrint: {output_path}")
+                    return output_path
+                except ImportError:
+                    logger.info("WeasyPrint not available, falling back to other methods")
+                except Exception as e:
+                    logger.error(f"Error with WeasyPrint: {str(e)}")
+                
+                # Try wkhtmltopdf if available
+                try:
+                    import subprocess
+                    
+                    # Check if wkhtmltopdf is installed
+                    wkhtmltopdf_paths = [
+                        'wkhtmltopdf',  # If in PATH
+                        '/usr/bin/wkhtmltopdf',
+                        '/usr/local/bin/wkhtmltopdf',
+                        'C:\\Program Files\\wkhtmltopdf\\bin\\wkhtmltopdf.exe',
+                        'C:\\Program Files (x86)\\wkhtmltopdf\\bin\\wkhtmltopdf.exe'
+                    ]
+                    
+                    wkhtmltopdf_cmd = None
+                    for path in wkhtmltopdf_paths:
+                        try:
+                            subprocess.run([path, '--version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                            wkhtmltopdf_cmd = path
+                            break
+                        except (FileNotFoundError, subprocess.SubprocessError):
+                            continue
+                    
+                    if wkhtmltopdf_cmd:
+                        # Convert HTML to PDF using wkhtmltopdf
+                        cmd = [
+                            wkhtmltopdf_cmd,
+                            '--enable-local-file-access',
+                            '--encoding', 'utf-8',
+                            '--page-size', 'A4',
+                            '--margin-top', '10mm',
+                            '--margin-bottom', '10mm',
+                            '--margin-left', '10mm',
+                            '--margin-right', '10mm',
+                            html_path,
+                            output_path
+                        ]
+                        
+                        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        
+                        if result.returncode == 0:
+                            logger.info(f"Generated PDF report with wkhtmltopdf: {output_path}")
+                            return output_path
+                        else:
+                            logger.error(f"Error with wkhtmltopdf: {result.stderr.decode('utf-8', errors='ignore')}")
+                except Exception as e:
+                    logger.error(f"Error with wkhtmltopdf: {str(e)}")
+                
+                # Fallback to xhtml2pdf with improved handling
+                try:
+                    import xhtml2pdf.pisa as pisa
+                    from bs4 import BeautifulSoup
+                    
+                    # Read HTML content
+                    with open(html_path, "r", encoding="utf-8") as f:
+                        html_content = f.read()
+                    
+                    # Parse HTML to add special CSS
+                    soup = BeautifulSoup(html_content, 'html.parser')
+                    
+                    # Find or create style tag
+                    style_tag = soup.find('style')
+                    if not style_tag:
+                        style_tag = soup.new_tag('style')
+                        head_tag = soup.find('head')
+                        if head_tag:
+                            head_tag.append(style_tag)
+                        else:
+                            # Create head if it doesn't exist
+                            head_tag = soup.new_tag('head')
+                            soup.html.insert(0, head_tag)
+                            head_tag.append(style_tag)
+                    
+                    # Add PDF-specific CSS
+                    style_tag.string = (style_tag.string if style_tag.string else "") + """
+                        @page {
+                            size: A4;
+                            margin: 1cm;
+                        }
+                        body {
+                            font-family: Arial, Helvetica, sans-serif;
+                        }
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            page-break-inside: avoid;
+                        }
+                        th, td {
+                            border: 1px solid #ddd;
+                            padding: 4px;
+                        }
+                        .rating {
+                            border: 1px solid #ddd;
+                            padding: 3px 5px;
+                            margin: 0 1px;
+                            display: inline-block;
+                        }
+                        .rating.selected {
+                            background-color: #003366;
+                            color: white;
+                        }
+                        .signature-box {
+                            width: 45%;
+                            float: left;
+                            text-align: center;
+                            margin: 0 2.5%;
+                        }
+                        .signature-line {
+                            border-top: 1px solid #000;
+                            margin-top: 30px;
+                            padding-top: 5px;
+                        }
+                        .general-comment {
+                            padding: 10px;
+                            margin: 15px 0;
+                            border-left: 5px solid #003366;
+                            background-color: #f8f9fa;
+                        }
+                        .section-header {
+                            background-color: #f0f0f0;
+                            padding: 5px;
+                            margin-top: 10px;
+                            font-weight: bold;
+                        }
+                        .subject-name {
+                            font-weight: bold;
+                        }
+                    """
+                    
+                    # Pre-process the HTML for xhtml2pdf compatibility
+                    # Fix inline styling that xhtml2pdf doesn't handle well
+                    for element in soup.select('.selected'):
+                        element['style'] = 'background-color: #003366; color: white;'
+                    
+                    for element in soup.select('.signature-box'):
+                        element['style'] = 'width: 45%; display: inline-block; text-align: center; margin: 0 2%;'
+                    
+                    for element in soup.select('.signature-line'):
+                        element['style'] = 'border-top: 1px solid #000; margin-top: 30px; padding-top: 5px;'
+                    
+                    # Update HTML content with modifications
+                    enhanced_html = str(soup)
+                    
+                    # Create PDF
+                    with open(output_path, "wb") as pdf_file:
+                        result = pisa.CreatePDF(
+                            src=enhanced_html,
+                            dest=pdf_file,
+                            encoding="utf-8"
+                        )
+                    
+                    if not result.err:
+                        logger.info(f"Generated PDF report with enhanced xhtml2pdf: {output_path}")
+                        return output_path
+                    else:
+                        logger.error(f"Error converting HTML to PDF with xhtml2pdf: {result.err}")
+                except ImportError:
+                    logger.warning("BeautifulSoup not installed. Try: pip install beautifulsoup4")
+                except Exception as e:
+                    logger.error(f"Error with enhanced xhtml2pdf: {str(e)}")
+                
+                # Standard xhtml2pdf as final fallback
+                try:
+                    import xhtml2pdf.pisa as pisa
+                    
+                    # Read HTML content
+                    with open(html_path, "r", encoding="utf-8") as f:
+                        html_content = f.read()
+                    
+                    # Create PDF
+                    with open(output_path, "wb") as pdf_file:
+                        result = pisa.CreatePDF(
+                            src=html_content,
+                            dest=pdf_file,
+                            encoding="utf-8"
+                        )
+                    
+                    if not result.err:
+                        logger.info(f"Generated PDF report with standard xhtml2pdf: {output_path}")
+                        return output_path
+                    else:
+                        logger.error(f"Error converting HTML to PDF with standard xhtml2pdf: {result.err}")
+                except Exception as e:
+                    logger.error(f"Error with standard xhtml2pdf: {str(e)}")
+            
+            # If all HTML to PDF conversions failed or HTML wasn't generated, fallback to ReportLab
+            logger.warning("Falling back to ReportLab for PDF generation")
+            return self._generate_reportlab_pdf(data, style, output_path)
+                
+        except Exception as e:
+            logger.error(f"Error generating PDF report: {str(e)}")
+            return self._generate_reportlab_pdf(data, style, output_path)  # Fallback to ReportLab
     
     def _generate_reportlab_pdf(self, data: Dict[str, Any], style: str, output_path: str) -> str:
         """Generate a PDF report using ReportLab."""
