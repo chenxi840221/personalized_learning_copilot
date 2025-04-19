@@ -120,3 +120,6 @@ data-volume/
 # System Files
 .DS_Store
 Thumbs.db
+
+student-report-synthesis/output/
+student-report-synthesis/templates/
