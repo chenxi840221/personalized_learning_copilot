@@ -1,9 +1,9 @@
-# Student Report Generation System
+# Student Report Synthesis
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
 
-An AI-powered system for generating personalized student reports following Australian educational standards with support for different state/territory formats (ACT, NSW, etc.).
+An AI-powered system for generating personalized student reports following Australian educational standards with support for different state/territory formats (ACT, NSW, QLD, VIC, etc.).
 
 ## 📋 Overview
 
