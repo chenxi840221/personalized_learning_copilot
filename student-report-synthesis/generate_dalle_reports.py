@@ -10,6 +10,7 @@ import os
 import sys
 import argparse
 import logging
+import uuid
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -31,11 +32,48 @@ os.makedirs("logs", exist_ok=True)
 
 logger = logging.getLogger(__name__)
 
+# Style-specific settings
+STYLE_SETTINGS = {
+    "act": {
+        "badge_colors": ["navy blue", "gold"],
+        "badge_style": "modern",
+        "photo_style": "school portrait",
+    },
+    "nsw": {
+        "badge_colors": ["blue", "white"],
+        "badge_style": "traditional",
+        "photo_style": "school portrait",
+    },
+    "vic": {
+        "badge_colors": ["navy blue", "white"],
+        "badge_style": "modern",
+        "photo_style": "school portrait",
+    },
+    "generic": {
+        "badge_colors": ["blue", "gold"],
+        "badge_style": "modern",
+        "photo_style": "school portrait",
+    }
+}
+
 def generate_single_report(args, report_generator):
     """Generate a single report with DALL-E images."""
     print(f"Generating a single {args.style} report with DALL-E images...")
     
+    # Create output path if provided
     output_path = args.output if args.output else None
+    
+    # Get style-specific settings
+    style_key = args.style.lower()
+    if style_key not in STYLE_SETTINGS:
+        style_key = "generic"
+        
+    style_settings = STYLE_SETTINGS[style_key]
+    
+    # Override settings with command line arguments if provided
+    badge_style = args.badge_style or style_settings["badge_style"]
+    badge_colors = args.badge_colors.split(",") if args.badge_colors else style_settings["badge_colors"]
+    photo_style = style_settings["photo_style"]
     
     # Generate the report
     report_path = report_generator.generate_report(
@@ -45,9 +83,9 @@ def generate_single_report(args, report_generator):
         output_path=output_path,
         generate_images=True,
         image_options={
-            "badge_style": args.badge_style,
-            "badge_colors": args.badge_colors.split(",") if args.badge_colors else ["navy blue", "gold"],
-            "photo_style": "school portrait",
+            "badge_style": badge_style,
+            "badge_colors": badge_colors,
+            "photo_style": photo_style,
             "photo_size": args.image_size
         }
     )
@@ -63,13 +101,21 @@ def generate_batch_reports(args, report_generator):
     """Generate a batch of reports with DALL-E images."""
     print(f"Generating {args.num} {args.style} reports with DALL-E images...")
     
+    # Create a batch ID if not provided
+    batch_id = args.batch_id or f"batch_{uuid.uuid4().hex[:8]}"
+    
+    # Get style-specific settings
+    style_key = args.style.lower()
+    if style_key not in STYLE_SETTINGS:
+        style_key = "generic"
+        
     # Generate the batch
     batch_result = report_generator.generate_batch_reports(
         num_reports=args.num,
         style=args.style,
         output_format=args.format,
         comment_length=args.comment_length,
-        batch_id=args.batch_id,
+        batch_id=batch_id,
         generate_images=True
     )
     
@@ -87,6 +133,17 @@ def generate_batch_reports(args, report_generator):
     else:
         print("❌ Failed to generate batch reports")
         return 1
+
+def validate_style(style):
+    """Validate if a style is supported."""
+    valid_styles = list(STYLE_SETTINGS.keys())
+    
+    if style.lower() not in valid_styles:
+        print(f"Warning: Style '{style}' is not explicitly supported. Using generic settings.")
+        print(f"Supported styles: {', '.join(valid_styles)}")
+        return "generic"
+    
+    return style.lower()
 
 def main():
     """Main entry point for the demo script."""
@@ -111,21 +168,31 @@ def main():
     
     # Single report generator
     single_parser = subparsers.add_parser("single", help="Generate a single report with DALL-E images")
-    single_parser.add_argument("--style", type=str, default="act", help="Report style (e.g., act, nsw, generic)")
+    single_parser.add_argument("--style", type=str, default="act", 
+                             help="Report style (e.g., act, nsw, vic, generic)")
     single_parser.add_argument("--format", type=str, choices=["pdf", "html"], default="pdf", help="Output format")
-    single_parser.add_argument("--comment-length", type=str, choices=["brief", "standard", "detailed"], default="standard", help="Comment length")
+    single_parser.add_argument("--comment-length", type=str, choices=["brief", "standard", "detailed"], 
+                             default="standard", help="Comment length")
     single_parser.add_argument("--output", type=str, help="Output file path")
-    single_parser.add_argument("--badge-style", type=str, default="modern", help="Style for school badge (modern, traditional, minimalist, elegant)")
-    single_parser.add_argument("--badge-colors", type=str, help="Comma-separated colors for badge (e.g., 'navy blue,gold')")
-    single_parser.add_argument("--image-size", type=str, default="1024x1024", help="Image size (1024x1024, 512x512)")
+    single_parser.add_argument("--badge-style", type=str, 
+                             help="Style for school badge (modern, traditional, minimalist, elegant)")
+    single_parser.add_argument("--badge-colors", type=str, 
+                             help="Comma-separated colors for badge (e.g., 'navy blue,gold')")
+    single_parser.add_argument("--image-size", type=str, default="1024x1024", 
+                             help="Image size (1024x1024, 512x512)")
     
     # Batch report generator
     batch_parser = subparsers.add_parser("batch", help="Generate multiple reports with DALL-E images")
     batch_parser.add_argument("--num", type=int, required=True, help="Number of reports to generate")
-    batch_parser.add_argument("--style", type=str, default="act", help="Report style (e.g., act, nsw, generic)")
+    batch_parser.add_argument("--style", type=str, default="act", 
+                            help="Report style (e.g., act, nsw, vic, generic)")
     batch_parser.add_argument("--format", type=str, choices=["pdf", "html"], default="pdf", help="Output format")
-    batch_parser.add_argument("--comment-length", type=str, choices=["brief", "standard", "detailed"], default="standard", help="Comment length")
+    batch_parser.add_argument("--comment-length", type=str, choices=["brief", "standard", "detailed"], 
+                            default="standard", help="Comment length")
     batch_parser.add_argument("--batch-id", type=str, help="Batch ID (generated if not provided)")
+    
+    # List styles command
+    styles_parser = subparsers.add_parser("styles", help="List available report styles with DALL-E settings")
     
     # Parse arguments
     args = parser.parse_args()
@@ -134,6 +201,20 @@ def main():
     if args.command is None:
         parser.print_help()
         return 1
+    
+    # Handle the styles command
+    if args.command == "styles":
+        print("Available report styles with DALL-E settings:")
+        for style, settings in STYLE_SETTINGS.items():
+            print(f"\n{style.upper()}:")
+            print(f"  Badge Style: {settings['badge_style']}")
+            print(f"  Badge Colors: {', '.join(settings['badge_colors'])}")
+            print(f"  Photo Style: {settings['photo_style']}")
+        return 0
+    
+    # Validate the style
+    if hasattr(args, 'style'):
+        args.style = validate_style(args.style)
     
     # Create output directory if it doesn't exist
     os.makedirs("output", exist_ok=True)
