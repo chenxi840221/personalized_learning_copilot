@@ -32,53 +32,20 @@ os.makedirs("logs", exist_ok=True)
 
 logger = logging.getLogger(__name__)
 
-# Style-specific settings
-STYLE_SETTINGS = {
-    "act": {
-        "badge_colors": ["navy blue", "gold"],
-        "badge_style": "modern",
-        "photo_style": "school portrait",
-    },
-    "nsw": {
-        "badge_colors": ["blue", "white"],
-        "badge_style": "traditional",
-        "photo_style": "school portrait",
-    },
-    "vic": {
-        "badge_colors": ["navy blue", "white"],
-        "badge_style": "modern",
-        "photo_style": "school portrait",
-    },
-    "qld": {
-        "badge_colors": ["maroon", "gold"],
-        "badge_style": "traditional",
-        "photo_style": "school portrait",
-    },
-    "generic": {
-        "badge_colors": ["blue", "gold"],
-        "badge_style": "modern",
-        "photo_style": "school portrait",
-    }
-}
+# DALL-E 3 supported image sizes
+VALID_IMAGE_SIZES = ["1024x1024", "1792x1024", "1024x1792"]
 
 def generate_single_report(args, report_generator):
     """Generate a single report with DALL-E images."""
     print(f"Generating a single {args.style} report with DALL-E images...")
     
-    # Create output path if provided
     output_path = args.output if args.output else None
     
-    # Get style-specific settings
-    style_key = args.style.lower()
-    if style_key not in STYLE_SETTINGS:
-        style_key = "generic"
-        
-    style_settings = STYLE_SETTINGS[style_key]
-    
-    # Override settings with command line arguments if provided
-    badge_style = args.badge_style or style_settings["badge_style"]
-    badge_colors = args.badge_colors.split(",") if args.badge_colors else style_settings["badge_colors"]
-    photo_style = style_settings["photo_style"]
+    # Validate image size
+    image_size = args.image_size if args.image_size in VALID_IMAGE_SIZES else "1024x1024"
+    if args.image_size not in VALID_IMAGE_SIZES:
+        print(f"Warning: Image size '{args.image_size}' is not supported by DALL-E 3. Using '1024x1024' instead.")
+        print(f"Supported sizes: {', '.join(VALID_IMAGE_SIZES)}")
     
     # Generate the report
     report_path = report_generator.generate_report(
@@ -88,10 +55,10 @@ def generate_single_report(args, report_generator):
         output_path=output_path,
         generate_images=True,
         image_options={
-            "badge_style": badge_style,
-            "badge_colors": badge_colors,
-            "photo_style": photo_style,
-            "photo_size": args.image_size
+            "badge_style": args.badge_style,
+            "badge_colors": args.badge_colors.split(",") if args.badge_colors else ["navy blue", "gold"],
+            "photo_style": "school portrait",
+            "photo_size": image_size
         }
     )
     
@@ -106,13 +73,17 @@ def generate_batch_reports(args, report_generator):
     """Generate a batch of reports with DALL-E images."""
     print(f"Generating {args.num} {args.style} reports with DALL-E images...")
     
+    # Validate image size
+    image_size = args.image_size if args.image_size in VALID_IMAGE_SIZES else "1024x1024"
+    if args.image_size not in VALID_IMAGE_SIZES:
+        print(f"Warning: Image size '{args.image_size}' is not supported by DALL-E 3. Using '1024x1024' instead.")
+        print(f"Supported sizes: {', '.join(VALID_IMAGE_SIZES)}")
+        
     # Create a batch ID if not provided
     batch_id = args.batch_id or f"batch_{uuid.uuid4().hex[:8]}"
     
     # Get style-specific settings
     style_key = args.style.lower()
-    if style_key not in STYLE_SETTINGS:
-        style_key = "generic"
         
     # Generate the batch
     batch_result = report_generator.generate_batch_reports(
@@ -121,7 +92,13 @@ def generate_batch_reports(args, report_generator):
         output_format=args.format,
         comment_length=args.comment_length,
         batch_id=batch_id,
-        generate_images=True
+        generate_images=True,
+        image_options={
+            "badge_style": args.badge_style,
+            "badge_colors": args.badge_colors.split(",") if args.badge_colors else ["navy blue", "gold"],
+            "photo_style": "school portrait",
+            "photo_size": image_size
+        }
     )
     
     if batch_result["status"] == "completed":
@@ -138,17 +115,6 @@ def generate_batch_reports(args, report_generator):
     else:
         print("❌ Failed to generate batch reports")
         return 1
-
-def validate_style(style):
-    """Validate if a style is supported."""
-    valid_styles = list(STYLE_SETTINGS.keys())
-    
-    if style.lower() not in valid_styles:
-        print(f"Warning: Style '{style}' is not explicitly supported. Using generic settings.")
-        print(f"Supported styles: {', '.join(valid_styles)}")
-        return "generic"
-    
-    return style.lower()
 
 def main():
     """Main entry point for the demo script."""
@@ -173,28 +139,26 @@ def main():
     
     # Single report generator
     single_parser = subparsers.add_parser("single", help="Generate a single report with DALL-E images")
-    single_parser.add_argument("--style", type=str, default="act", 
-                             help="Report style (e.g., act, nsw, qld, vic, generic)")
+    single_parser.add_argument("--style", type=str, default="act", help="Report style (e.g., act, nsw, qld, vic, generic)")
     single_parser.add_argument("--format", type=str, choices=["pdf", "html"], default="pdf", help="Output format")
-    single_parser.add_argument("--comment-length", type=str, choices=["brief", "standard", "detailed"], 
-                             default="standard", help="Comment length")
+    single_parser.add_argument("--comment-length", type=str, choices=["brief", "standard", "detailed"], default="standard", help="Comment length")
     single_parser.add_argument("--output", type=str, help="Output file path")
-    single_parser.add_argument("--badge-style", type=str, 
-                             help="Style for school badge (modern, traditional, minimalist, elegant)")
-    single_parser.add_argument("--badge-colors", type=str, 
-                             help="Comma-separated colors for badge (e.g., 'navy blue,gold')")
+    single_parser.add_argument("--badge-style", type=str, default="modern", help="Style for school badge (modern, traditional, minimalist, elegant)")
+    single_parser.add_argument("--badge-colors", type=str, help="Comma-separated colors for badge (e.g., 'navy blue,gold')")
     single_parser.add_argument("--image-size", type=str, default="1024x1024", 
-                             help="Image size (1024x1024, 512x512)")
+                             help=f"Image size (supported: {', '.join(VALID_IMAGE_SIZES)})")
     
     # Batch report generator
     batch_parser = subparsers.add_parser("batch", help="Generate multiple reports with DALL-E images")
     batch_parser.add_argument("--num", type=int, required=True, help="Number of reports to generate")
-    batch_parser.add_argument("--style", type=str, default="act", 
-                            help="Report style (e.g., act, nsw, qld, vic, generic)")
+    batch_parser.add_argument("--style", type=str, default="act", help="Report style (e.g., act, nsw, qld, vic, generic)")
     batch_parser.add_argument("--format", type=str, choices=["pdf", "html"], default="pdf", help="Output format")
-    batch_parser.add_argument("--comment-length", type=str, choices=["brief", "standard", "detailed"], 
-                            default="standard", help="Comment length")
+    batch_parser.add_argument("--comment-length", type=str, choices=["brief", "standard", "detailed"], default="standard", help="Comment length")
     batch_parser.add_argument("--batch-id", type=str, help="Batch ID (generated if not provided)")
+    batch_parser.add_argument("--badge-style", type=str, default="modern", help="Style for school badge (modern, traditional, minimalist, elegant)")
+    batch_parser.add_argument("--badge-colors", type=str, help="Comma-separated colors for badge (e.g., 'navy blue,gold')")
+    batch_parser.add_argument("--image-size", type=str, default="1024x1024", 
+                            help=f"Image size (supported: {', '.join(VALID_IMAGE_SIZES)})")
     
     # List styles command
     styles_parser = subparsers.add_parser("styles", help="List available report styles with DALL-E settings")
@@ -210,22 +174,45 @@ def main():
     # Handle the styles command
     if args.command == "styles":
         print("Available report styles with DALL-E settings:")
-        for style, settings in STYLE_SETTINGS.items():
+        style_settings = {
+            "act": {
+                "badge_colors": ["navy blue", "gold"],
+                "badge_style": "modern",
+                "photo_style": "school portrait",
+            },
+            "nsw": {
+                "badge_colors": ["blue", "white"],
+                "badge_style": "traditional",
+                "photo_style": "school portrait",
+            },
+            "vic": {
+                "badge_colors": ["navy blue", "white"],
+                "badge_style": "modern",
+                "photo_style": "school portrait",
+            },
+            "qld": {
+                "badge_colors": ["maroon", "gold"],
+                "badge_style": "traditional",
+                "photo_style": "school portrait",
+            },
+            "generic": {
+                "badge_colors": ["blue", "gold"],
+                "badge_style": "modern",
+                "photo_style": "school portrait",
+            }
+        }
+        
+        for style, settings in style_settings.items():
             print(f"\n{style.upper()}:")
             print(f"  Badge Style: {settings['badge_style']}")
             print(f"  Badge Colors: {', '.join(settings['badge_colors'])}")
             print(f"  Photo Style: {settings['photo_style']}")
+        
+        print(f"\nDALL-E 3 supported image sizes: {', '.join(VALID_IMAGE_SIZES)}")
         return 0
-    
-    # Validate the style
-    if hasattr(args, 'style'):
-        args.style = validate_style(args.style)
     
     # Create output directory if it doesn't exist
     os.makedirs("output", exist_ok=True)
-    
-    # Create static directories for images
-    os.makedirs("static/images/logos", exist_ok=True)
     
     # Initialize the report generator with DALL-E integration
     report_generator = EnhancedReportGenerator(

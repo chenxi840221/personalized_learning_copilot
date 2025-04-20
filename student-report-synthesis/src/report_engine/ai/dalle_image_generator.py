@@ -10,7 +10,6 @@ import base64
 import os
 import requests
 import json
-import tempfile
 from typing import Dict, Any, Optional, Tuple, List
 from io import BytesIO
 from PIL import Image
@@ -55,7 +54,7 @@ class DallEImageGenerator:
         
         Args:
             prompt: The text prompt for image generation
-            size: Image size (1024x1024, 1792x1024, or 1024x1792)
+            size: Image size (1024x1024, 1792x1024, or 1024x1792) - DALL-E 3 only supports these sizes
             
         Returns:
             Image data as bytes or None if generation failed
@@ -115,7 +114,7 @@ class DallEImageGenerator:
         style: str = "modern",
         colors: Optional[List[str]] = None,
         motto: Optional[str] = None,
-        image_size: str = "1024x1024"
+        image_size: str = "1024x1024"  # Updated to use a valid DALL-E 3 size
     ) -> str:
         """
         Generate a school badge using DALL-E.
@@ -126,7 +125,7 @@ class DallEImageGenerator:
             style: Style of the badge (modern, traditional, minimalist)
             colors: Optional list of color descriptions
             motto: Optional school motto
-            image_size: Size of the generated image
+            image_size: Size of the generated image (must be one of: 1024x1024, 1792x1024, 1024x1792)
             
         Returns:
             Base64 encoded image data URI
@@ -172,7 +171,7 @@ class DallEImageGenerator:
         ethnicity: Optional[str] = None,
         hair_description: Optional[str] = None,
         style: str = "school portrait",
-        image_size: str = "1024x1024"
+        image_size: str = "1024x1024"  # Updated to use a valid DALL-E 3 size
     ) -> str:
         """
         Generate a student photo using DALL-E.
@@ -183,7 +182,7 @@ class DallEImageGenerator:
             ethnicity: Optional ethnicity description
             hair_description: Optional hair description
             style: Style of the photo
-            image_size: Size of the generated image
+            image_size: Size of the generated image (must be one of: 1024x1024, 1792x1024, 1024x1792)
             
         Returns:
             Base64 encoded image data URI

@@ -8,58 +8,49 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            color: #333;
-            line-height: 1.5;
+            padding: 20px;
         }
         .header {
+            text-align: center;
             margin-bottom: 2rem;
-            border-bottom: 2px solid #68197c;
+            border-bottom: 2px solid #6b0c36;  /* Queensland maroon color */
             padding-bottom: 1rem;
-            position: relative;
         }
-        .qld-logo {
-            max-height: 160px; /* Doubled from 80px */
-            margin-bottom: 10px;
-        }
-        .school-logo {
-            max-height: 160px; /* Doubled from 80px */
-            margin-bottom: 10px;
-        }
-        .student-photo {
-            max-width: 120px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 3px;
+        .logo {
+            max-height: 160px; /* Doubled from 80px to 160px */
+            margin-bottom: 15px;
         }
         .school-name {
-            font-size: 1.8rem;
+            font-size: 2rem;
             font-weight: bold;
-            color: #68197c;
-            margin-top: 10px;
+            color: #6b0c36;  /* Queensland maroon color */
         }
         .report-title {
             font-size: 1.5rem;
             margin: 0.5rem 0;
-            color: #68197c;
+        }
+        .student-photo {
+            max-width: 240px;  /* Double the original size (typically 120px) */
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 3px;
         }
         .student-info {
             margin: 2rem 0;
             padding: 1rem;
             background-color: #f8f9fa;
             border-radius: 5px;
-            border-left: 4px solid #68197c;
         }
         .section-title {
-            background-color: #68197c;
+            background-color: #6b0c36;  /* Queensland maroon color */
             color: white;
             padding: 0.5rem 1rem;
             border-radius: 5px;
             margin-top: 2rem;
             margin-bottom: 1rem;
-            font-weight: 600;
         }
         .subject-table th {
-            background-color: #e9e1ee;
+            background-color: #fff1d6;  /* Light gold */
         }
         .comment {
             font-size: 0.9rem;
@@ -67,13 +58,13 @@
         }
         .achievement-code {
             font-weight: bold;
-            background-color: #e9e1ee;
+            background-color: #fff1d6;  /* Light gold */
             padding: 0.2rem 0.5rem;
             border-radius: 3px;
         }
         .effort-code {
             font-weight: bold;
-            background-color: #e1eee9;
+            background-color: #e6f7e6;
             padding: 0.2rem 0.5rem;
             border-radius: 3px;
         }
@@ -82,7 +73,7 @@
             padding: 1.5rem;
             background-color: #f8f9fa;
             border-radius: 5px;
-            border-left: 5px solid #68197c;
+            border-left: 5px solid #6b0c36;  /* Queensland maroon color */
         }
         .signatures {
             margin-top: 3rem;
@@ -110,44 +101,6 @@
             text-align: center;
             font-size: 0.8rem;
             color: #6c757d;
-            border-top: 1px solid #ddd;
-            padding-top: 1rem;
-        }
-        .rating {
-            display: inline-block;
-            width: 30px;
-            height: 25px;
-            line-height: 25px;
-            text-align: center;
-            border: 1px solid #ddd;
-            margin: 0 2px;
-        }
-        .rating.selected {
-            background-color: #68197c;
-            color: white;
-            font-weight: bold;
-        }
-        .development-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1rem 0;
-        }
-        .development-table th {
-            background-color: #e9e1ee;
-            padding: 8px;
-            text-align: left;
-            border: 1px solid #ddd;
-        }
-        .development-table td {
-            padding: 8px;
-            border: 1px solid #ddd;
-        }
-        .understanding-scale {
-            background-color: #f8f9fa;
-            border: 1px solid #ddd;
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 5px;
         }
     </style>
 </head>
@@ -155,18 +108,19 @@
     <div class="container mt-4 mb-4">
         <div class="header">
             <div class="row">
+                <!-- Left column - Queensland Government logo -->
                 <div class="col-md-3 text-start">
-                    <!-- Queensland Government Logo -->
-                    <img src="{{ get_image_base64('images/logos/qld_government_logo.png') }}" alt="Queensland Government" class="qld-logo">
+                    <img src="{{ get_image_base64('images/logos/qld_government_logo.png') }}" alt="Queensland Government" class="logo">
                 </div>
+                
+                <!-- Center column - School name and report title (No school logo) -->
                 <div class="col-md-6 text-center">
-                    {% if data.school.logo_data %}
-                    <img src="{{ data.school.logo_data }}" alt="{{ data.school.name }}" class="school-logo">
-                    {% endif %}
                     <div class="school-name">{{ data.school.name }}</div>
                     <div class="report-title">Student Achievement Report</div>
                     <div>Semester {{ data.semester }} {{ data.year }}</div>
                 </div>
+                
+                <!-- Right column - Student photo (doubled in size) -->
                 <div class="col-md-3 text-end">
                     {% if data.student.photo_data %}
                     <img src="{{ data.student.photo_data }}" alt="{{ data.student.name.full_name }}" class="student-photo">
@@ -175,27 +129,11 @@
             </div>
         </div>
         
-        <div class="understanding-scale">
-            <h5 class="text-center mb-3">Understanding this Report</h5>
-            <p class="small">This report provides information about your child's achievement in the learning areas taught during this semester. Your child's achievement is assessed against the Australian Curriculum achievement standards using the following scale:</p>
-            <div class="row">
-                <div class="col-md-6">
-                    <p class="small mb-1"><strong>A - Outstanding:</strong> Your child is demonstrating outstanding achievement of the standard</p>
-                    <p class="small mb-1"><strong>B - High:</strong> Your child is demonstrating high achievement of the standard</p>
-                    <p class="small mb-1"><strong>C - Sound:</strong> Your child is demonstrating sound achievement of the standard</p>
-                </div>
-                <div class="col-md-6">
-                    <p class="small mb-1"><strong>D - Developing:</strong> Your child is demonstrating developing achievement of the standard</p>
-                    <p class="small mb-1"><strong>E - Support Required:</strong> Your child is demonstrating support required achievement of the standard</p>
-                </div>
-            </div>
-        </div>
-        
         <div class="student-info">
             <div class="row">
                 <div class="col-md-6">
                     <p><strong>Student:</strong> {{ data.student.name.full_name }}</p>
-                    <p><strong>Year Level:</strong> {{ data.student.grade }}</p>
+                    <p><strong>Grade:</strong> {{ data.student.grade }}</p>
                 </div>
                 <div class="col-md-6">
                     <p><strong>Class:</strong> {{ data.student.class }}</p>
@@ -204,11 +142,11 @@
             </div>
         </div>
         
-        <div class="section-title">Learning Areas</div>
+        <div class="section-title">Key Learning Areas</div>
         <table class="table table-bordered subject-table">
             <thead>
                 <tr>
-                    <th>Learning Area</th>
+                    <th>Subject</th>
                     <th class="text-center">Achievement</th>
                     <th class="text-center">Effort</th>
                     <th>Comments</th>
@@ -230,66 +168,6 @@
                 </tr>
                 {% endfor %}
             </tbody>
-        </table>
-        
-        <div class="section-title">Work Habits and Social Development</div>
-        <table class="development-table">
-            <tr>
-                <th width="60%">Work Habits</th>
-                <th>Consistently</th>
-                <th>Usually</th>
-                <th>Sometimes</th>
-                <th>Rarely</th>
-            </tr>
-            <tr>
-                <td>Is organized and prepared for learning</td>
-                <td class="text-center"><span class="rating selected">C</span></td>
-                <td class="text-center"><span class="rating">U</span></td>
-                <td class="text-center"><span class="rating">S</span></td>
-                <td class="text-center"><span class="rating">R</span></td>
-            </tr>
-            <tr>
-                <td>Completes tasks to the best of their ability</td>
-                <td class="text-center"><span class="rating">C</span></td>
-                <td class="text-center"><span class="rating selected">U</span></td>
-                <td class="text-center"><span class="rating">S</span></td>
-                <td class="text-center"><span class="rating">R</span></td>
-            </tr>
-            <tr>
-                <td>Works independently and manages time effectively</td>
-                <td class="text-center"><span class="rating">C</span></td>
-                <td class="text-center"><span class="rating selected">U</span></td>
-                <td class="text-center"><span class="rating">S</span></td>
-                <td class="text-center"><span class="rating">R</span></td>
-            </tr>
-            <tr>
-                <th>Social Development</th>
-                <th>Consistently</th>
-                <th>Usually</th>
-                <th>Sometimes</th>
-                <th>Rarely</th>
-            </tr>
-            <tr>
-                <td>Cooperates and collaborates with others</td>
-                <td class="text-center"><span class="rating selected">C</span></td>
-                <td class="text-center"><span class="rating">U</span></td>
-                <td class="text-center"><span class="rating">S</span></td>
-                <td class="text-center"><span class="rating">R</span></td>
-            </tr>
-            <tr>
-                <td>Demonstrates respectful behavior</td>
-                <td class="text-center"><span class="rating selected">C</span></td>
-                <td class="text-center"><span class="rating">U</span></td>
-                <td class="text-center"><span class="rating">S</span></td>
-                <td class="text-center"><span class="rating">R</span></td>
-            </tr>
-            <tr>
-                <td>Contributes positively to class activities</td>
-                <td class="text-center"><span class="rating">C</span></td>
-                <td class="text-center"><span class="rating selected">U</span></td>
-                <td class="text-center"><span class="rating">S</span></td>
-                <td class="text-center"><span class="rating">R</span></td>
-            </tr>
         </table>
         
         <div class="section-title">Attendance</div>
@@ -317,16 +195,6 @@
             {{ data.general_comment }}
         </div>
         
-        <div class="section-title">Future Focus</div>
-        <div class="general-comment">
-            <p>In the coming semester, {{ data.student.name.first_name }} should focus on:</p>
-            <ul>
-                <li>Continuing to develop skills in comprehension and analysis</li>
-                <li>Building confidence with problem-solving in mathematics</li>
-                <li>Setting clear learning goals and regularly reflecting on progress</li>
-            </ul>
-        </div>
-        
         <div class="signatures">
             <div class="signature-box">
                 <div class="signature-line">{{ data.student.teacher.full_name }}</div>
@@ -338,9 +206,29 @@
             </div>
         </div>
         
+        <div class="legend">
+            <div><strong>Achievement Scale:</strong></div>
+            <div class="row">
+                <div class="col-md-4"><span class="achievement-code">A</span> - Outstanding</div>
+                <div class="col-md-4"><span class="achievement-code">B</span> - High</div>
+                <div class="col-md-4"><span class="achievement-code">C</span> - Sound</div>
+            </div>
+            <div class="row mt-1">
+                <div class="col-md-4"><span class="achievement-code">D</span> - Developing</div>
+                <div class="col-md-4"><span class="achievement-code">E</span> - Support Required</div>
+                <div class="col-md-4"></div>
+            </div>
+            <div class="mt-2"><strong>Effort Scale:</strong></div>
+            <div class="row">
+                <div class="col-md-4"><span class="effort-code">H</span> - High</div>
+                <div class="col-md-4"><span class="effort-code">S</span> - Satisfactory</div>
+                <div class="col-md-4"><span class="effort-code">L</span> - Low</div>
+            </div>
+        </div>
+        
         <div class="footer">
-            <p>{{ data.school.name }} | {{ data.school.suburb }}, {{ data.school.state|upper }}</p>
             <p>Report generated on {{ data.report_date }}</p>
+            <p>{{ data.school.name }} | {{ data.school.suburb }}, {{ data.school.state|upper }}</p>
         </div>
     </div>
 </body>

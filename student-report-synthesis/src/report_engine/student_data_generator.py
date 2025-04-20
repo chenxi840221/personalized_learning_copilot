@@ -2,16 +2,18 @@
 Student Data Generator module.
 
 This module provides classes for generating realistic student profiles
-and school data for report generation.
+and school data for report generation with accurate Australian grade levels.
 """
 
 import random
 import logging
+import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
 
 class StudentProfile:
     """Class representing a student's profile with realistic attributes."""
@@ -103,17 +105,17 @@ class StudentProfile:
         "Dr. Robyn Strangward", "Mr. James Robertson"
     ]
     
-    # Common Australian school grades/years
+    # Updated Australian school grades/years with proper pre-school entries
     GRADE_SYSTEMS = {
         "act": ["Preschool", "Kindergarten", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"],
-        "nsw": ["Kindergarten", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"],
-        "qld": ["Prep", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"],
-        "vic": ["Foundation", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"],
-        "sa": ["Reception", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6", "Year 7"],
-        "wa": ["Pre-primary", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"],
-        "tas": ["Prep", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"],
-        "nt": ["Transition", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"],
-        "generic": ["Kindergarten", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"]
+        "nsw": ["Preschool", "Kindergarten", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"],
+        "qld": ["Kindergarten", "Prep", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"],
+        "vic": ["Three-Year-Old Kindergarten", "Four-Year-Old Kindergarten", "Foundation", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"],
+        "sa": ["Preschool", "Reception", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6", "Year 7"],
+        "wa": ["Kindergarten", "Pre-primary", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"],
+        "tas": ["Kindergarten", "Prep", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"],
+        "nt": ["Preschool", "Transition", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"],
+        "generic": ["Preschool", "Kindergarten", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"]
     }
     
     # Common class names used in Australian primary schools
@@ -190,10 +192,14 @@ class StudentProfile:
         self.first_name = first_name if first_name else self._generate_first_name(diversity_factor)
         self.last_name = last_name if last_name else self._generate_last_name(diversity_factor)
         
-        # Set grade based on style
+        # Set style for grade naming
         self.style = style.lower()
-        grade_options = self.GRADE_SYSTEMS.get(self.style, self.GRADE_SYSTEMS["generic"])
-        self.grade = grade if grade else random.choice(grade_options)
+        
+        # Set grade based on style - use weighted selection for more realistic distribution
+        if grade:
+            self.grade = grade
+        else:
+            self.grade = self._select_grade_with_weights(self.style)
         
         # Set class
         self.class_name = class_name if class_name else self._generate_class_name()
@@ -247,6 +253,41 @@ class StudentProfile:
         else:  # Standard Anglo surnames
             return random.choice(self.LAST_NAMES)
     
+    def _select_grade_with_weights(self, style: str = "generic") -> str:
+        """
+        Select a grade/year level with appropriate weighting.
+        
+        This method gives higher probability to primary school years 
+        and lower probability to preschool years.
+        
+        Args:
+            style: Report style determining grade naming conventions
+            
+        Returns:
+            Selected grade/year level
+        """
+        grade_options = self.GRADE_SYSTEMS.get(style.lower(), self.GRADE_SYSTEMS["generic"])
+        num_options = len(grade_options)
+        
+        # Create weights that favor primary school years
+        weights = []
+        
+        for i in range(num_options):
+            if i == 0:  # First year (typically preschool)
+                weights.append(0.05)
+            elif i == 1:  # Second year (typically kindergarten/prep/foundation)
+                weights.append(0.15)
+            else:  # Primary school years
+                # Slightly decreasing weights for older years
+                weights.append(0.8 / (num_options - 2) * (1 - ((i - 2) * 0.05)))
+        
+        # Ensure weights sum to 1
+        total_weight = sum(weights)
+        weights = [w/total_weight for w in weights]
+        
+        # Select grade based on weights
+        return random.choices(grade_options, weights=weights, k=1)[0]
+    
     def _generate_birth_date(self) -> str:
         """Generate a realistic birth date based on the student's grade."""
         current_year = datetime.now().year
@@ -254,28 +295,14 @@ class StudentProfile:
         
         # Determine age range based on grade
         grade_lower = self.grade.lower()
+        age = self._determine_age_from_grade(grade_lower, self.style)
         
-        # Extract year number if present
-        year_num = 0
-        if "year" in grade_lower:
-            try:
-                year_num = int(grade_lower.split("year")[1].strip())
-            except:
-                year_num = 0
-        
-        # Map grades to approximate age
-        if "preschool" in grade_lower or "transition" in grade_lower:
-            age = 4
-        elif "kindergarten" in grade_lower or "foundation" in grade_lower or "prep" in grade_lower or "reception" in grade_lower or "pre-primary" in grade_lower:
-            age = 5
+        # Account for variation in student ages within a grade
+        # 40% of students haven't had birthday yet this year
+        if random.random() < 0.4:  
+            birth_year = current_year - age - 1
         else:
-            # Year 1 = age 6, Year 2 = age 7, etc.
-            age = 5 + year_num if year_num > 0 else 6
-        
-        # Calculate birth year (accounting for current month - some may not have had birthday yet)
-        birth_year = current_year - age
-        if random.random() < 0.4:  # 40% of students haven't had birthday yet this year
-            birth_year -= 1
+            birth_year = current_year - age
         
         # Generate month and day
         birth_month = random.randint(1, 12)
@@ -296,11 +323,91 @@ class StudentProfile:
         # Format as YYYY-MM-DD
         return f"{birth_year:04d}-{birth_month:02d}-{birth_day:02d}"
     
+    def _determine_age_from_grade(self, grade_lower: str, style: str) -> int:
+        """
+        Determine realistic age based on grade level and state-specific naming.
+        
+        Args:
+            grade_lower: Lowercase grade name
+            style: State-specific style (act, nsw, qld, vic, sa, etc.)
+            
+        Returns:
+            Age in years
+        """
+        # Handle specific state naming conventions
+        if style == "nsw":
+            if "preschool" in grade_lower:
+                return 4
+            elif "kindergarten" in grade_lower:
+                return 5
+            else:
+                # Extract year number
+                year_match = re.search(r'year\s*(\d+)', grade_lower)
+                if year_match:
+                    year_num = int(year_match.group(1))
+                    return 5 + year_num  # Kindergarten age is 5, Year 1 is 6, etc.
+                return 7  # Default primary school age
+                
+        elif style == "vic":
+            if "three-year-old" in grade_lower:
+                return 3
+            elif "four-year-old" in grade_lower:
+                return 4
+            elif "foundation" in grade_lower:
+                return 5
+            else:
+                # Extract year number
+                year_match = re.search(r'year\s*(\d+)', grade_lower)
+                if year_match:
+                    year_num = int(year_match.group(1))
+                    return 5 + year_num  # Foundation age is 5, Year 1 is 6, etc.
+                return 7  # Default primary school age
+                
+        elif style == "qld":
+            if "kindergarten" in grade_lower:
+                return 4
+            elif "prep" in grade_lower:
+                return 5
+            else:
+                # Extract year number
+                year_match = re.search(r'year\s*(\d+)', grade_lower)
+                if year_match:
+                    year_num = int(year_match.group(1))
+                    return 5 + year_num  # Prep age is 5, Year 1 is 6, etc.
+                return 7  # Default primary school age
+        
+        elif style == "act":
+            if "preschool" in grade_lower:
+                return 4
+            elif "kindergarten" in grade_lower:
+                return 5
+            else:
+                # Extract year number
+                year_match = re.search(r'year\s*(\d+)', grade_lower)
+                if year_match:
+                    year_num = int(year_match.group(1))
+                    return 5 + year_num  # Kindergarten age is 5, Year 1 is 6, etc.
+                return 7  # Default primary school age
+                
+        # Handle other states or generic style
+        else:
+            if "preschool" in grade_lower or "kindergarten" in grade_lower or "pre-primary" in grade_lower or "reception" in grade_lower or "transition" in grade_lower:
+                return 5  # First year of school
+            elif "prep" in grade_lower or "foundation" in grade_lower:
+                return 5  # First year of formal school
+            else:
+                # Try to extract year number
+                year_match = re.search(r'year\s*(\d+)', grade_lower)
+                if year_match:
+                    year_num = int(year_match.group(1))
+                    return 5 + year_num  # Foundation age is 5, Year 1 is 6, etc.
+                return 7  # Default primary school age
+    
     def _generate_class_name(self) -> str:
         """Generate an appropriate class name based on the student's grade."""
         grade_lower = self.grade.lower()
         
-        if "kindergarten" in grade_lower or "prep" in grade_lower or "foundation" in grade_lower or "reception" in grade_lower or "pre-primary" in grade_lower or "transition" in grade_lower:
+        if "kindergarten" in grade_lower or "prep" in grade_lower or "foundation" in grade_lower or "reception" in grade_lower or "pre-primary" in grade_lower or "transition" in grade_lower or "three-year-old" in grade_lower or "four-year-old" in grade_lower:
             naming_system = random.choice(["kindergarten", "standard", "early_learning"])
         else:
             naming_system = random.choice(["standard", "colors", "nature", "language"])
@@ -851,7 +958,7 @@ class StudentDataGenerator:
         """Generate an appropriate class name for a given grade."""
         grade_lower = grade.lower()
         
-        if "kindergarten" in grade_lower or "prep" in grade_lower or "foundation" in grade_lower or "reception" in grade_lower or "pre-primary" in grade_lower or "transition" in grade_lower:
+        if "kindergarten" in grade_lower or "prep" in grade_lower or "foundation" in grade_lower or "reception" in grade_lower or "pre-primary" in grade_lower or "transition" in grade_lower or "three-year-old" in grade_lower or "four-year-old" in grade_lower:
             naming_system = random.choice(["kindergarten", "standard", "early_learning"])
         else:
             naming_system = random.choice(["standard", "colors", "nature", "language"])
