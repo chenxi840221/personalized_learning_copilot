@@ -220,15 +220,11 @@
         <div class="header">
             <div class="row">
                 <div class="col-md-8">
-                    {% if data.school.logo_data %}
-                    <img src="{{ data.school.logo_data }}" class="school-logo" alt="School Logo">
-                    {% else %}
                     <img src="https://via.placeholder.com/150x80?text=School+Logo" class="school-logo" alt="School Logo">
-                    {% endif %}
                     <h2>{{ data.school.name }}</h2>
                 </div>
                 <div class="col-md-4 text-end">
-                    <img src="{{ get_image_base64('images/logos/nsw_government_logo.png') }}" class="nsw-logo" alt="NSW Government">
+                    <img src="https://via.placeholder.com/150x80?text=NSW+Government" class="nsw-logo" alt="NSW Government">
                 </div>
             </div>
         </div>
@@ -240,11 +236,7 @@
                     <h4>Semester {{ data.semester }}, {{ data.year }}</h4>
                 </div>
                 <div class="col-md-4">
-                    {% if data.student.photo_data %}
-                    <img src="{{ data.student.photo_data }}" class="student-photo" alt="Student Photo">
-                    {% else %}
                     <div class="student-photo">Student Photo</div>
-                    {% endif %}
                 </div>
             </div>
         </div>

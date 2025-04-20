@@ -103,14 +103,10 @@
 <body>
     <div class="container mt-4 mb-5">
         <div class="header">
-            <!-- School logo and ACT Education logo -->
+            <!-- School logo placeholder -->
             <div class="text-center mb-3">
-                {% if data.school.logo_data %}
-                <img src="{{ data.school.logo_data }}" alt="School Logo" class="logo">
-                {% else %}
                 <img src="https://via.placeholder.com/150x80?text=School+Logo" alt="School Logo" class="logo">
-                {% endif %}
-                <img src="{{ get_image_base64('images/logos/act_education_logo.png') }}" alt="ACT Education" class="logo ms-3">
+                <img src="https://via.placeholder.com/150x80?text=ACT+Education" alt="ACT Education" class="logo ms-3">
             </div>
             <div class="school-name">{{ data.school.name }}</div>
             <div class="report-title">Semester {{ data.semester }} Report {{ data.year }}</div>
@@ -123,12 +119,8 @@
                 <p><strong>Teacher:</strong> {{ data.student.teacher.full_name }}</p>
             </div>
             <div class="col-md-6 text-end">
-                <!-- Student photo -->
-                {% if data.student.photo_data %}
-                <img src="{{ data.student.photo_data }}" alt="Student Photo" class="student-photo">
-                {% else %}
+                <!-- Student photo placeholder -->
                 <img src="https://via.placeholder.com/150x180?text=Student+Photo" alt="Student Photo" class="student-photo">
-                {% endif %}
             </div>
         </div>
         
