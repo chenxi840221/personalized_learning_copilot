@@ -159,6 +159,50 @@ class ReportStyleHandler:
             "logo_file": "nsw_logo.png"
         }
         
+        # Create QLD style
+        qld_style = {
+            "name": "Queensland Student Report",
+            "description": "Queensland school report format aligned with Australian Curriculum",
+            "subjects": [
+                "English",
+                "Mathematics",
+                "Science",
+                "Humanities and Social Sciences",
+                "Health and Physical Education",
+                "The Arts",
+                "Technologies",
+                "Languages"
+            ],
+            "achievement_scale": [
+                {"code": "A", "label": "Outstanding", "description": "Your child has demonstrated an exceptional level of knowledge and understanding of the content and concepts."},
+                {"code": "B", "label": "High", "description": "Your child has demonstrated a thorough knowledge and understanding of the content and concepts."},
+                {"code": "C", "label": "Sound", "description": "Your child has demonstrated a sound knowledge and understanding of the content and concepts."},
+                {"code": "D", "label": "Developing", "description": "Your child has demonstrated a basic knowledge and understanding of the content and concepts."},
+                {"code": "E", "label": "Support Required", "description": "Your child has demonstrated a limited knowledge and understanding of the content and concepts."}
+            ],
+            "effort_scale": [
+                {"code": "H", "label": "High", "description": "Consistently demonstrates high effort in class activities and learning tasks."},
+                {"code": "S", "label": "Satisfactory", "description": "Usually demonstrates satisfactory effort in class activities and learning tasks."},
+                {"code": "L", "label": "Low", "description": "Demonstrates inconsistent effort in class activities and learning tasks."}
+            ],
+            "social_development": [
+                "Cooperates and collaborates with others",
+                "Demonstrates respectful behavior",
+                "Contributes positively to class activities",
+                "Shows independence and resilience",
+                "Manages personal learning"
+            ],
+            "work_habits": [
+                "Is organized and prepared for learning",
+                "Completes tasks to the best of their ability",
+                "Works independently and manages time effectively",
+                "Follows classroom rules and procedures",
+                "Participates actively in learning"
+            ],
+            "template_file": "qld_template.html",
+            "logo_file": "qld_government_logo.png"
+        }
+        
         # Save default styles
         with open(self.styles_dir / "generic.json", "w") as f:
             json.dump(generic_style, f, indent=2)
@@ -168,6 +212,9 @@ class ReportStyleHandler:
             
         with open(self.styles_dir / "nsw.json", "w") as f:
             json.dump(nsw_style, f, indent=2)
+            
+        with open(self.styles_dir / "qld.json", "w") as f:
+            json.dump(qld_style, f, indent=2)
         
         # Load the newly created styles
         self._load_styles()

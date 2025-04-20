@@ -49,6 +49,11 @@ STYLE_SETTINGS = {
         "badge_style": "modern",
         "photo_style": "school portrait",
     },
+    "qld": {
+        "badge_colors": ["maroon", "gold"],
+        "badge_style": "traditional",
+        "photo_style": "school portrait",
+    },
     "generic": {
         "badge_colors": ["blue", "gold"],
         "badge_style": "modern",
@@ -169,7 +174,7 @@ def main():
     # Single report generator
     single_parser = subparsers.add_parser("single", help="Generate a single report with DALL-E images")
     single_parser.add_argument("--style", type=str, default="act", 
-                             help="Report style (e.g., act, nsw, vic, generic)")
+                             help="Report style (e.g., act, nsw, qld, vic, generic)")
     single_parser.add_argument("--format", type=str, choices=["pdf", "html"], default="pdf", help="Output format")
     single_parser.add_argument("--comment-length", type=str, choices=["brief", "standard", "detailed"], 
                              default="standard", help="Comment length")
@@ -185,7 +190,7 @@ def main():
     batch_parser = subparsers.add_parser("batch", help="Generate multiple reports with DALL-E images")
     batch_parser.add_argument("--num", type=int, required=True, help="Number of reports to generate")
     batch_parser.add_argument("--style", type=str, default="act", 
-                            help="Report style (e.g., act, nsw, vic, generic)")
+                            help="Report style (e.g., act, nsw, qld, vic, generic)")
     batch_parser.add_argument("--format", type=str, choices=["pdf", "html"], default="pdf", help="Output format")
     batch_parser.add_argument("--comment-length", type=str, choices=["brief", "standard", "detailed"], 
                             default="standard", help="Comment length")

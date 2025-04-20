@@ -54,18 +54,21 @@ def main():
     
     # Single report generator
     single_parser = subparsers.add_parser("single", help="Generate a single student report")
-    single_parser.add_argument("--style", type=str, default="generic", help="Report style (generic, act, nsw, etc.)")
+    single_parser.add_argument("--style", type=str, default="generic", help="Report style (generic, act, nsw, qld, vic, etc.)")
     single_parser.add_argument("--format", type=str, choices=["pdf", "html"], default="pdf", help="Output format")
     single_parser.add_argument("--comment-length", type=str, choices=["brief", "standard", "detailed"], default="standard", help="Comment length")
     single_parser.add_argument("--output", type=str, help="Output file path")
+    single_parser.add_argument("--images", action="store_true", help="Generate images using DALL-E")
+    single_parser.add_argument("--badge-style", type=str, default="modern", help="Style for school badge")
     
     # Batch report generator
     batch_parser = subparsers.add_parser("batch", help="Generate a batch of student reports")
     batch_parser.add_argument("--num", type=int, required=True, help="Number of reports to generate")
-    batch_parser.add_argument("--style", type=str, default="generic", help="Report style (generic, act, nsw, etc.)")
+    batch_parser.add_argument("--style", type=str, default="generic", help="Report style (generic, act, nsw, qld, vic, etc.)")
     batch_parser.add_argument("--format", type=str, choices=["pdf", "html"], default="pdf", help="Output format")
     batch_parser.add_argument("--comment-length", type=str, choices=["brief", "standard", "detailed"], default="standard", help="Comment length")
     batch_parser.add_argument("--batch-id", type=str, help="Batch ID (generated if not provided)")
+    batch_parser.add_argument("--images", action="store_true", help="Generate images using DALL-E")
     
     # List available styles
     styles_parser = subparsers.add_parser("styles", help="List available report styles")
@@ -116,16 +119,39 @@ def main():
         form_recognizer_key=form_recognizer_key,
         openai_endpoint=openai_endpoint,
         openai_key=openai_key,
-        openai_deployment=openai_deployment
+        openai_deployment=openai_deployment,
+        enable_images=getattr(args, "images", False)
     )
     
     if args.command == "single":
         # Generate a single report
+        image_options = None
+        if getattr(args, "images", False):
+            # Determine badge colors based on style
+            badge_colors = ["blue", "gold"]  # default
+            if args.style.lower() == "act":
+                badge_colors = ["navy blue", "gold"]
+            elif args.style.lower() == "nsw":
+                badge_colors = ["blue", "white"]
+            elif args.style.lower() == "vic":
+                badge_colors = ["navy blue", "white"]
+            elif args.style.lower() == "qld":
+                badge_colors = ["maroon", "gold"]
+                
+            image_options = {
+                "badge_style": getattr(args, "badge_style", "modern"),
+                "badge_colors": badge_colors,
+                "photo_style": "school portrait",
+                "photo_size": "512x512"
+            }
+            
         output_path = report_generator.generate_report(
             style=args.style,
             output_format=args.format,
             comment_length=args.comment_length,
-            output_path=args.output
+            output_path=args.output,
+            generate_images=getattr(args, "images", False),
+            image_options=image_options
         )
         
         if output_path:
@@ -142,7 +168,8 @@ def main():
             style=args.style,
             output_format=args.format,
             comment_length=args.comment_length,
-            batch_id=args.batch_id
+            batch_id=args.batch_id,
+            generate_images=getattr(args, "images", False)
         )
         
         if result["status"] == "completed":
@@ -170,7 +197,7 @@ def validate_setup(openai_endpoint, openai_key, form_recognizer_endpoint, form_r
     print("Validating setup and configuration...")
     
     # Check directories
-    required_dirs = ["templates", "output", "logs", "src"]
+    required_dirs = ["templates", "output", "logs", "src", "static/images/logos"]
     for directory in required_dirs:
         if os.path.exists(directory) and os.path.isdir(directory):
             print(f"✅ Directory exists: {directory}")
@@ -219,6 +246,38 @@ def validate_setup(openai_endpoint, openai_key, form_recognizer_endpoint, form_r
     except Exception as e:
         print(f"❌ Error checking style configurations: {str(e)}")
     
+    # Check for logo files
+    logo_dir = "static/images/logos"
+    if os.path.exists(logo_dir) and os.path.isdir(logo_dir):
+        print(f"✅ Logo directory exists: {logo_dir}")
+        # Check for specific logo files
+        act_logo = os.path.join(logo_dir, "act_education_logo.png")
+        nsw_logo = os.path.join(logo_dir, "nsw_government_logo.png")
+        vic_logo = os.path.join(logo_dir, "vic_education_logo.png")
+        qld_logo = os.path.join(logo_dir, "qld_government_logo.png")
+        
+        if os.path.exists(act_logo):
+            print(f"✅ ACT Education logo exists: {act_logo}")
+        else:
+            print(f"⚠️ ACT Education logo missing: {act_logo}")
+            
+        if os.path.exists(nsw_logo):
+            print(f"✅ NSW Government logo exists: {nsw_logo}")
+        else:
+            print(f"⚠️ NSW Government logo missing: {nsw_logo}")
+            
+        if os.path.exists(vic_logo):
+            print(f"✅ VIC Education logo exists: {vic_logo}")
+        else:
+            print(f"⚠️ VIC Education logo missing: {vic_logo}")
+            
+        if os.path.exists(qld_logo):
+            print(f"✅ QLD Government logo exists: {qld_logo}")
+        else:
+            print(f"⚠️ QLD Government logo missing: {qld_logo}")
+    else:
+        print(f"❌ Logo directory missing: {logo_dir}")
+    
     # Check Python dependencies
     try:
         # Check key dependencies
@@ -228,7 +287,9 @@ def validate_setup(openai_endpoint, openai_key, form_recognizer_endpoint, form_r
             "xhtml2pdf": "xhtml2pdf.pisa",
             "reportlab": "reportlab",
             "weasyprint": "weasyprint",
-            "beautifulsoup4": "bs4"
+            "beautifulsoup4": "bs4",
+            "PIL": "PIL",
+            "requests": "requests"
         }
         
         for name, module in dependencies.items():
@@ -239,6 +300,11 @@ def validate_setup(openai_endpoint, openai_key, form_recognizer_endpoint, form_r
                 print(f"⚠️ Dependency missing or optional: {name}")
     except Exception as e:
         print(f"❌ Error checking dependencies: {str(e)}")
+    
+    print("\n📋 DALL-E Integration Status:")
+    print("To use DALL-E for image generation, make sure your Azure OpenAI account has access to DALL-E models.")
+    print("Use the --images flag when generating reports to enable DALL-E image generation.")
+    print("Alternatively, use the dedicated script: python generate_dalle_reports.py")
     
     return 0
 
