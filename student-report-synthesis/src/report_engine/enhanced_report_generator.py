@@ -23,6 +23,9 @@ from src.report_engine.ai.ai_content_generator import AIContentGenerator
 from src.report_engine.templates.template_handler import TemplateHandler
 from src.report_engine.student_data_generator import StudentProfile, SchoolProfile, StudentDataGenerator
 
+# Valid DALL-E image sizes
+VALID_DALLE_SIZES = ["1024x1024", "1792x1024", "1024x1792"]
+
 # Try to import utility functions
 try:
     from src.report_engine.utils.pdf_utils import convert_html_to_pdf
@@ -209,8 +212,14 @@ class EnhancedReportGenerator:
                     "badge_style": "modern",
                     "badge_colors": ["navy blue", "gold"],
                     "photo_style": "school portrait",
-                    "photo_size": "512x512"
+                    "photo_size": "1024x1024"  # Default to a valid DALL-E 3 size
                 }
+            
+            # Validate image size for DALL-E 3
+            if "photo_size" in image_options and image_options["photo_size"] not in VALID_DALLE_SIZES:
+                logger.warning(f"Invalid DALL-E 3 image size: {image_options['photo_size']}. Using 1024x1024 instead.")
+                logger.warning(f"DALL-E 3 only supports these sizes: {', '.join(VALID_DALLE_SIZES)}")
+                image_options["photo_size"] = "1024x1024"
             
             try:
                 # Generate school badge
@@ -224,7 +233,7 @@ class EnhancedReportGenerator:
                     style=image_options.get("badge_style", "modern"),
                     colors=image_options.get("badge_colors", ["navy blue", "gold"]),
                     motto=motto,
-                    image_size=image_options.get("photo_size", "512x512")
+                    image_size=image_options.get("photo_size", "1024x1024")  # Use validated size
                 )
                 
                 # Add logo to school data
@@ -250,7 +259,7 @@ class EnhancedReportGenerator:
                     gender=student_gender,
                     age=age,
                     style=image_options.get("photo_style", "school portrait"),
-                    image_size=image_options.get("photo_size", "512x512")
+                    image_size=image_options.get("photo_size", "1024x1024")  # Use validated size
                 )
                 
                 # Add photo to student data
@@ -988,7 +997,8 @@ class EnhancedReportGenerator:
         output_format: str = "pdf",
         comment_length: str = "standard",
         batch_id: Optional[str] = None,
-        generate_images: bool = False
+        generate_images: bool = False,
+        image_options: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Generate a batch of synthetic student reports.
@@ -1000,6 +1010,7 @@ class EnhancedReportGenerator:
             comment_length: Length of comments (brief, standard, detailed)
             batch_id: Optional batch ID (generated if not provided)
             generate_images: Whether to generate images using DALL-E
+            image_options: Options for image generation
             
         Returns:
             Dictionary with batch information
@@ -1024,7 +1035,8 @@ class EnhancedReportGenerator:
                     output_format=output_format,
                     comment_length=comment_length,
                     output_path=output_path,
-                    generate_images=generate_images
+                    generate_images=generate_images,
+                    image_options=image_options
                 )
                 
                 if report_path:

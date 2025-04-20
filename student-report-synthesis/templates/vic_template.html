@@ -553,25 +553,75 @@
                     <div>Well Above Standard</div>
                 </div>
                 
+                <!-- FIXED VERSION OF THE ACHIEVEMENT RATING SCALES -->
                 <div class="capability-item mt-4">
                     <div class="capability-name">{{ subject.subject }} Achievement Rating</div>
                     <div class="rating-scale">
-                        <div class="rating-option {% if subject.achievement.label == 'Well Below Standard' or subject.achievement.code == 'E' or subject.achievement.label == 'Limited' or subject.achievement.code == 'L' %}selected{% endif %}">Well Below</div>
-                        <div class="rating-option {% if subject.achievement.label == 'Below Standard' or subject.achievement.code == 'D' or subject.achievement.label == 'Basic' or subject.achievement.code == 'B' %}selected{% endif %}">Below</div>
-                        <div class="rating-option {% if subject.achievement.label == 'At Standard' or subject.achievement.code == 'C' or subject.achievement.label == 'Expected' or subject.achievement.code == 'S' %}selected{% endif %}">At Standard</div>
-                        <div class="rating-option {% if subject.achievement.label == 'Above Standard' or subject.achievement.code == 'B' or subject.achievement.label == 'High' or subject.achievement.code == 'H' %}selected{% endif %}">Above</div>
-                        <div class="rating-option {% if subject.achievement.label == 'Well Above Standard' or subject.achievement.code == 'A' or subject.achievement.label == 'Outstanding' or subject.achievement.code == 'O' %}selected{% endif %}">Well Above</div>
+                        {% if subject.achievement.label == 'Well Below Standard' or subject.achievement.label == 'Limited' or subject.achievement.code == 'E' or subject.achievement.code == 'L' %}
+                            <div class="rating-option selected">Well Below</div>
+                        {% else %}
+                            <div class="rating-option">Well Below</div>
+                        {% endif %}
+                        
+                        {% if subject.achievement.label == 'Below Standard' or subject.achievement.label == 'Basic' or (subject.achievement.code == 'D' or (subject.achievement.code == 'B' and subject.achievement.label != 'High' and subject.achievement.label != 'Above Standard')) %}
+                            <div class="rating-option selected">Below</div>
+                        {% else %}
+                            <div class="rating-option">Below</div>
+                        {% endif %}
+                        
+                        {% if subject.achievement.label == 'At Standard' or subject.achievement.label == 'Expected' or subject.achievement.code == 'C' or subject.achievement.code == 'S' %}
+                            <div class="rating-option selected">At Standard</div>
+                        {% else %}
+                            <div class="rating-option">At Standard</div>
+                        {% endif %}
+                        
+                        {% if subject.achievement.label == 'Above Standard' or subject.achievement.label == 'High' or subject.achievement.code == 'H' or (subject.achievement.code == 'B' and (subject.achievement.label == 'High' or subject.achievement.label == 'Above Standard')) %}
+                            <div class="rating-option selected">Above</div>
+                        {% else %}
+                            <div class="rating-option">Above</div>
+                        {% endif %}
+                        
+                        {% if subject.achievement.label == 'Well Above Standard' or subject.achievement.label == 'Outstanding' or subject.achievement.code == 'A' or subject.achievement.code == 'O' %}
+                            <div class="rating-option selected">Well Above</div>
+                        {% else %}
+                            <div class="rating-option">Well Above</div>
+                        {% endif %}
                     </div>
                 </div>
                 
+                <!-- FIX THE EFFORT RATING SCALE TOO USING SAME APPROACH -->
                 <div class="capability-item mt-3">
                     <div class="capability-name">Effort in {{ subject.subject }}</div>
                     <div class="rating-scale">
-                        <div class="rating-option {% if subject.effort.label == 'Low' or subject.effort.code == 'L' %}selected{% endif %}">Low</div>
-                        <div class="rating-option {% if subject.effort.label == 'Below Average' or subject.effort.code == 'B' %}selected{% endif %}">Below Average</div>
-                        <div class="rating-option {% if subject.effort.label == 'Satisfactory' or subject.effort.code == 'S' %}selected{% endif %}">Satisfactory</div>
-                        <div class="rating-option {% if subject.effort.label == 'Very Good' or subject.effort.code == 'V' %}selected{% endif %}">Very Good</div>
-                        <div class="rating-option {% if subject.effort.label == 'Excellent' or subject.effort.code == 'E' or subject.effort.label == 'High' or subject.effort.code == 'H' %}selected{% endif %}">Excellent</div>
+                        {% if subject.effort.label == 'Low' or subject.effort.code == 'L' %}
+                            <div class="rating-option selected">Low</div>
+                        {% else %}
+                            <div class="rating-option">Low</div>
+                        {% endif %}
+                        
+                        {% if subject.effort.label == 'Below Average' or subject.effort.code == 'B' %}
+                            <div class="rating-option selected">Below Average</div>
+                        {% else %}
+                            <div class="rating-option">Below Average</div>
+                        {% endif %}
+                        
+                        {% if subject.effort.label == 'Satisfactory' or subject.effort.code == 'S' %}
+                            <div class="rating-option selected">Satisfactory</div>
+                        {% else %}
+                            <div class="rating-option">Satisfactory</div>
+                        {% endif %}
+                        
+                        {% if subject.effort.label == 'Very Good' or subject.effort.code == 'V' %}
+                            <div class="rating-option selected">Very Good</div>
+                        {% else %}
+                            <div class="rating-option">Very Good</div>
+                        {% endif %}
+                        
+                        {% if subject.effort.label == 'Excellent' or subject.effort.code == 'E' or subject.effort.label == 'High' or subject.effort.code == 'H' %}
+                            <div class="rating-option selected">Excellent</div>
+                        {% else %}
+                            <div class="rating-option">Excellent</div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
