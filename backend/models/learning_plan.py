@@ -2,23 +2,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from enum import Enum
 from datetime import datetime
-from bson import ObjectId
-
-# Custom ObjectId for MongoDB
-class PyObjectId(ObjectId):
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-    
-    @classmethod
-    def validate(cls, v):
-        if not ObjectId.is_valid(v):
-            raise ValueError("Invalid ObjectId")
-        return ObjectId(v)
-    
-    @classmethod
-    def __modify_schema__(cls, field_schema):
-        field_schema.update(type="string")
+import uuid
 
 # Activity Status Enum
 class ActivityStatus(str, Enum):
@@ -28,26 +12,19 @@ class ActivityStatus(str, Enum):
 
 # Learning Activity model
 class LearningActivity(BaseModel):
-    id: str = Field(default_factory=lambda: str(ObjectId()))
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     title: str
     description: str
-    content_id: Optional[PyObjectId] = None
+    content_id: Optional[str] = None
     duration_minutes: int
     order: int
     status: ActivityStatus = ActivityStatus.NOT_STARTED
     completed_at: Optional[datetime] = None
-    
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {
-            ObjectId: str
-        }
 
 # Learning Plan model
 class LearningPlan(BaseModel):
-    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-    student_id: PyObjectId
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    student_id: str
     title: str
     description: str
     subject: str
@@ -62,25 +39,20 @@ class LearningPlan(BaseModel):
     metadata: Dict[str, Any] = {}
     
     class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {
-            ObjectId: str
-        }
+        orm_mode = True
 
 # Learning Plan Creation model
 class LearningPlanCreate(BaseModel):
-    student_id: PyObjectId
-    title: str
-    description: str
     subject: str
+    title: Optional[str] = None
+    description: Optional[str] = None
     topics: List[str] = []
     activities: List[LearningActivity] = []
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     metadata: Dict[str, Any] = {}
 
-# Learning Plan Progress Update
+# Learning Activity Update
 class LearningActivityUpdate(BaseModel):
     activity_id: str
     status: ActivityStatus

@@ -1,24 +1,7 @@
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 from enum import Enum
 from datetime import datetime
-from bson import ObjectId
-
-# Custom ObjectId for MongoDB
-class PyObjectId(ObjectId):
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-    
-    @classmethod
-    def validate(cls, v):
-        if not ObjectId.is_valid(v):
-            raise ValueError("Invalid ObjectId")
-        return ObjectId(v)
-    
-    @classmethod
-    def __modify_schema__(cls, field_schema):
-        field_schema.update(type="string")
 
 # Learning Style Enum
 class LearningStyle(str, Enum):
@@ -48,40 +31,15 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    confirm_password: Optional[str] = None
 
 class User(UserBase):
-    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    id: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-    
+
     class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {
-            ObjectId: str
-        }
+        orm_mode = True
 
 class UserInDB(User):
     hashed_password: str
-
-# Student Performance models
-class PerformanceMetric(BaseModel):
-    subject: str
-    score: float  # Normalized score between 0 and 1
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-    
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-
-class StudentPerformance(BaseModel):
-    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-    student_id: PyObjectId
-    metrics: List[PerformanceMetric] = []
-    
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {
-            ObjectId: str
-        }

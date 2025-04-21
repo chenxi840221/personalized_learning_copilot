@@ -1,4 +1,5 @@
-import { apiClient } from './api';
+// Update your frontend/src/services/auth.js file
+import { api, apiClient } from './api';
 
 // Login function
 export const login = async (username, password) => {
@@ -14,6 +15,9 @@ export const login = async (username, password) => {
       }
     });
     
+    // Store token in local storage
+    localStorage.setItem('token', response.data.access_token);
+    
     return response.data;
   } catch (error) {
     const message = error.response?.data?.detail || 'Failed to login';
@@ -24,8 +28,14 @@ export const login = async (username, password) => {
 // Register function
 export const register = async (userData) => {
   try {
-    const response = await apiClient.post('/users/', userData);
-    return response.data;
+    // Convert learning_style enum format if needed
+    if (userData.learning_style) {
+      // Our backend expects simple strings, not objects
+      userData.learning_style = userData.learning_style.value || userData.learning_style;
+    }
+    
+    const response = await api.post('/users/', userData);
+    return response;
   } catch (error) {
     const message = error.response?.data?.detail || 'Failed to register';
     throw new Error(message);
@@ -35,8 +45,8 @@ export const register = async (userData) => {
 // Get current user
 export const getCurrentUser = async () => {
   try {
-    const response = await apiClient.get('/users/me/');
-    return response.data;
+    const response = await api.get('/users/me/');
+    return response;
   } catch (error) {
     const message = error.response?.data?.detail || 'Failed to get user data';
     throw new Error(message);
@@ -45,6 +55,6 @@ export const getCurrentUser = async () => {
 
 // Logout (client-side only)
 export const logout = () => {
-  // Nothing to do on server side for JWT auth
-  // Token invalidation would be handled by the server
+  // Remove token from local storage
+  localStorage.removeItem('token');
 };

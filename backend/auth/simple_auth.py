@@ -3,19 +3,29 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Dict
 
-from utils.db_manager import get_db
-from config.settings import Settings
+# Simple authentication settings
+SECRET_KEY = "your_secret_key_here"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# Initialize settings
-settings = Settings()
-
-# Configure password handling
+# Password handling
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # OAuth2 password bearer token
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+# Mock user database
+fake_users_db = {
+    "testuser": {
+        "username": "testuser",
+        "email": "user@example.com",
+        "full_name": "Test User",
+        "hashed_password": pwd_context.hash("password"),
+        "is_active": True
+    }
+}
 
 def verify_password(plain_password, hashed_password):
     """Verify password against hashed version."""
@@ -25,33 +35,28 @@ def get_password_hash(password):
     """Hash password."""
     return pwd_context.hash(password)
 
-async def get_user(username: str):
+def get_user(username: str):
     """Get user from database."""
-    db = await get_db()
-    user_dict = await db.users.find_one({"username": username})
-    return user_dict
+    if username in fake_users_db:
+        user_dict = fake_users_db[username]
+        return user_dict
+    return None
 
-async def get_user_by_email(email: str):
-    """Get user by email from database."""
-    db = await get_db()
-    user_dict = await db.users.find_one({"email": email})
-    return user_dict
-
-async def authenticate_user(username: str, password: str):
+def authenticate_user(username: str, password: str):
     """Authenticate user."""
-    user = await get_user(username)
+    user = get_user(username)
     if not user:
         return False
-    if not verify_password(password, user.get("hashed_password", "")):
+    if not verify_password(password, user["hashed_password"]):
         return False
     return user
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Create JWT access token."""
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
@@ -61,15 +66,16 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
     
-    user = await get_user(username=username)
+    user = get_user(username=username)
     if user is None:
         raise credentials_exception
     

@@ -1,3 +1,4 @@
+// Update the API base URL in your frontend/src/services/api.js file
 import axios from 'axios';
 
 // Create axios instance with base URL
@@ -104,50 +105,5 @@ export const api = {
     } catch (error) {
       handleApiError(error);
     }
-  },
-  
-  // Method with retry capability for unstable connections
-  withRetry: async (method, url, data = {}, retries = 3, delay = 1000) => {
-    let lastError;
-    
-    for (let attempt = 0; attempt < retries; attempt++) {
-      try {
-        let response;
-        
-        switch (method.toLowerCase()) {
-          case 'get':
-            response = await apiClient.get(url, { params: data });
-            break;
-          case 'post':
-            response = await apiClient.post(url, data);
-            break;
-          case 'put':
-            response = await apiClient.put(url, data);
-            break;
-          case 'delete':
-            response = await apiClient.delete(url);
-            break;
-          default:
-            throw new Error(`Invalid method: ${method}`);
-        }
-        
-        return response.data;
-      } catch (error) {
-        lastError = error;
-        
-        // Don't retry for client errors (4xx) except for 429 (too many requests)
-        if (error.status && error.status >= 400 && error.status < 500 && error.status !== 429) {
-          break;
-        }
-        
-        // Wait before retry
-        if (attempt < retries - 1) {
-          await new Promise(resolve => setTimeout(resolve, delay * (attempt + 1)));
-        }
-      }
-    }
-    
-    // All retries failed
-    handleApiError(lastError);
   }
 };

@@ -44,11 +44,13 @@ class Settings(BaseSettings):
     # Embedding Model
     EMBEDDING_DEPLOYMENT_NAME: str = os.getenv("EMBEDDING_DEPLOYMENT_NAME", "text-embedding-ada-002")
     
-    # CORS Settings - Fixed to avoid parsing issues
+    # CORS Settings
     CORS_ORIGINS: List[str] = [
         "http://localhost:3000",  # React frontend
         "http://localhost:8000",  # FastAPI backend (for development)
     ]
+    #if os.getenv("CORS_ORIGINS"):
+    #    CORS_ORIGINS.extend(os.getenv("CORS_ORIGINS").split(","))
     
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")

@@ -1,3 +1,4 @@
+// Update your frontend/src/services/content.js file
 import { api } from './api';
 
 // Get all content with optional filters
@@ -16,15 +17,11 @@ export const getContent = async (subject = null, contentType = null) => {
   }
 };
 
-// Get recommended content
+// Get recommended content - in our simple backend this is just filtered content
 export const getRecommendations = async (subject = null) => {
   try {
-    // Build query parameters
-    const params = {};
-    if (subject) params.subject = subject;
-    
-    // Make API request
-    return await api.get('/content/recommendations/', params);
+    // Get general content or subject-specific content
+    return await getContent(subject);
   } catch (error) {
     console.error('Failed to fetch recommendations:', error);
     throw error;

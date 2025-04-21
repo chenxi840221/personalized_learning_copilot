@@ -1,3 +1,4 @@
+// Update your frontend/src/context/AuthContext.js file if needed
 import React, { createContext, useState, useEffect } from 'react';
 import { login, register, getCurrentUser, logout } from '../services/auth';
 
@@ -40,9 +41,6 @@ export const AuthProvider = ({ children }) => {
     
     try {
       const response = await login(username, password);
-      
-      // Store token in local storage
-      localStorage.setItem('token', response.access_token);
       
       // Get user data
       const userData = await getCurrentUser();
@@ -100,5 +98,3 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
-export default AuthProvider;
