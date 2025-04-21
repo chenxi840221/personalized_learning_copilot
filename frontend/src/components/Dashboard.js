@@ -95,8 +95,8 @@ const Dashboard = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Welcome Section */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <h1 className="text-2xl font-bold text-gray-800">
+      <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 sm:mb-8">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
           Welcome, {user?.full_name || user?.username}!
         </h1>
         <p className="text-gray-600 mt-2">
@@ -104,7 +104,7 @@ const Dashboard = () => {
         </p>
         
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
           <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
             <p className="text-sm text-blue-700 font-medium">Learning Plans</p>
             <p className="text-2xl font-bold text-blue-800">{stats.total}</p>
@@ -137,16 +137,17 @@ const Dashboard = () => {
       </div>
       
       {/* Learning Plans Section */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <div className="flex justify-between items-center mb-6">
+      <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 sm:mb-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
           <h2 className="text-xl font-bold text-gray-800">Your Learning Plans</h2>
           
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center w-full sm:w-auto gap-2 sm:gap-0 sm:space-x-2">
             <select
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm flex-grow sm:flex-grow-0"
               value={selectedSubject}
               onChange={(e) => setSelectedSubject(e.target.value)}
               disabled={isCreatingPlan}
+              aria-label="Select subject"
             >
               <option value="">Select a subject</option>
               {subjects.map(subject => (
@@ -190,7 +191,7 @@ const Dashboard = () => {
       </div>
       
       {/* Recommendations Section */}
-      <div className="bg-white rounded-lg shadow-md p-6">
+      <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
         <h2 className="text-xl font-bold text-gray-800 mb-6">Recommended for You</h2>
         
         {isLoadingRecommendations ? (
@@ -199,7 +200,7 @@ const Dashboard = () => {
             <p className="mt-2 text-gray-500">Loading recommendations...</p>
           </div>
         ) : recommendations.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {recommendations.slice(0, 6).map(content => (
               <ContentRecommendation key={content.id} content={content} />
             ))}

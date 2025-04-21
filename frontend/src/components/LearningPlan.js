@@ -81,15 +81,15 @@ const LearningPlan = ({ plan }) => {
     <div className="border border-gray-200 rounded-lg overflow-hidden">
       {/* Plan Header */}
       <div 
-        className="flex items-center justify-between p-4 bg-gray-50 cursor-pointer"
+        className="flex flex-wrap items-center justify-between p-4 bg-gray-50 cursor-pointer gap-2"
         onClick={toggleExpand}
       >
-        <div className="flex-1">
-          <h3 className="text-lg font-medium text-gray-900">{localPlan.title}</h3>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-lg font-medium text-gray-900 truncate">{localPlan.title}</h3>
           <p className="text-sm text-gray-500">{localPlan.subject}</p>
         </div>
         
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-3 mt-2 sm:mt-0">
           {/* Progress Badge */}
           <div className="text-sm font-medium">
             {localPlan.progress_percentage}% Complete
@@ -132,9 +132,9 @@ const LearningPlan = ({ plan }) => {
           <div className="space-y-3">
             {localPlan.activities.map((activity, index) => (
               <div key={activity.id} className="border border-gray-200 rounded p-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex-1">
-                    <div className="flex items-center">
+                    <div className="flex items-center flex-wrap gap-2">
                       <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded mr-2">
                         {index + 1}
                       </span>
@@ -143,8 +143,8 @@ const LearningPlan = ({ plan }) => {
                     <p className="text-sm text-gray-600 mt-1">{activity.description}</p>
                     
                     {/* Activity Metadata */}
-                    <div className="flex items-center mt-2 text-xs text-gray-500">
-                      <span className="flex items-center mr-3">
+                    <div className="flex flex-wrap items-center mt-2 text-xs text-gray-500 gap-3">
+                      <span className="flex items-center">
                         <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
@@ -163,12 +163,13 @@ const LearningPlan = ({ plan }) => {
                   </div>
                   
                   {/* Status Controls */}
-                  <div>
+                  <div className="mt-3 sm:mt-0">
                     <select
-                      className="text-sm border border-gray-300 rounded px-2 py-1"
+                      className="w-full sm:w-auto text-sm border border-gray-300 rounded px-2 py-1"
                       value={activity.status}
                       onChange={(e) => handleStatusChange(activity.id, e.target.value)}
                       disabled={updating}
+                      aria-label={`Set status for ${activity.title}`}
                     >
                       <option value="not_started">Not Started</option>
                       <option value="in_progress">In Progress</option>

@@ -78,11 +78,11 @@ const ContentRecommendation = ({ content }) => {
       href={content.url} 
       target="_blank" 
       rel="noopener noreferrer"
-      className="block bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow duration-200"
+      className="block bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow duration-200 h-full"
     >
-      <div className="p-4">
+      <div className="p-4 flex flex-col h-full">
         {/* Content Type and Subject */}
-        <div className="flex justify-between items-center mb-2">
+        <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
           <div className="flex items-center text-sm text-gray-600">
             {getContentTypeIcon()}
             <span className="ml-1 capitalize">{content.content_type}</span>
@@ -99,12 +99,12 @@ const ContentRecommendation = ({ content }) => {
         </h3>
         
         {/* Description */}
-        <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+        <p className="text-gray-600 text-sm mb-3 line-clamp-3 flex-grow">
           {content.description}
         </p>
         
         {/* Metadata */}
-        <div className="flex items-center justify-between mt-4">
+        <div className="flex items-center justify-between mt-auto flex-wrap gap-2 pt-2">
           {/* Difficulty */}
           <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${getDifficultyColor()}`}>
             {content.difficulty_level}
