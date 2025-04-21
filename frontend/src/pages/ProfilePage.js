@@ -40,6 +40,42 @@ const ProfilePage = () => {
     }
   };
   
+  // Handle input changes
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+  };
+  
+  // Handle checkbox changes for subjects
+  const handleSubjectChange = (e) => {
+    const { value, checked } = e.target;
+    if (checked) {
+      setFormData({
+        ...formData,
+        subjects_of_interest: [...formData.subjects_of_interest, value]
+      });
+    } else {
+      setFormData({
+        ...formData,
+        subjects_of_interest: formData.subjects_of_interest.filter(subject => subject !== value)
+      });
+    }
+  };
+  
+  // Handle form submission
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    
+    // Here you would call an API to update the user profile
+    // For this POC, we'll just simulate success and exit edit mode
+    
+    // TODO: Implement actual profile update API call
+    console.log('Updated profile data:', formData);
+    
+    // Exit edit mode
+    setIsEditing(false);
+  };
+  
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="bg-white rounded-lg shadow-md p-6">
@@ -254,39 +290,3 @@ const ProfilePage = () => {
 };
 
 export default ProfilePage;
-  
-  // Handle input changes
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
-  };
-  
-  // Handle checkbox changes for subjects
-  const handleSubjectChange = (e) => {
-    const { value, checked } = e.target;
-    if (checked) {
-      setFormData({
-        ...formData,
-        subjects_of_interest: [...formData.subjects_of_interest, value]
-      });
-    } else {
-      setFormData({
-        ...formData,
-        subjects_of_interest: formData.subjects_of_interest.filter(subject => subject !== value)
-      });
-    }
-  };
-  
-  // Handle form submission
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    
-    // Here you would call an API to update the user profile
-    // For this POC, we'll just simulate success and exit edit mode
-    
-    // TODO: Implement actual profile update API call
-    console.log('Updated profile data:', formData);
-    
-    // Exit edit mode
-    setIsEditing(false);
-  };

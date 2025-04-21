@@ -1,10 +1,6 @@
 from typing import List, Optional, Dict, Any
 import logging
-from langchain.chat_models import AzureChatOpenAI
-from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
-from langchain.schema import Document
-import asyncio
+from datetime import datetime
 import json
 
 from models.user import User
@@ -13,6 +9,7 @@ from models.learning_plan import LearningPlan, LearningActivity, ActivityStatus
 from rag.retriever import retrieve_relevant_content
 from utils.db_manager import get_db
 from config.settings import Settings
+from rag.openai_adapter import get_openai_adapter
 
 # Initialize settings
 settings = Settings()
@@ -22,17 +19,38 @@ logger = logging.getLogger(__name__)
 
 class LearningPlanGenerator:
     def __init__(self):
-        self.llm = AzureChatOpenAI(
-            openai_api_type="azure",
-            openai_api_version=settings.OPENAI_API_VERSION,
-            openai_api_base=settings.OPENAI_API_BASE,
-            openai_api_key=settings.OPENAI_API_KEY,
-            deployment_name=settings.OPENAI_DEPLOYMENT_NAME,
-            temperature=0.7
-        )
+        # Will be initialized when needed
+        self.openai_client = None
+    
+    async def generate_plan(
+        self,
+        student: User,
+        subject: str,
+        relevant_content: List[Content]
+    ) -> Dict[str, Any]:
+        """Generate a learning plan for a student based on relevant content."""
+        # Format content resources for the prompt
+        resources_text = ""
+        for i, content in enumerate(relevant_content):
+            resources_text += f"""
+            Content {i+1}:
+            - ID: {content.id}
+            - Title: {content.title}
+            - Type: {content.content_type}
+            - Difficulty: {content.difficulty_level}
+            - Description: {content.description}
+            - URL: {content.url}
+            
+            """
         
-        # Prompt for generating learning plans
-        self.plan_template = """
+        # Prepare input for the prompt
+        student_name = student.full_name or student.username
+        grade_level = str(student.grade_level) if student.grade_level else "Unknown"
+        learning_style = student.learning_style.value if student.learning_style else "Mixed"
+        interests = ", ".join(student.subjects_of_interest) if student.subjects_of_interest else "General learning"
+        
+        # Construct the prompt
+        prompt = f"""
         You are an expert educational AI assistant tasked with creating personalized learning plans.
         
         STUDENT PROFILE:
@@ -44,7 +62,7 @@ class LearningPlanGenerator:
         SUBJECT TO FOCUS ON: {subject}
         
         AVAILABLE LEARNING RESOURCES:
-        {resources}
+        {resources_text}
         
         Based on the student profile and available resources, create a personalized learning plan for the student.
         Include a title, description, and a sequence of 3-5 learning activities.
@@ -78,53 +96,26 @@ class LearningPlanGenerator:
         Return ONLY the JSON response without any additional text.
         """
         
-        self.plan_prompt = PromptTemplate(
-            input_variables=["student_name", "grade_level", "learning_style", "interests", "subject", "resources"],
-            template=self.plan_template
-        )
-        
-        self.plan_chain = LLMChain(
-            llm=self.llm,
-            prompt=self.plan_prompt
-        )
-    
-    async def generate_plan(
-        self,
-        student: User,
-        subject: str,
-        relevant_content: List[Content]
-    ) -> Dict[str, Any]:
-        """Generate a learning plan for a student based on relevant content."""
-        # Format content resources for the prompt
-        resources_text = ""
-        for i, content in enumerate(relevant_content):
-            resources_text += f"""
-            Content {i+1}:
-            - ID: {content.id}
-            - Title: {content.title}
-            - Type: {content.content_type}
-            - Difficulty: {content.difficulty_level}
-            - Description: {content.description}
-            - URL: {content.url}
-            
-            """
-        
-        # Prepare input for the prompt
-        prompt_input = {
-            "student_name": student.full_name or student.username,
-            "grade_level": str(student.grade_level) if student.grade_level else "Unknown",
-            "learning_style": student.learning_style.value if student.learning_style else "Mixed",
-            "interests": ", ".join(student.subjects_of_interest) if student.subjects_of_interest else "General learning",
-            "subject": subject,
-            "resources": resources_text
-        }
-        
-        # Generate learning plan
-        response = await self.plan_chain.arun(**prompt_input)
-        
+        # Generate learning plan using Azure OpenAI
         try:
+            # Initialize client if needed
+            if not self.openai_client:
+                self.openai_client = await get_openai_adapter()
+                
+            response = await self.openai_client.create_chat_completion(
+                model=settings.OPENAI_DEPLOYMENT_NAME,
+                messages=[
+                    {"role": "system", "content": "You are an AI educational assistant that creates personalized learning plans."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                response_format={"type": "json_object"}
+            )
+            
+            response_content = response["choices"][0]["message"]["content"]
+            
             # Parse the JSON response
-            plan_dict = json.loads(response)
+            plan_dict = json.loads(response_content)
             
             # Format activities with proper IDs and status
             for activity in plan_dict.get("activities", []):
@@ -142,9 +133,9 @@ class LearningPlanGenerator:
                 activity["status"] = ActivityStatus.NOT_STARTED
             
             return plan_dict
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON response: {e}")
-            logger.error(f"Response was: {response}")
+            
+        except Exception as e:
+            logger.error(f"Failed to generate learning plan: {e}")
             # Return a simple default plan
             return {
                 "title": f"Learning Plan for {subject}",
@@ -152,6 +143,63 @@ class LearningPlanGenerator:
                 "subject": subject,
                 "topics": [subject],
                 "activities": []
+            }
+
+    async def generate_personalized_learning_path(
+        self,
+        user_profile: User,
+        subject: str,
+        recommended_content: List[Content]
+    ) -> Dict[str, Any]:
+        """Generate a comprehensive learning path with weekly structure."""
+        # Format content for prompt
+        content_descriptions = "\n".join([
+            f"- {item.title}: {item.description} (Difficulty: {item.difficulty_level}, Type: {item.content_type})"
+            for item in recommended_content[:10]
+        ])
+        
+        # Generate learning path using Azure OpenAI
+        prompt = f"""
+        Create a personalized learning path for a grade {user_profile.grade_level} student 
+        with {user_profile.learning_style} learning style who is interested in {subject}.
+        
+        The student's other interests include: {', '.join(user_profile.subjects_of_interest) if user_profile.subjects_of_interest else 'general learning'}
+        
+        Available content:
+        {content_descriptions}
+        
+        Create a structured 4-week learning plan with:
+        1. Weekly goals
+        2. Daily activities using the available content
+        3. Specific skills the student will develop
+        4. Assessment points to check understanding
+        
+        Format the response as a JSON object with weeks, days, activities, and skills properties.
+        """
+        
+        try:
+            # Initialize client if needed
+            if not self.openai_client:
+                self.openai_client = await get_openai_adapter()
+                
+            response = await self.openai_client.create_chat_completion(
+                model=settings.OPENAI_DEPLOYMENT_NAME,
+                messages=[
+                    {"role": "system", "content": "You are an educational AI that creates personalized learning plans."},
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.7
+            )
+            
+            learning_path = json.loads(response["choices"][0]["message"]["content"])
+            return learning_path
+        except Exception as e:
+            logger.error(f"Failed to generate learning path: {e}")
+            return {
+                "title": f"Learning Path for {subject}",
+                "description": f"An error occurred while generating the learning path.",
+                "weeks": []
             }
 
 # Singleton instance

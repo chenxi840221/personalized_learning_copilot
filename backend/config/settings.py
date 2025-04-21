@@ -17,16 +17,29 @@ class Settings(BaseSettings):
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
     
-    # MongoDB Settings
-    MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
-    MONGODB_DB_NAME: str = os.getenv("MONGODB_DB_NAME", "learning_copilot")
+    # Microsoft Entra ID Settings (for authentication)
+    TENANT_ID: str = os.getenv("MS_TENANT_ID", "")
+    CLIENT_ID: str = os.getenv("MS_CLIENT_ID", "")
+    CLIENT_SECRET: str = os.getenv("MS_CLIENT_SECRET", "")
+    
+    # Azure Cognitive Search Settings
+    SEARCH_ENDPOINT: str = os.getenv("SEARCH_ENDPOINT", "")
+    SEARCH_API_KEY: str = os.getenv("SEARCH_API_KEY", "")
     
     # Azure OpenAI Settings
     OPENAI_API_TYPE: str = os.getenv("OPENAI_API_TYPE", "azure")
     OPENAI_API_VERSION: str = os.getenv("OPENAI_API_VERSION", "2023-05-15")
     OPENAI_API_BASE: str = os.getenv("OPENAI_API_BASE", "")
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-    OPENAI_DEPLOYMENT_NAME: str = os.getenv("OPENAI_DEPLOYMENT_NAME", "gpt-4-turbo")
+    OPENAI_DEPLOYMENT_NAME: str = os.getenv("OPENAI_DEPLOYMENT_NAME", "gpt-4")
+    
+    # Azure Form Recognizer Settings
+    FORM_RECOGNIZER_ENDPOINT: str = os.getenv("FORM_RECOGNIZER_ENDPOINT", "")
+    FORM_RECOGNIZER_KEY: str = os.getenv("FORM_RECOGNIZER_KEY", "")
+    
+    # Azure Text Analytics Settings
+    TEXT_ANALYTICS_ENDPOINT: str = os.getenv("TEXT_ANALYTICS_ENDPOINT", "")
+    TEXT_ANALYTICS_KEY: str = os.getenv("TEXT_ANALYTICS_KEY", "")
     
     # Embedding Model
     EMBEDDING_DEPLOYMENT_NAME: str = os.getenv("EMBEDDING_DEPLOYMENT_NAME", "text-embedding-ada-002")
