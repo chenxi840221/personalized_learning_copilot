@@ -26,6 +26,22 @@ services:
       - MS_TENANT_ID=${MS_TENANT_ID}
       - MS_CLIENT_ID=${MS_CLIENT_ID}
       - MS_CLIENT_SECRET=${MS_CLIENT_SECRET}
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: python start_scheduler.py
+    depends_on:
+      - backend
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_BASE=${OPENAI_API_BASE}
+      - OPENAI_API_VERSION=${OPENAI_API_VERSION}
+    restart: always
+    volumes:
+      - ./backend:/app
+      - ./logs:/app/logs      
     networks:
       - app-network
 

@@ -17,11 +17,15 @@ export const getContent = async (subject = null, contentType = null) => {
   }
 };
 
-// Get recommended content - in our simple backend this is just filtered content
+// Get recommended content based on user profile
 export const getRecommendations = async (subject = null) => {
   try {
-    // Get general content or subject-specific content
-    return await getContent(subject);
+    // Build query parameters
+    const params = {};
+    if (subject) params.subject = subject;
+    
+    // Make API request
+    return await api.get('/content/recommendations/', params);
   } catch (error) {
     console.error('Failed to fetch recommendations:', error);
     throw error;

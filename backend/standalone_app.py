@@ -6,30 +6,24 @@ from datetime import datetime, timedelta
 import uuid
 from passlib.context import CryptContext
 from jose import jwt, JWTError
-
 # Constants
 SECRET_KEY = "yoursecretkey"  # In production, use a proper secret key
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
 # Password security
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 # OAuth2 password bearer token
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
 # Mock databases
 mock_users = {}
 mock_contents = {}
 mock_learning_plans = {}
-
 # Initialize FastAPI app
 app = FastAPI(
     title="Personalized Learning Co-pilot API",
     description="API for the Personalized Learning Co-pilot POC",
     version="0.1.0",
 )
-
 # Add CORS middleware with hardcoded values
 app.add_middleware(
     CORSMiddleware,
@@ -38,21 +32,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # Utility functions
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
-
 def get_password_hash(password):
     return pwd_context.hash(password)
-
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
-
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -66,13 +56,10 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    
     user = mock_users.get(username)
     if user is None:
         raise credentials_exception
-    
     return user
-
 # Authentication routes
 @app.post("/token")
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -88,7 +75,6 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         data={"sub": user["username"]}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
-
 # User routes
 @app.post("/users/")
 async def create_user(
@@ -107,11 +93,9 @@ async def create_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already registered"
         )
-    
     # Create user document
     now = datetime.utcnow().isoformat()
     user_id = str(uuid.uuid4())
-    
     user_dict = {
         "id": user_id,
         "username": username,
@@ -125,22 +109,17 @@ async def create_user(
         "created_at": now,
         "updated_at": now
     }
-    
     # Insert user
     mock_users[username] = user_dict
-    
     # Return user data (exclude password)
     return {k: v for k, v in user_dict.items() if k != "hashed_password"}
-
 @app.get("/users/me/")
 async def read_users_me(current_user: Dict = Depends(get_current_user)):
     """Get current user profile."""
     return {k: v for k, v in current_user.items() if k != "hashed_password"}
-
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "version": "0.1.0"}
-
 # Add a demo user for testing
 @app.on_event("startup")
 async def startup_event():
@@ -160,7 +139,6 @@ async def startup_event():
             "updated_at": datetime.utcnow().isoformat()
         }
     print("Server started with test user: testuser (password: password)")
-
 # Content Type and Difficulty Enums
 class ContentType:
     ARTICLE = "article"
@@ -170,12 +148,10 @@ class ContentType:
     QUIZ = "quiz"
     LESSON = "lesson"
     ACTIVITY = "activity"
-
 class DifficultyLevel:
     BEGINNER = "beginner"
     INTERMEDIATE = "intermediate"
     ADVANCED = "advanced"
-
 # Content endpoints
 @app.get("/content/")
 async def get_content(
@@ -193,7 +169,6 @@ async def get_content(
             continue
         results.append(content)
     return results
-
 @app.post("/content/")
 async def create_content(
     title: str = Body(...),
@@ -209,7 +184,6 @@ async def create_content(
 ):
     """Create new content."""
     content_id = str(uuid.uuid4())
-    
     content = {
         "id": content_id,
         "title": title,
@@ -224,10 +198,8 @@ async def create_content(
         "created_at": datetime.utcnow().isoformat(),
         "updated_at": datetime.utcnow().isoformat()
     }
-    
     mock_contents[content_id] = content
     return content
-
 # Add some sample content at startup
 @app.on_event("startup")
 async def add_sample_content():
@@ -247,7 +219,6 @@ async def add_sample_content():
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat()
         }
-        
         # Science content
         mock_contents["science1"] = {
             "id": "science1",
@@ -263,7 +234,6 @@ async def add_sample_content():
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat()
         }
-        
         # English content
         mock_contents["english1"] = {
             "id": "english1",
@@ -279,15 +249,12 @@ async def add_sample_content():
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat()
         }
-    
     print(f"Added {len(mock_contents)} sample content items")
-
 # Activity Status Enum
 class ActivityStatus:
     NOT_STARTED = "not_started"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
-
 # Learning Plan endpoints
 @app.get("/learning-plans/")
 async def get_learning_plans(
@@ -304,7 +271,6 @@ async def get_learning_plans(
             continue
         results.append(plan)
     return results
-
 @app.post("/learning-plans/")
 async def create_learning_plan(
     subject: str = Body(...),
@@ -317,13 +283,11 @@ async def create_learning_plan(
     """Create a new learning plan."""
     plan_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
-    
     # Default title and description if not provided
     if not title:
         title = f"Learning Plan for {subject}"
     if not description:
         description = f"A personalized learning plan for {subject}"
-    
     # Process activities
     processed_activities = []
     for i, activity in enumerate(activities):
@@ -339,7 +303,6 @@ async def create_learning_plan(
             "completed_at": None
         }
         processed_activities.append(processed_activity)
-    
     # If no activities provided, create some sample ones
     if not processed_activities:
         # Use the sample content as activities
@@ -358,7 +321,6 @@ async def create_learning_plan(
                     "completed_at": None
                 }
                 processed_activities.append(activity)
-    
     # Default to some generic activities if no content matched
     if not processed_activities:
         for i in range(3):
@@ -374,7 +336,6 @@ async def create_learning_plan(
                 "completed_at": None
             }
             processed_activities.append(activity)
-    
     # Create the learning plan
     plan = {
         "id": plan_id,
@@ -391,10 +352,8 @@ async def create_learning_plan(
         "status": ActivityStatus.NOT_STARTED,
         "progress_percentage": 0.0
     }
-    
     mock_learning_plans[plan_id] = plan
     return plan
-
 @app.put("/learning-plans/{plan_id}/activities/{activity_id}")
 async def update_activity_status(
     plan_id: str = Path(..., description="Learning plan ID"),
@@ -410,18 +369,15 @@ async def update_activity_status(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Learning plan not found"
         )
-    
     # Check ownership
     if plan["student_id"] != current_user["id"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to update this plan"
         )
-    
     # Find the activity
     activity_found = False
     activities = plan["activities"]
-    
     for i, activity in enumerate(activities):
         if activity["id"] == activity_id:
             activities[i]["status"] = status
@@ -429,38 +385,32 @@ async def update_activity_status(
                 activities[i]["completed_at"] = datetime.utcnow().isoformat()
             activity_found = True
             break
-    
     if not activity_found:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Activity not found in learning plan"
         )
-    
     # Calculate progress percentage
     total_activities = len(activities)
     completed_activities = sum(1 for a in activities if a["status"] == ActivityStatus.COMPLETED)
     progress_percentage = (completed_activities / total_activities) * 100 if total_activities > 0 else 0
-    
     # Determine plan status
     plan_status = ActivityStatus.NOT_STARTED
     if completed_activities == total_activities:
         plan_status = ActivityStatus.COMPLETED
     elif completed_activities > 0:
         plan_status = ActivityStatus.IN_PROGRESS
-    
     # Update plan
     plan["activities"] = activities
     plan["progress_percentage"] = progress_percentage
     plan["status"] = plan_status
     plan["updated_at"] = datetime.utcnow().isoformat()
-    
     return {
         "success": True,
         "message": "Activity status updated",
         "progress_percentage": progress_percentage,
         "plan_status": plan_status
     }
-
 @app.get("/learning-plans/{plan_id}")
 async def get_learning_plan(
     plan_id: str = Path(..., description="Learning plan ID"),
@@ -473,12 +423,10 @@ async def get_learning_plan(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Learning plan not found"
         )
-    
     # Check ownership
     if plan["student_id"] != current_user["id"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to view this plan"
         )
-    
     return plan

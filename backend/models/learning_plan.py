@@ -3,13 +3,11 @@ from typing import List, Optional, Dict, Any
 from enum import Enum
 from datetime import datetime
 import uuid
-
 # Activity Status Enum
 class ActivityStatus(str, Enum):
     NOT_STARTED = "not_started"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
-
 # Learning Activity model
 class LearningActivity(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -20,7 +18,6 @@ class LearningActivity(BaseModel):
     order: int
     status: ActivityStatus = ActivityStatus.NOT_STARTED
     completed_at: Optional[datetime] = None
-
 # Learning Plan model
 class LearningPlan(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -37,10 +34,8 @@ class LearningPlan(BaseModel):
     status: ActivityStatus = ActivityStatus.NOT_STARTED
     progress_percentage: float = 0.0
     metadata: Dict[str, Any] = {}
-    
     class Config:
         orm_mode = True
-
 # Learning Plan Creation model
 class LearningPlanCreate(BaseModel):
     subject: str
@@ -51,7 +46,6 @@ class LearningPlanCreate(BaseModel):
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     metadata: Dict[str, Any] = {}
-
 # Learning Activity Update
 class LearningActivityUpdate(BaseModel):
     activity_id: str

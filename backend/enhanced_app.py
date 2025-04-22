@@ -5,24 +5,19 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import uuid
 import json
-
 from models.user import User, UserCreate, Token, TokenData
 from models.content import Content, ContentType, DifficultyLevel
 from models.learning_plan import LearningPlan, LearningActivity, ActivityStatus, LearningActivityUpdate
 from auth.authentication import authenticate_user, create_access_token, get_current_user, get_password_hash
-from utils.db_manager import get_db, init_db, ensure_indexes_exist
 from config.settings import Settings
-
 # Initialize settings
 settings = Settings()
-
 # Initialize FastAPI app
 app = FastAPI(
     title="Personalized Learning Co-pilot API",
     description="API for the Personalized Learning Co-pilot POC",
     version="0.1.0",
 )
-
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -31,14 +26,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # Initialize database on startup
 @app.on_event("startup")
 async def startup_db_client():
     await init_db()
     await ensure_indexes_exist()
     print("Database initialized")
-
 # Authentication routes
 @app.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -54,13 +47,11 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         data={"sub": user["username"]}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
-
 # User routes
 @app.post("/users/", response_model=User)
 async def create_user(user_data: UserCreate):
     """Create a new user."""
-    db = await get_db()
-    
+    db = 
     # Check if username already exists
     existing_user = await db.users.find_one({"username": user_data.username})
     if existing_user:
@@ -68,7 +59,6 @@ async def create_user(user_data: UserCreate):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already registered"
         )
-    
     # Check if email already exists
     existing_email = await db.users.find_one({"email": user_data.email})
     if existing_email:
@@ -76,18 +66,15 @@ async def create_user(user_data: UserCreate):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
         )
-    
     # Validate passwords match if confirm_password is provided
     if user_data.confirm_password and user_data.password != user_data.confirm_password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Passwords do not match"
         )
-    
     # Create user document
     now = datetime.utcnow()
     user_id = str(uuid.uuid4())
-    
     user_dict = {
         "id": user_id,
         "_id": user_id,
@@ -102,18 +89,14 @@ async def create_user(user_data: UserCreate):
         "created_at": now,
         "updated_at": now
     }
-    
     # Insert user
     await db.users.insert_one(user_dict)
-    
     # Return user data (exclude password)
     return {**user_dict, "hashed_password": None}
-
 @app.get("/users/me/", response_model=User)
 async def read_users_me(current_user: Dict = Depends(get_current_user)):
     """Get current user profile."""
     return current_user
-
 # Content routes
 @app.get("/content/", response_model=List[Content])
 async def get_content(
@@ -122,19 +105,16 @@ async def get_content(
     current_user: Dict = Depends(get_current_user)
 ):
     """Get content with optional filters."""
-    db = await get_db()
-    
+    db = 
     # Build query
     query = {}
     if subject:
         query["subject"] = subject
     if content_type:
         query["content_type"] = content_type
-    
     # Get content
     contents = await db.contents.find(query).to_list(length=100)
     return contents
-
 # Learning plan routes
 @app.get("/learning-plans/", response_model=List[LearningPlan])
 async def get_learning_plans(
@@ -142,29 +122,24 @@ async def get_learning_plans(
     current_user: Dict = Depends(get_current_user)
 ):
     """Get learning plans for the current user."""
-    db = await get_db()
-    
+    db = 
     # Build query
     query = {"student_id": current_user["id"]}
     if subject:
         query["subject"] = subject
-    
     # Get learning plans
     plans = await db.learning_plans.find(query).to_list(length=100)
     return plans
-
 @app.post("/learning-plans/", response_model=LearningPlan)
 async def create_learning_plan(
     plan_data: LearningPlanCreate,
     current_user: Dict = Depends(get_current_user)
 ):
     """Create a new learning plan."""
-    db = await get_db()
-    
+    db = 
     # Generate a sample learning plan (normally would use AI here)
     now = datetime.utcnow()
     plan_id = str(uuid.uuid4())
-    
     # Create plan document
     plan_dict = {
         "id": plan_id,
@@ -183,7 +158,6 @@ async def create_learning_plan(
         "progress_percentage": 0.0,
         "metadata": plan_data.metadata or {}
     }
-    
     # If no activities provided, create some sample ones
     if not plan_dict["activities"]:
         for i in range(1, 4):
@@ -199,12 +173,9 @@ async def create_learning_plan(
                 "completed_at": None
             }
             plan_dict["activities"].append(activity)
-    
     # Insert plan
     await db.learning_plans.insert_one(plan_dict)
-    
     return plan_dict
-
 @app.put("/learning-plans/{plan_id}/activities/{activity_id}")
 async def update_activity_status(
     plan_id: str = Path(..., description="Learning plan ID"),
@@ -213,24 +184,20 @@ async def update_activity_status(
     current_user: Dict = Depends(get_current_user)
 ):
     """Update activity status in a learning plan."""
-    db = await get_db()
-    
+    db = 
     # Get the plan and verify ownership
     plan = await db.learning_plans.find_one({
         "_id": plan_id,
         "student_id": current_user["id"]
     })
-    
     if not plan:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Learning plan not found"
         )
-    
     # Find and update the activity
     activity_found = False
     activities = plan["activities"]
-    
     for i, activity in enumerate(activities):
         if activity["id"] == activity_id:
             activities[i]["status"] = update_data.status
@@ -238,25 +205,21 @@ async def update_activity_status(
                 activities[i]["completed_at"] = datetime.utcnow().isoformat()
             activity_found = True
             break
-    
     if not activity_found:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Activity not found in learning plan"
         )
-    
     # Calculate progress percentage
     total_activities = len(activities)
     completed_activities = sum(1 for a in activities if a["status"] == ActivityStatus.COMPLETED)
     progress_percentage = (completed_activities / total_activities) * 100 if total_activities > 0 else 0
-    
     # Determine plan status
     plan_status = ActivityStatus.NOT_STARTED
     if completed_activities == total_activities:
         plan_status = ActivityStatus.COMPLETED
     elif completed_activities > 0:
         plan_status = ActivityStatus.IN_PROGRESS
-    
     # Update plan in database
     await db.learning_plans.update_one(
         {"_id": plan_id},
@@ -269,7 +232,6 @@ async def update_activity_status(
             }
         }
     )
-    
     return {
         "success": True,
         "message": "Activity status updated",
