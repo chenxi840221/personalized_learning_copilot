@@ -1,0 +1,175 @@
+import unittest
+import asyncio
+from unittest.mock import patch, MagicMock, AsyncMock
+import sys
+import os
+from datetime import datetime
+
+# Add project root to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from rag.document_processor import DocumentProcessor, get_document_processor, analyze_document
+from models.content import Content, ContentType, DifficultyLevel
+
+
+class TestDocumentProcessor(unittest.TestCase):
+    """Test the Document Processor with mocked Azure Form Recognizer."""
+
+    def setUp(self):
+        """Set up test case."""
+        # Mock the document analysis client
+        self.mock_client = MagicMock()
+        
+        # Create processor with mocked client
+        self.processor = DocumentProcessor()
+        self.processor.document_analysis_client = self.mock_client
+        
+        # Reset the singleton
+        import rag.document_processor
+        rag.document_processor.document_processor = None
+        
+        # Create a sample content object
+        self.content = Content(
+            id="test-id",
+            title="Test Content",
+            description="This is a test description",
+            content_type=ContentType.ARTICLE,
+            subject="Mathematics",
+            topics=["Algebra", "Equations"],
+            url="https://example.com/test",
+            source="Test Source",
+            difficulty_level=DifficultyLevel.INTERMEDIATE,
+            grade_level=[7, 8, 9],
+            duration_minutes=30,
+            keywords=["math", "algebra"]
+        )
+    
+    @patch('rag.openai_adapter.get_openai_adapter')
+    async def test_process_content(self, mock_get_adapter):
+        """Test processing content for indexing."""
+        # Configure mocks
+        mock_adapter = AsyncMock()
+        mock_adapter.create_embedding.return_value = [0.1, 0.2, 0.3, 0.4]
+        mock_get_adapter.return_value = mock_adapter
+        
+        # Process the content
+        result = await self.processor.process_content(self.content)
+        
+        # Assertions
+        self.assertEqual(result["id"], "test-id")
+        self.assertEqual(result["title"], "Test Content")
+        self.assertIn("embedding", result)
+        self.assertEqual(result["embedding"], [0.1, 0.2, 0.3, 0.4])
+        mock_adapter.create_embedding.assert_called_once()
+    
+    def test_prepare_text_for_embedding(self):
+        """Test preparation of text for embedding."""
+        # Call the method
+        result = self.processor._prepare_text_for_embedding(self.content)
+        
+        # Assertions
+        self.assertIn("Title: Test Content", result)
+        self.assertIn("Subject: Mathematics", result)
+        self.assertIn("Topics: Algebra, Equations", result)
+        self.assertIn("Keywords: math, algebra", result)
+    
+    async def test_extract_content_from_document(self):
+        """Test extracting content from a document."""
+        # Configure mock
+        mock_poller = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.content = "This is the document content"
+        mock_result.paragraphs = [MagicMock(content="Paragraph 1"), MagicMock(content="Paragraph 2")]
+        mock_result.tables = []
+        mock_result.key_value_pairs = []
+        mock_poller.result.return_value = mock_result
+        
+        self.mock_client.begin_analyze_document_from_url.return_value = mock_poller
+        
+        # Call the method
+        result = await self.processor.extract_content_from_document("https://example.com/document.pdf")
+        
+        # Assertions
+        self.mock_client.begin_analyze_document_from_url.assert_called_once()
+        self.assertEqual(result["content"], "This is the document content")
+        self.assertEqual(len(result["paragraphs"]), 2)
+        self.assertEqual(result["paragraphs"][0], "Paragraph 1")
+    
+    def test_extract_text_from_html(self):
+        """Test extracting text from HTML."""
+        # Test HTML
+        html = """
+        <html>
+        <head><script>Some script</script><style>Some style</style></head>
+        <body>
+            <header>Header content</header>
+            <nav>Navigation</nav>
+            <main>
+                <p>This is the main content.</p>
+                <p>This is another paragraph.</p>
+            </main>
+            <footer>Footer content</footer>
+        </body>
+        </html>
+        """
+        
+        # Call the method
+        result = self.processor._extract_text_from_html(html)
+        
+        # Assertions
+        self.assertIn("This is the main content.", result)
+        self.assertIn("This is another paragraph.", result)
+        self.assertNotIn("Some script", result)
+        self.assertNotIn("Some style", result)
+        self.assertNotIn("Header content", result)
+        self.assertNotIn("Navigation", result)
+        self.assertNotIn("Footer content", result)
+    
+    @patch('rag.document_processor.DocumentProcessor')
+    def test_get_document_processor(self, mock_processor_class):
+        """Test getting the document processor singleton."""
+        # Configure mock
+        mock_instance = MagicMock()
+        mock_processor_class.return_value = mock_instance
+        
+        # Call function twice to verify singleton behavior
+        processor1 = asyncio.run(get_document_processor())
+        processor2 = asyncio.run(get_document_processor())
+        
+        # Assertions
+        mock_processor_class.assert_called_once()  # Constructor should be called only once
+        self.assertEqual(processor1, processor2)  # Should return the same instance
+    
+    @patch('rag.document_processor.get_document_processor')
+    @patch('rag.openai_adapter.get_openai_adapter')
+    async def test_analyze_document(self, mock_get_adapter, mock_get_processor):
+        """Test analyzing a document."""
+        # Configure mocks
+        mock_processor = AsyncMock()
+        mock_processor.extract_content_from_document.return_value = {
+            "content": "Document content",
+            "paragraphs": ["Para 1", "Para 2"],
+            "tables": [],
+            "key_values": {}
+        }
+        mock_get_processor.return_value = mock_processor
+        
+        mock_adapter = AsyncMock()
+        mock_adapter.create_embedding.return_value = [0.1, 0.2, 0.3, 0.4]
+        mock_get_adapter.return_value = mock_adapter
+        
+        # Call the function
+        result = await analyze_document("https://example.com/document.pdf")
+        
+        # Assertions
+        mock_processor.extract_content_from_document.assert_called_once()
+        mock_adapter.create_embedding.assert_called_once_with(
+            model="text-embedding-ada-002",
+            text="Document content"
+        )
+        self.assertEqual(result["content"], "Document content")
+        self.assertEqual(result["embedding"], [0.1, 0.2, 0.3, 0.4])
+
+
+if __name__ == "__main__":
+    unittest.main()

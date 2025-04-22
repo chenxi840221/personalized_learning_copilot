@@ -7,8 +7,8 @@ import re
 from urllib.parse import urljoin
 from datetime import datetime
 import json
-import os
 import uuid
+import openai
 
 # Azure imports
 from azure.core.credentials import AzureKeyCredential
@@ -19,7 +19,6 @@ from azure.ai.textanalytics import TextAnalyticsClient
 from azure.cognitiveservices.vision.computervision import ComputerVisionClient
 from azure.cognitiveservices.vision.computervision.models import VisualFeatureTypes, VideoAnalysisParams
 from msrest.authentication import CognitiveServicesCredentials
-from azure.ai.openai import OpenAIClient  # Updated for version < 1.0.0
 
 from models.content import Content, ContentType, DifficultyLevel
 from config.settings import Settings
@@ -44,28 +43,28 @@ class ABCEducationScraper:
         self.search_index_name = settings.AZURE_SEARCH_INDEX_NAME
         self.search_client = None
         
-        # Azure OpenAI client for embeddings (older version)
-        self.openai_client = OpenAIClient(
-            endpoint=settings.AZURE_OPENAI_ENDPOINT,
-            credential=AzureKeyCredential(settings.AZURE_OPENAI_KEY)
-        )
+        # Configure OpenAI with Azure settings
+        openai.api_type = "azure"
+        openai.api_version = settings.AZURE_OPENAI_API_VERSION
+        openai.api_base = settings.get_openai_endpoint()
+        openai.api_key = settings.get_openai_key()
         
-        # Azure Computer Vision client
+        # Azure Computer Vision client using Cognitive Services
         self.computer_vision_client = ComputerVisionClient(
-            endpoint=settings.AZURE_COMPUTER_VISION_ENDPOINT,
-            credentials=CognitiveServicesCredentials(settings.AZURE_COMPUTER_VISION_KEY)
+            endpoint=settings.COMPUTER_VISION_ENDPOINT,
+            credentials=CognitiveServicesCredentials(settings.COMPUTER_VISION_KEY)
         )
         
-        # Azure Form Recognizer client
+        # Azure Form Recognizer client using Cognitive Services
         self.document_analysis_client = DocumentAnalysisClient(
-            endpoint=settings.AZURE_FORM_RECOGNIZER_ENDPOINT,
-            credential=AzureKeyCredential(settings.AZURE_FORM_RECOGNIZER_KEY)
+            endpoint=settings.FORM_RECOGNIZER_ENDPOINT,
+            credential=AzureKeyCredential(settings.FORM_RECOGNIZER_KEY)
         )
         
-        # Azure Text Analytics client
+        # Azure Text Analytics client using Cognitive Services
         self.text_analytics_client = TextAnalyticsClient(
-            endpoint=settings.AZURE_TEXT_ANALYTICS_ENDPOINT, 
-            credential=AzureKeyCredential(settings.AZURE_TEXT_ANALYTICS_KEY)
+            endpoint=settings.TEXT_ANALYTICS_ENDPOINT, 
+            credential=AzureKeyCredential(settings.TEXT_ANALYTICS_KEY)
         )
     
     async def initialize(self):
@@ -289,17 +288,16 @@ class ABCEducationScraper:
         return unique_keywords[:10]  # Return up to 10 keywords
     
     async def generate_embedding(self, text: str) -> List[float]:
-        """Generate embedding using Azure OpenAI (older version)."""
+        """Generate embedding using Azure OpenAI."""
         try:
-            response = self.openai_client.get_embeddings(
-                deployment_id=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
-                input=[text]
+            # Call OpenAI API
+            response = await openai.Embedding.acreate(
+                engine=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
+                input=text
             )
-            # Access the embedding from response structure for version 0.7.0
-            data = response.data
-            if data and len(data) > 0:
-                return data[0].embedding
-            return []
+            
+            return response["data"][0]["embedding"]
+            
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")
             # Fall back to empty vector

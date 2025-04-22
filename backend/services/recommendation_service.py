@@ -6,11 +6,11 @@ from datetime import datetime
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.aio import SearchClient
 from azure.search.documents.models import Vector
-from azure.ai.openai import OpenAIClient  # Updated for version < 1.0.0
 
 from models.user import User
 from models.content import Content, ContentType, DifficultyLevel
 from config.settings import Settings
+from rag.openai_adapter import get_openai_adapter
 
 # Initialize settings
 settings = Settings()
@@ -24,20 +24,17 @@ class RecommendationService:
     def __init__(self):
         """Initialize recommendation service."""
         self.search_client = None
-        
-        # Initialize Azure OpenAI client (version < 1.0.0)
-        self.openai_client = OpenAIClient(
-            endpoint=settings.AZURE_OPENAI_ENDPOINT,
-            credential=AzureKeyCredential(settings.AZURE_OPENAI_KEY)
-        )
+        self.openai_adapter = None
     
     async def initialize(self):
-        """Initialize Azure AI Search client."""
+        """Initialize Azure AI Search client and OpenAI adapter."""
         self.search_client = SearchClient(
             endpoint=settings.AZURE_SEARCH_ENDPOINT,
             index_name=settings.AZURE_SEARCH_INDEX_NAME,
             credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
         )
+        
+        self.openai_adapter = await get_openai_adapter()
     
     async def close(self):
         """Close Azure AI Search client."""
@@ -124,17 +121,18 @@ class RecommendationService:
         return query
     
     async def _generate_embedding(self, text: str) -> List[float]:
-        """Generate embedding using Azure OpenAI (older version)."""
+        """Generate embedding using OpenAI adapter."""
         try:
-            response = self.openai_client.get_embeddings(
-                deployment_id=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
-                input=[text]
+            if not self.openai_adapter:
+                self.openai_adapter = await get_openai_adapter()
+                
+            embedding = await self.openai_adapter.create_embedding(
+                model=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
+                text=text
             )
-            # Access the embedding from response structure for version 0.7.0
-            data = response.data
-            if data and len(data) > 0:
-                return data[0].embedding
-            return []
+            
+            return embedding
+            
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")
             # Fall back to empty vector
@@ -188,3 +186,16 @@ class RecommendationService:
                 return Content(**content_dict)
             return None
         except Exception as e:
+            logger.error(f"Error getting content by ID: {e}")
+            return None
+
+# Singleton instance
+recommendation_service = None
+
+async def get_recommendation_service():
+    """Get or create recommendation service singleton."""
+    global recommendation_service
+    if recommendation_service is None:
+        recommendation_service = RecommendationService()
+        await recommendation_service.initialize()
+    return recommendation_service
