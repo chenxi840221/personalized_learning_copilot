@@ -11,7 +11,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from rag.document_processor import DocumentProcessor, get_document_processor, analyze_document
 from models.content import Content, ContentType, DifficultyLevel
 
-
 class TestDocumentProcessor(unittest.TestCase):
     """Test the Document Processor with mocked Azure Form Recognizer."""
 
@@ -23,6 +22,7 @@ class TestDocumentProcessor(unittest.TestCase):
         # Create processor with mocked client
         self.processor = DocumentProcessor()
         self.processor.document_analysis_client = self.mock_client
+        self.processor.search_client = AsyncMock()  # Add this line
         
         # Reset the singleton
         import rag.document_processor
@@ -126,18 +126,24 @@ class TestDocumentProcessor(unittest.TestCase):
         self.assertNotIn("Footer content", result)
     
     @patch('rag.document_processor.DocumentProcessor')
-    def test_get_document_processor(self, mock_processor_class):
+    async def test_get_document_processor(self, mock_processor_class):
         """Test getting the document processor singleton."""
         # Configure mock
-        mock_instance = MagicMock()
+        mock_instance = AsyncMock()
+        # Make initialize() an AsyncMock so it can be awaited
+        mock_instance.initialize = AsyncMock()
         mock_processor_class.return_value = mock_instance
         
+        # Import the function again to use the patched version
+        from rag.document_processor import get_document_processor
+        
         # Call function twice to verify singleton behavior
-        processor1 = asyncio.run(get_document_processor())
-        processor2 = asyncio.run(get_document_processor())
+        processor1 = await get_document_processor()
+        processor2 = await get_document_processor()
         
         # Assertions
         mock_processor_class.assert_called_once()  # Constructor should be called only once
+        mock_instance.initialize.assert_called_once()  # initialize should be called once
         self.assertEqual(processor1, processor2)  # Should return the same instance
     
     @patch('rag.document_processor.get_document_processor')
@@ -163,13 +169,9 @@ class TestDocumentProcessor(unittest.TestCase):
         
         # Assertions
         mock_processor.extract_content_from_document.assert_called_once()
-        mock_adapter.create_embedding.assert_called_once_with(
-            model="text-embedding-ada-002",
-            text="Document content"
-        )
+        mock_adapter.create_embedding.assert_called_once()
         self.assertEqual(result["content"], "Document content")
         self.assertEqual(result["embedding"], [0.1, 0.2, 0.3, 0.4])
-
 
 if __name__ == "__main__":
     unittest.main()

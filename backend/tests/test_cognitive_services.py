@@ -59,8 +59,10 @@ class TestCognitiveServices(unittest.TestCase):
         self.assertFalse(validate_cognitive_key("a1b2c3"))
         
         # Test invalid key (not a string)
-        with self.assertRaises(AttributeError):
-            validate_cognitive_key(123456)
+        self.assertFalse(validate_cognitive_key(123456))
+        
+        # Test None value
+        self.assertFalse(validate_cognitive_key(None))
     
     def test_get_service_specific_endpoint(self):
         """Test getting service-specific endpoints."""

@@ -2,31 +2,44 @@ from typing import List, Optional, Dict, Any
 import logging
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.aio import SearchClient
-from azure.search.documents.models import Vector
+from azure.search.documents.models import VectorizedQuery
 import asyncio
 from models.user import User
 from models.content import Content
 from config.settings import Settings
 from rag.openai_adapter import get_openai_adapter
+
 # Initialize settings
 settings = Settings()
+
 # Initialize logger
 logger = logging.getLogger(__name__)
+
 class ContentRetriever:
     def __init__(self):
         # Initialize client when needed
         self.openai_client = None
-        # Use the search client directly from db_manager
-        self.db = None
+        self.search_client = None
+        
+    async def initialize(self):
+        """Initialize the search client."""
+        if not self.search_client:
+            self.search_client = SearchClient(
+                endpoint=settings.AZURE_SEARCH_ENDPOINT,
+                index_name=settings.CONTENT_INDEX_NAME,
+                credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
+            )
+        
     async def get_embedding(self, text: str) -> List[float]:
         """Get embeddings from Azure OpenAI."""
         if not self.openai_client:
             self.openai_client = await get_openai_adapter()
         embedding = await self.openai_client.create_embedding(
-            model=settings.EMBEDDING_DEPLOYMENT_NAME,
+            model=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
             text=text
         )
         return embedding
+
     async def get_relevant_content(
         self, 
         query: str, 
@@ -36,10 +49,13 @@ class ContentRetriever:
     ) -> List[dict]:
         """Retrieve relevant content based on query and filters."""
         try:
-            if not self.db:
-                self.db = 
+            # Initialize if needed
+            if not self.search_client:
+                await self.initialize()
+                
             # Get embedding for query
             query_embedding = await self.get_embedding(query)
+            
             # Build filter based on parameters
             filter_expr = None
             if subject:
@@ -47,17 +63,23 @@ class ContentRetriever:
             if grade_level:
                 grade_filter = f"grade_level/any(g: g eq {grade_level})"
                 filter_expr = grade_filter if not filter_expr else f"{filter_expr} and {grade_filter}"
-            # Access search client for contents
-            contents_client = self.db.contents.client
+            
+            # Create vectorized query
+            vector_query = VectorizedQuery(
+                vector=query_embedding,
+                k_nearest_neighbors=k,
+                fields="embedding"
+            )
+            
             # Perform vector search with metadata filtering
-            vector_query = Vector(value=query_embedding, k=k, fields="embedding")
-            results = await contents_client.search(
+            results = await self.search_client.search(
                 search_text=None,
-                vectors=[vector_query],
+                vector_queries=[vector_query],
                 filter=filter_expr,
                 top=k,
                 select=["id", "title", "subject", "content_type", "difficulty_level", "url"]
             )
+            
             # Convert to response format
             result_docs = []
             async for result in results:
@@ -74,6 +96,7 @@ class ContentRetriever:
         except Exception as e:
             logger.error(f"Error retrieving relevant content: {e}")
             return []
+
     async def get_personalized_recommendations(
         self,
         user_profile: User,
@@ -96,14 +119,23 @@ class ContentRetriever:
             grade_level=user_profile.grade_level,
             k=count
         )
+        
+    async def close(self):
+        """Close the search client."""
+        if self.search_client:
+            await self.search_client.close()
+
 # Singleton instance
 content_retriever = None
+
 async def get_content_retriever():
     """Get or create the content retriever singleton."""
     global content_retriever
     if content_retriever is None:
         content_retriever = ContentRetriever()
+        await content_retriever.initialize()
     return content_retriever
+
 async def retrieve_relevant_content(
     student_profile: User,
     subject: Optional[str] = None,
@@ -118,14 +150,23 @@ async def retrieve_relevant_content(
         subject=subject,
         count=k
     )
-    # Fetch full content items from database
-    db = 
-    content_ids = [dict_item["id"] for dict_item in content_dicts]
-    # Query database for full content items
+    
+    # Convert to Content objects
     contents = []
-    for content_id in content_ids:
-        content = await db.contents.find_one({"id": content_id})
-        if content:
-            contents.append(Content(**content))
+    for dict_item in content_dicts:
+        content = Content(
+            id=dict_item["id"],
+            title=dict_item["title"],
+            description=dict_item.get("description", ""),
+            content_type=dict_item["content_type"],
+            subject=dict_item["subject"],
+            difficulty_level=dict_item["difficulty_level"],
+            url=dict_item["url"],
+            grade_level=[],  # Default empty list if not available
+            topics=[],
+            source="Azure AI Search"
+        )
+        contents.append(content)
+    
     # Return contents
     return contents

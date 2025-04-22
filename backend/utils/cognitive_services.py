@@ -5,6 +5,7 @@ Handles endpoint formatting and validation.
 
 import logging
 import re
+from typing import Optional
 from urllib.parse import urljoin
 
 # Initialize logger
@@ -33,7 +34,7 @@ def format_cognitive_endpoint(base_endpoint: str, service_path: str) -> str:
     return urljoin(base_endpoint, service_path)
 
 
-def validate_cognitive_key(key: str) -> bool:
+def validate_cognitive_key(key) -> bool:
     """
     Validate that a cognitive services key is properly formatted.
     
@@ -43,6 +44,11 @@ def validate_cognitive_key(key: str) -> bool:
     Returns:
         True if the key appears valid, False otherwise
     """
+    # Verify the key is a string
+    if not isinstance(key, str):
+        logger.warning("Cognitive Services key must be a string")
+        return False
+        
     # Most Azure keys are 32 character hex strings
     if re.match(r'^[0-9a-fA-F]{32}$', key):
         return True
@@ -55,7 +61,7 @@ def validate_cognitive_key(key: str) -> bool:
     return False
 
 
-def get_service_specific_endpoint(base_endpoint: str, service_name: str, api_version: str = None) -> str:
+def get_service_specific_endpoint(base_endpoint: str, service_name: str, api_version: Optional[str] = None) -> str:
     """
     Get the endpoint for a specific cognitive service.
     

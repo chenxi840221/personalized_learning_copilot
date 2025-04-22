@@ -13,11 +13,11 @@ import openai
 # Azure imports
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.aio import SearchClient
-from azure.search.documents.models import Vector
+from azure.search.documents.models import VectorizedQuery
 from azure.ai.formrecognizer import DocumentAnalysisClient
 from azure.ai.textanalytics import TextAnalyticsClient
 from azure.cognitiveservices.vision.computervision import ComputerVisionClient
-from azure.cognitiveservices.vision.computervision.models import VisualFeatureTypes, VideoAnalysisParams
+from azure.cognitiveservices.vision.computervision.models import VisualFeatureTypes
 from msrest.authentication import CognitiveServicesCredentials
 
 from models.content import Content, ContentType, DifficultyLevel
@@ -38,9 +38,6 @@ class ABCEducationScraper:
         self.session = None
         
         # Azure AI Search client
-        self.search_service_endpoint = settings.AZURE_SEARCH_ENDPOINT
-        self.search_service_key = settings.AZURE_SEARCH_KEY
-        self.search_index_name = settings.AZURE_SEARCH_INDEX_NAME
         self.search_client = None
         
         # Configure OpenAI with Azure settings
@@ -75,9 +72,9 @@ class ABCEducationScraper:
         
         # Initialize Azure AI Search client
         self.search_client = SearchClient(
-            endpoint=self.search_service_endpoint,
-            index_name=self.search_index_name,
-            credential=AzureKeyCredential(self.search_service_key)
+            endpoint=settings.AZURE_SEARCH_ENDPOINT,
+            index_name=settings.CONTENT_INDEX_NAME,
+            credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
         )
     
     async def close(self):
@@ -112,6 +109,13 @@ class ABCEducationScraper:
                     logger.error(f"Failed to fetch {subject_url}: {response.status}")
                     return []
                 
+            # Upload batch to Azure Search
+            try:
+                upload_result = await self.search_client.upload_documents(documents=processed_batch)
+                success_count = sum(1 for result in upload_result if result.succeeded)
+                logger.info(f"Uploaded batch: {success_count}/{len(processed_batch)} succeeded")
+            except Exception as e:
+                logger.error(f"Error uploading batch to Azure Search: {e}")
                 html = await response.text()
                 soup = BeautifulSoup(html, "html.parser")
                 
@@ -488,32 +492,3 @@ class ABCEducationScraper:
                     processed_batch.append(processed_item)
                 except Exception as e:
                     logger.error(f"Error processing item {item['title']}: {e}")
-            
-            # Upload batch to Azure Search
-            try:
-                upload_result = await self.search_client.upload_documents(documents=processed_batch)
-                success_count = sum(1 for result in upload_result if result.succeeded)
-                logger.info(f"Uploaded batch: {success_count}/{len(processed_batch)} succeeded")
-            except Exception as e:
-                logger.error(f"Error uploading batch to Azure Search: {e}")
-
-async def run_scraper():
-    """Run the scraper to collect content."""
-    scraper = ABCEducationScraper()
-    
-    try:
-        await scraper.initialize()
-        contents = await scraper.scrape_all_subjects()
-        logger.info(f"Scraped {len(contents)} content items")
-        
-        await scraper.save_to_azure_search(contents)
-        logger.info("Content saved to Azure AI Search")
-    finally:
-        await scraper.close()
-
-if __name__ == "__main__":
-    # Setup logging
-    logging.basicConfig(level=logging.INFO)
-    
-    # Run the scraper
-    asyncio.run(run_scraper())

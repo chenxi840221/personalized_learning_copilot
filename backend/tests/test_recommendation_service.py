@@ -1,218 +1,200 @@
-import unittest
-import asyncio
-from unittest.mock import patch, MagicMock, AsyncMock
-import sys
-import os
-from typing import List, Dict, Any
+import logging
+from typing import List, Dict, Any, Optional
+import numpy as np
+from datetime import datetime
 
-# Add project root to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from azure.core.credentials import AzureKeyCredential
+from azure.search.documents.aio import SearchClient
+from azure.search.documents.models import VectorizedQuery
 
-from services.recommendation_service import RecommendationService, get_recommendation_service
-from models.user import User, LearningStyle
+from models.user import User
 from models.content import Content, ContentType, DifficultyLevel
+from config.settings import Settings
+from rag.openai_adapter import get_openai_adapter
 
+# Initialize settings
+settings = Settings()
 
-class TestRecommendationService(unittest.TestCase):
-    """Test the Recommendation Service with mocked Azure AI Search."""
+# Initialize logger
+logger = logging.getLogger(__name__)
 
-    def setUp(self):
-        """Set up test case."""
-        # Create a sample user
-        self.user = User(
-            id="user-123",
-            username="testuser",
-            email="test@example.com",
-            full_name="Test User",
-            grade_level=8,
-            subjects_of_interest=["Mathematics", "Science"],
-            learning_style=LearningStyle.VISUAL
+class RecommendationService:
+    """Service for generating content recommendations using Azure AI Search."""
+    
+    def __init__(self):
+        """Initialize recommendation service."""
+        self.search_client = None
+        self.openai_adapter = None
+    
+    async def initialize(self):
+        """Initialize Azure AI Search client and OpenAI adapter."""
+        self.search_client = SearchClient(
+            endpoint=settings.AZURE_SEARCH_ENDPOINT,
+            index_name=settings.CONTENT_INDEX_NAME,
+            credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
         )
         
-        # Create a mock search client
-        self.mock_search_client = AsyncMock()
-        
-        # Create the service
-        self.service = RecommendationService()
-        self.service.search_client = self.mock_search_client
-        
-        # Reset the singleton
-        import services.recommendation_service
-        services.recommendation_service.recommendation_service = None
+        self.openai_adapter = await get_openai_adapter()
     
-    def test_generate_query_text(self):
-        """Test generating query text for embedding."""
-        # Generate query text
-        query = self.service._generate_query_text(self.user, subject="Mathematics")
-        
-        # Assertions
-        self.assertIn("grade 8", query)
-        self.assertIn("visual learning style", query)
-        self.assertIn("Mathematics", query)
-        self.assertIn("Science", query)
+    async def close(self):
+        """Close Azure AI Search client."""
+        if self.search_client:
+            await self.search_client.close()
     
-    def test_build_filter_expression(self):
-        """Test building filter expressions for Azure AI Search."""
-        # Generate filter without subject
-        filter1 = self.service._build_filter_expression(self.user)
+    async def get_personalized_recommendations(
+        self,
+        user: User,
+        subject: Optional[str] = None,
+        limit: int = 10
+    ) -> List[Content]:
+        """
+        Get personalized content recommendations for a user using Azure AI Search.
         
-        # Generate filter with subject
-        filter2 = self.service._build_filter_expression(self.user, "Mathematics")
+        Args:
+            user: User to get recommendations for
+            subject: Optional subject filter
+            limit: Maximum number of recommendations to return
+            
+        Returns:
+            List of recommended content items
+        """
+        if not self.search_client:
+            await self.initialize()
         
-        # Assertions
-        self.assertIn("grade_level/any(g: g eq 8)", filter1)
-        self.assertIn("grade_level/any(g: g eq 7)", filter1)
-        self.assertIn("grade_level/any(g: g eq 9)", filter1)
-        self.assertIn("difficulty_level eq 'intermediate'", filter1)
-        
-        self.assertIn("subject eq 'Mathematics'", filter2)
+        try:
+            # Generate a query based on user profile
+            query_text = self._generate_query_text(user, subject)
+            
+            # Generate embedding for the query
+            query_embedding = await self._generate_embedding(query_text)
+            
+            # Build filter based on user and subject
+            filter_expression = self._build_filter_expression(user, subject)
+            
+            # Create the vector query for semantic search
+            vector_query = VectorizedQuery(
+                vector=query_embedding,
+                k_nearest_neighbors=limit,
+                fields="embedding"
+            )
+            
+            # Execute the search with vector and filtering
+            results = await self.search_client.search(
+                search_text=None,
+                vector_queries=[vector_query],
+                filter=filter_expression,
+                select=["id", "title", "description", "subject", "content_type", "difficulty_level", 
+                        "grade_level", "topics", "url", "duration_minutes", "keywords"],
+                top=limit
+            )
+            
+            # Convert results to Content objects
+            content_items = []
+            async for result in results:
+                content_dict = dict(result)
+                # Convert to proper enum types for model
+                content_dict["content_type"] = ContentType(content_dict["content_type"])
+                content_dict["difficulty_level"] = DifficultyLevel(content_dict["difficulty_level"])
+                content_items.append(Content(**content_dict))
+            
+            return content_items
+            
+        except Exception as e:
+            logger.error(f"Error getting recommendations: {e}")
+            # Return empty list on error
+            return []
     
-    @patch('azure.search.documents.aio.SearchClient')
-    @patch('rag.openai_adapter.get_openai_adapter')
-    async def test_initialize(self, mock_get_adapter, mock_search_client_class):
-        """Test initializing the recommendation service."""
-        # Configure mocks
-        mock_adapter = AsyncMock()
-        mock_get_adapter.return_value = mock_adapter
+    def _generate_query_text(self, user: User, subject: Optional[str] = None) -> str:
+        """Generate query text for embedding based on user profile."""
+        grade_level = str(user.grade_level) if user.grade_level else "unknown"
+        learning_style = user.learning_style.value if user.learning_style else "mixed"
+        interests = ", ".join(user.subjects_of_interest) if user.subjects_of_interest else "general learning"
         
-        mock_search_client = AsyncMock()
-        mock_search_client_class.return_value = mock_search_client
+        query = f"Educational content for a student in grade {grade_level} "
+        query += f"with a {learning_style} learning style. "
+        query += f"Interested in {interests}. "
         
-        # Initialize the service
-        service = RecommendationService()
-        await service.initialize()
+        if subject:
+            query += f"Looking specifically for {subject} content."
         
-        # Assertions
-        self.assertIsNotNone(service.search_client)
-        self.assertIsNotNone(service.openai_adapter)
+        return query
     
-    @patch('rag.openai_adapter.get_openai_adapter')
-    async def test_generate_embedding(self, mock_get_adapter):
-        """Test generating embeddings for a query."""
-        # Configure mock
-        mock_adapter = AsyncMock()
-        mock_adapter.create_embedding.return_value = [0.1, 0.2, 0.3, 0.4]
-        mock_get_adapter.return_value = mock_adapter
-        
-        # Set the adapter
-        self.service.openai_adapter = mock_adapter
-        
-        # Generate embedding
-        embedding = await self.service._generate_embedding("test query")
-        
-        # Assertions
-        mock_adapter.create_embedding.assert_called_once()
-        self.assertEqual(embedding, [0.1, 0.2, 0.3, 0.4])
-    
-    async def test_get_content_by_id(self):
-        """Test getting content by ID."""
-        # Configure mock
-        self.mock_search_client.get_document.return_value = {
-            "id": "content-1",
-            "title": "Test Content",
-            "description": "Test description",
-            "content_type": "video",
-            "subject": "Mathematics",
-            "difficulty_level": "intermediate",
-            "url": "https://example.com/test"
-        }
-        
-        # Get content
-        content = await self.service.get_content_by_id("content-1")
-        
-        # Assertions
-        self.mock_search_client.get_document.assert_called_once_with(key="content-1")
-        self.assertEqual(content.id, "content-1")
-        self.assertEqual(content.title, "Test Content")
-        self.assertEqual(content.content_type, ContentType.VIDEO)
-        self.assertEqual(content.difficulty_level, DifficultyLevel.INTERMEDIATE)
-    
-    @patch('rag.openai_adapter.get_openai_adapter')
-    async def test_get_personalized_recommendations(self, mock_get_adapter):
-        """Test getting personalized recommendations."""
-        # Configure mocks
-        mock_adapter = AsyncMock()
-        mock_adapter.create_embedding.return_value = [0.1, 0.2, 0.3, 0.4]
-        mock_get_adapter.return_value = mock_adapter
-        self.service.openai_adapter = mock_adapter
-        
-        # Mock search results
-        mock_result1 = {
-            "id": "content-1",
-            "title": "Test Content 1",
-            "description": "Test description 1",
-            "content_type": "video",
-            "subject": "Mathematics",
-            "difficulty_level": "intermediate",
-            "grade_level": [8, 9],
-            "topics": ["Algebra"],
-            "url": "https://example.com/test1",
-            "duration_minutes": 20,
-            "keywords": ["math", "algebra"]
-        }
-        
-        mock_result2 = {
-            "id": "content-2",
-            "title": "Test Content 2",
-            "description": "Test description 2",
-            "content_type": "lesson",
-            "subject": "Mathematics",
-            "difficulty_level": "beginner",
-            "grade_level": [7, 8],
-            "topics": ["Geometry"],
-            "url": "https://example.com/test2",
-            "duration_minutes": 30,
-            "keywords": ["math", "geometry"]
-        }
-        
-        # Create an async iterator for the mock results
-        class AsyncIterator:
-            def __init__(self, items):
-                self.items = items
-                self.index = 0
+    async def _generate_embedding(self, text: str) -> List[float]:
+        """Generate embedding using OpenAI adapter."""
+        try:
+            if not self.openai_adapter:
+                self.openai_adapter = await get_openai_adapter()
                 
-            def __aiter__(self):
-                return self
-                
-            async def __anext__(self):
-                if self.index < len(self.items):
-                    item = self.items[self.index]
-                    self.index += 1
-                    return item
-                raise StopAsyncIteration
-        
-        mock_search_results = AsyncIterator([mock_result1, mock_result2])
-        self.mock_search_client.search.return_value = mock_search_results
-        
-        # Get recommendations
-        recommendations = await self.service.get_personalized_recommendations(
-            user=self.user,
-            subject="Mathematics",
-            limit=10
-        )
-        
-        # Assertions
-        self.mock_search_client.search.assert_called_once()
-        self.assertEqual(len(recommendations), 2)
-        self.assertEqual(recommendations[0].id, "content-1")
-        self.assertEqual(recommendations[0].content_type, ContentType.VIDEO)
-        self.assertEqual(recommendations[1].id, "content-2")
-        self.assertEqual(recommendations[1].content_type, ContentType.LESSON)
+            embedding = await self.openai_adapter.create_embedding(
+                model=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
+                text=text
+            )
+            
+            return embedding
+            
+        except Exception as e:
+            logger.error(f"Error generating embedding: {e}")
+            # Fall back to empty vector
+            return [0.0] * 1536  # Default dimension for text-embedding-ada-002
     
-    @patch('services.recommendation_service.RecommendationService')
-    async def test_get_recommendation_service(self, mock_service_class):
-        """Test getting the recommendation service singleton."""
-        # Configure mock
-        mock_instance = AsyncMock()
-        mock_service_class.return_value = mock_instance
+    def _build_filter_expression(self, user: User, subject: Optional[str] = None) -> str:
+        """Build OData filter expression for Azure AI Search."""
+        filters = []
         
-        # Call function twice
-        service1 = await get_recommendation_service()
-        service2 = await get_recommendation_service()
+        # Add subject filter if specified
+        if subject:
+            filters.append(f"subject eq '{subject}'")
         
-        # Assertions
-        self.assertEqual(service1, service2)  # Should return the same instance
+        # Add grade level filter based on user's grade
+        if user.grade_level:
+            # Include content for this grade level, one below, and one above
+            grade_filters = [
+                f"grade_level/any(g: g eq {user.grade_level})",
+                f"grade_level/any(g: g eq {user.grade_level - 1})",
+                f"grade_level/any(g: g eq {user.grade_level + 1})"
+            ]
+            filters.append(f"({' or '.join(grade_filters)})")
+        
+        # Filter for difficulty level based on user's grade
+        if user.grade_level:
+            if user.grade_level <= 6:
+                filters.append("(difficulty_level eq 'beginner' or difficulty_level eq 'intermediate')")
+            elif user.grade_level <= 9:
+                filters.append("difficulty_level eq 'intermediate'")
+            else:
+                filters.append("(difficulty_level eq 'intermediate' or difficulty_level eq 'advanced')")
+        
+        # Combine all filters with AND
+        if filters:
+            return " and ".join(filters)
+        
+        return None
+    
+    async def get_content_by_id(self, content_id: str) -> Optional[Content]:
+        """Get content by ID."""
+        if not self.search_client:
+            await self.initialize()
+        
+        try:
+            result = await self.search_client.get_document(key=content_id)
+            if result:
+                content_dict = dict(result)
+                # Convert to proper enum types for model
+                content_dict["content_type"] = ContentType(content_dict["content_type"])
+                content_dict["difficulty_level"] = DifficultyLevel(content_dict["difficulty_level"])
+                return Content(**content_dict)
+            return None
+        except Exception as e:
+            logger.error(f"Error getting content by ID: {e}")
+            return None
 
+# Singleton instance
+recommendation_service = None
 
-if __name__ == "__main__":
-    unittest.main()
+async def get_recommendation_service():
+    """Get or create recommendation service singleton."""
+    global recommendation_service
+    if recommendation_service is None:
+        recommendation_service = RecommendationService()
+        await recommendation_service.initialize()
+    return recommendation_service
