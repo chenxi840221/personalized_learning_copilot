@@ -10,27 +10,31 @@ import sys
 import argparse
 import warnings
 import asyncio
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock, AsyncMock
 import importlib.util
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Create test settings module and add it to sys.modules
+from tests.test_settings import settings
+
 # Mock environment variables to use test values
 mock_env = {
-    'AZURE_COGNITIVE_ENDPOINT': 'https://test-cognitive.cognitiveservices.azure.com/',
-    'AZURE_COGNITIVE_KEY': 'test-key',
-    'AZURE_OPENAI_ENDPOINT': 'https://test-openai.openai.azure.com/',
-    'AZURE_OPENAI_KEY': 'test-openai-key',
-    'AZURE_OPENAI_API_VERSION': '2023-05-15',
-    'AZURE_OPENAI_DEPLOYMENT': 'test-gpt4',
-    'AZURE_OPENAI_EMBEDDING_DEPLOYMENT': 'text-embedding-ada-002',
-    'AZURE_SEARCH_ENDPOINT': 'https://test-search.search.windows.net',
-    'AZURE_SEARCH_KEY': 'test-search-key',
-    'AZURE_SEARCH_INDEX_NAME': 'test-index',
-    'SECRET_KEY': 'test-secret-key',
-    'ALGORITHM': 'HS256',
-    'ACCESS_TOKEN_EXPIRE_MINUTES': '60'
+    'AZURE_COGNITIVE_ENDPOINT': settings.AZURE_COGNITIVE_ENDPOINT,
+    'AZURE_COGNITIVE_KEY': settings.AZURE_COGNITIVE_KEY,
+    'AZURE_OPENAI_ENDPOINT': settings.AZURE_OPENAI_ENDPOINT,
+    'AZURE_OPENAI_KEY': settings.AZURE_OPENAI_KEY,
+    'AZURE_OPENAI_API_VERSION': settings.AZURE_OPENAI_API_VERSION,
+    'AZURE_OPENAI_DEPLOYMENT': settings.AZURE_OPENAI_DEPLOYMENT,
+    'AZURE_OPENAI_EMBEDDING_DEPLOYMENT': settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
+    'AZURE_SEARCH_ENDPOINT': settings.AZURE_SEARCH_ENDPOINT,
+    'AZURE_SEARCH_KEY': settings.AZURE_SEARCH_KEY,
+    'AZURE_SEARCH_INDEX_NAME': settings.AZURE_SEARCH_INDEX_NAME,
+    'SECRET_KEY': settings.SECRET_KEY,
+    'ALGORITHM': settings.ALGORITHM,
+    'ACCESS_TOKEN_EXPIRE_MINUTES': str(settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    'CORS_ORIGINS': ','.join(settings.CORS_ORIGINS)
 }
 
 # Apply the mock environment variables
@@ -58,24 +62,57 @@ def discover_tests(pattern=None):
         test_suite = loader.discover('.')
     return test_suite
 
+def create_async_mock_for_awaitable():
+    """Create an AsyncMock that can be properly awaited."""
+    async def mock_coroutine(*args, **kwargs):
+        return AsyncMock()()
+    
+    mock = AsyncMock()
+    mock.side_effect = mock_coroutine
+    return mock
+
 def run_tests(pattern=None, verbose=1):
     """Run all test files."""
     # Suppress ResourceWarning for unclosed sockets
     warnings.filterwarnings(action="ignore", category=ResourceWarning)
     
-    # Mock various external modules to prevent actual API calls
+    # Fix the test name if it doesn't end with .py
+    if pattern and not pattern.endswith('.py'):
+        pattern = pattern + '.py'
+    
+    # Create patches for external services
     mocks = [
-        patch('openai.ChatCompletion.acreate'),
-        patch('openai.Embedding.acreate'),
-        patch('azure.ai.formrecognizer.DocumentAnalysisClient'),
+        # Mock OpenAI API calls
+        patch('openai.ChatCompletion.acreate', 
+              AsyncMock(return_value={'choices': [{'message': {'content': '{}'}}]})),
+        patch('openai.Embedding.acreate', 
+              AsyncMock(return_value={'data': [{'embedding': [0.1, 0.2, 0.3, 0.4]}]})),
+        
+        # Mock Azure Form Recognizer - use a proper async mock for awaitable
+        patch('azure.ai.formrecognizer.DocumentAnalysisClient.begin_analyze_document_from_url',
+             create_async_mock_for_awaitable()),
+        
+        # Other Azure services
         patch('azure.ai.textanalytics.TextAnalyticsClient'),
         patch('azure.cognitiveservices.vision.computervision.ComputerVisionClient'),
-        patch('azure.search.documents.aio.SearchClient'),
+        
+        # Mock aiohttp ClientSession
         patch('aiohttp.ClientSession')
     ]
     
+    # Patch config settings in modules to use test settings
+    config_patches = [
+        patch('config.settings.settings', settings),
+        patch('rag.openai_adapter.settings', settings),
+        patch('rag.retriever.settings', settings),
+        patch('rag.document_processor.settings', settings),
+        patch('rag.learning_planner.settings', settings),
+        patch('rag.generator.settings', settings),
+        patch('scrapers.abc_edu_scraper.settings', settings)
+    ]
+    
     # Start all mocks
-    for mock in mocks:
+    for mock in mocks + config_patches:
         mock.start()
     
     try:
@@ -87,7 +124,7 @@ def run_tests(pattern=None, verbose=1):
         return result.wasSuccessful()
     finally:
         # Stop all mocks
-        for mock in mocks:
+        for mock in mocks + config_patches:
             mock.stop()
 
 def main():

@@ -8,17 +8,16 @@ import asyncio
 import sys
 import os
 import logging
+from unittest.mock import patch, MagicMock, AsyncMock
 import openai
 
 # Add the project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from config.settings import Settings
+# Import test settings
+from tests.test_settings import settings
 from rag.openai_adapter import OpenAIAdapter, get_openai_adapter
 from tests.run_tests import AsyncioTestCase
-
-# Initialize settings
-settings = Settings()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -111,5 +110,4 @@ class TestAzureOpenAI(AsyncioTestCase):
         self.assertEqual(adapter1, adapter2)  # Should return the same instance
 
 if __name__ == "__main__":
-    from unittest.mock import patch, MagicMock
     unittest.main()

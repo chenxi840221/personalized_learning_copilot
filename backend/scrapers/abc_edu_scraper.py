@@ -17,8 +17,8 @@ from utils.vector_compat import Vector  # Import the compatible Vector class
 from azure.ai.formrecognizer import DocumentAnalysisClient
 from azure.ai.textanalytics import TextAnalyticsClient
 from azure.cognitiveservices.vision.computervision import ComputerVisionClient
-from azure.cognitiveservices.vision.computervision.models import VisualFeatureTypes, VideoAnalysisParams
-from msrest.authentication import CognitiveServicesCredentials
+from azure.cognitiveservices.vision.computervision.models import VisualFeatureTypes
+# Removed problematic import: VideoAnalysisParams
 
 from models.content import Content, ContentType, DifficultyLevel
 from config.settings import Settings
@@ -52,20 +52,20 @@ class ABCEducationScraper:
         # Azure Computer Vision client using Cognitive Services
         self.computer_vision_client = ComputerVisionClient(
             endpoint=settings.COMPUTER_VISION_ENDPOINT,
-            credentials=CognitiveServicesCredentials(settings.COMPUTER_VISION_KEY)
-        )
+            credentials=AzureKeyCredential(settings.COMPUTER_VISION_KEY)
+        ) if settings.COMPUTER_VISION_ENDPOINT and settings.COMPUTER_VISION_KEY else None
         
         # Azure Form Recognizer client using Cognitive Services
         self.document_analysis_client = DocumentAnalysisClient(
             endpoint=settings.FORM_RECOGNIZER_ENDPOINT,
             credential=AzureKeyCredential(settings.FORM_RECOGNIZER_KEY)
-        )
+        ) if settings.FORM_RECOGNIZER_ENDPOINT and settings.FORM_RECOGNIZER_KEY else None
         
         # Azure Text Analytics client using Cognitive Services
         self.text_analytics_client = TextAnalyticsClient(
             endpoint=settings.TEXT_ANALYTICS_ENDPOINT, 
             credential=AzureKeyCredential(settings.TEXT_ANALYTICS_KEY)
-        )
+        ) if settings.TEXT_ANALYTICS_ENDPOINT and settings.TEXT_ANALYTICS_KEY else None
     
     async def initialize(self):
         """Initialize the HTTP session and search client."""
@@ -74,11 +74,12 @@ class ABCEducationScraper:
         )
         
         # Initialize Azure AI Search client
-        self.search_client = SearchClient(
-            endpoint=self.search_service_endpoint,
-            index_name=self.search_index_name,
-            credential=AzureKeyCredential(self.search_service_key)
-        )
+        if self.search_service_endpoint and self.search_service_key:
+            self.search_client = SearchClient(
+                endpoint=self.search_service_endpoint,
+                index_name=self.search_index_name,
+                credential=AzureKeyCredential(self.search_service_key)
+            )
     
     async def close(self):
         """Close the HTTP session and search client."""
@@ -323,6 +324,10 @@ class ABCEducationScraper:
                 "entities": []
             }
             
+            # Only attempt to analyze if Computer Vision client is initialized
+            if not self.computer_vision_client:
+                return video_analysis
+                
             # Try to extract video ID or direct video URL
             video_id_match = re.search(r'(watch\?v=|/videos/)([^&]+)', url)
             if video_id_match:
@@ -390,8 +395,8 @@ class ABCEducationScraper:
                 paragraphs = main_content.find_all("p")
                 text_content = " ".join([p.text.strip() for p in paragraphs])
                 
-                # Use Text Analytics to extract key phrases and entities
-                if text_content:
+                # Only use Text Analytics if the client is initialized
+                if self.text_analytics_client and text_content:
                     try:
                         # Get key phrases
                         key_phrase_response = self.text_analytics_client.extract_key_phrases([text_content])
@@ -461,6 +466,11 @@ class ABCEducationScraper:
         """Save content items to Azure AI Search."""
         if not self.search_client:
             await self.initialize()
+            
+        # Check again in case initialization failed
+        if not self.search_client:
+            logger.error("Cannot save to Azure AI Search: Search client not initialized")
+            return
         
         logger.info(f"Uploading {len(content_items)} items to Azure AI Search...")
         
@@ -510,6 +520,8 @@ async def run_scraper():
         logger.info("Content saved to Azure AI Search")
     finally:
         await scraper.close()
+    
+    return contents  # Return the scraped contents for testing purposes
 
 if __name__ == "__main__":
     # Setup logging

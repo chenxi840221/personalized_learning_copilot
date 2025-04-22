@@ -2,7 +2,6 @@ from pydantic import BaseSettings
 import os
 from typing import List, Optional
 from dotenv import load_dotenv
-from utils.cognitive_services import format_cognitive_endpoint, get_service_specific_endpoint
 
 # Load environment variables from .env file
 load_dotenv()
@@ -47,6 +46,7 @@ class Settings(BaseSettings):
     # Derived settings for individual services (using multi-service endpoint & key)
     @property
     def FORM_RECOGNIZER_ENDPOINT(self) -> str:
+        from utils.cognitive_services import get_service_specific_endpoint
         return get_service_specific_endpoint(self.AZURE_COGNITIVE_ENDPOINT, "formrecognizer")
     
     @property
@@ -55,6 +55,7 @@ class Settings(BaseSettings):
         
     @property
     def TEXT_ANALYTICS_ENDPOINT(self) -> str:
+        from utils.cognitive_services import get_service_specific_endpoint
         return get_service_specific_endpoint(self.AZURE_COGNITIVE_ENDPOINT, "textanalytics")
     
     @property
@@ -63,6 +64,7 @@ class Settings(BaseSettings):
         
     @property
     def COMPUTER_VISION_ENDPOINT(self) -> str:
+        from utils.cognitive_services import get_service_specific_endpoint
         return get_service_specific_endpoint(self.AZURE_COGNITIVE_ENDPOINT, "computervision")
     
     @property
@@ -74,6 +76,7 @@ class Settings(BaseSettings):
         """Get the OpenAI endpoint, using Cognitive Services endpoint if OpenAI-specific is not provided."""
         if self.AZURE_OPENAI_ENDPOINT:
             return self.AZURE_OPENAI_ENDPOINT
+        from utils.cognitive_services import get_service_specific_endpoint
         return get_service_specific_endpoint(self.AZURE_COGNITIVE_ENDPOINT, "openai", self.AZURE_OPENAI_API_VERSION)
     
     def get_openai_key(self) -> str:
@@ -82,13 +85,26 @@ class Settings(BaseSettings):
             return self.AZURE_OPENAI_KEY
         return self.AZURE_COGNITIVE_KEY
     
-    # CORS Settings
-    CORS_ORIGINS: List[str] = [
-        "http://localhost:3000",  # React frontend
-        "http://localhost:8000",  # FastAPI backend (for development)
-    ]
-    if os.getenv("CORS_ORIGINS"):
-        CORS_ORIGINS.extend(os.getenv("CORS_ORIGINS").split(","))
+    # CORS Settings - Fix for the parsing error
+    @property
+    def CORS_ORIGINS(self) -> List[str]:
+        default_origins = [
+            "http://localhost:3000",  # React frontend
+            "http://localhost:8000",  # FastAPI backend (for development)
+        ]
+        
+        # Get additional origins from environment
+        cors_env = os.getenv("CORS_ORIGINS", "")
+        if cors_env:
+            try:
+                # Try to parse as comma-separated string
+                additional_origins = [origin.strip() for origin in cors_env.split(",") if origin.strip()]
+                default_origins.extend(additional_origins)
+            except Exception as e:
+                import logging
+                logging.warning(f"Error parsing CORS_ORIGINS: {e}")
+        
+        return default_origins
     
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
