@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
+<<<<<<< HEAD
 Test runner for the Personalized Learning Co-pilot.
 This script runs all test files in the tests directory.
+=======
+Improved test runner for the Personalized Learning Co-pilot.
+This script runs all test files in the tests directory with proper async mocking.
+>>>>>>> dc2c151 (b)
 """
 
 import unittest
@@ -10,14 +15,26 @@ import sys
 import argparse
 import warnings
 import asyncio
+<<<<<<< HEAD
 from unittest.mock import patch, MagicMock, AsyncMock
 import importlib.util
+=======
+from unittest.mock import patch
+>>>>>>> dc2c151 (b)
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+<<<<<<< HEAD
 # Create test settings module and add it to sys.modules
 from tests.test_settings import settings
+=======
+# Import the improved async test utilities
+from tests.async_test_base import AsyncMock, create_async_mock
+
+# Import test settings
+from tests.test_settings import settings, USE_REAL_SERVICES
+>>>>>>> dc2c151 (b)
 
 # Mock environment variables to use test values
 mock_env = {
@@ -41,6 +58,7 @@ mock_env = {
 for key, value in mock_env.items():
     os.environ[key] = value
 
+<<<<<<< HEAD
 class AsyncioTestCase(unittest.TestCase):
     """Base class for tests that use asyncio."""
     def setUp(self):
@@ -53,6 +71,8 @@ class AsyncioTestCase(unittest.TestCase):
     def run_async(self, coroutine):
         return self.loop.run_until_complete(coroutine)
 
+=======
+>>>>>>> dc2c151 (b)
 def discover_tests(pattern=None):
     """Discover all test files in the current directory."""
     loader = unittest.TestLoader()
@@ -62,6 +82,7 @@ def discover_tests(pattern=None):
         test_suite = loader.discover('.')
     return test_suite
 
+<<<<<<< HEAD
 def create_async_mock_for_awaitable():
     """Create an AsyncMock that can be properly awaited."""
     async def mock_coroutine(*args, **kwargs):
@@ -71,6 +92,8 @@ def create_async_mock_for_awaitable():
     mock.side_effect = mock_coroutine
     return mock
 
+=======
+>>>>>>> dc2c151 (b)
 def run_tests(pattern=None, verbose=1):
     """Run all test files."""
     # Suppress ResourceWarning for unclosed sockets
@@ -80,6 +103,7 @@ def run_tests(pattern=None, verbose=1):
     if pattern and not pattern.endswith('.py'):
         pattern = pattern + '.py'
     
+<<<<<<< HEAD
     # Create patches for external services
     mocks = [
         # Mock OpenAI API calls
@@ -91,12 +115,48 @@ def run_tests(pattern=None, verbose=1):
         # Mock Azure Form Recognizer - use a proper async mock for awaitable
         patch('azure.ai.formrecognizer.DocumentAnalysisClient.begin_analyze_document_from_url',
              create_async_mock_for_awaitable()),
+=======
+    # Create properly awaitable mock responses for OpenAI
+    chat_completion_mock_response = {
+        "choices": [
+            {
+                "message": {
+                    "content": '{"title": "Test Plan", "description": "Test description", "subject": "Mathematics", "topics": ["Math"], "activities": []}'
+                }
+            }
+        ]
+    }
+    
+    embedding_mock_response = {
+        "data": [
+            {
+                "embedding": [0.1, 0.2, 0.3, 0.4]
+            }
+        ]
+    }
+    
+    # Create patches for external services with proper async mocks
+    mocks = [
+        # Mock OpenAI API calls with properly awaitable mocks
+        patch('openai.ChatCompletion.acreate', 
+              create_async_mock(chat_completion_mock_response)),
+        patch('openai.Embedding.acreate', 
+              create_async_mock(embedding_mock_response)),
+        
+        # Mock Azure Form Recognizer
+        patch('azure.ai.formrecognizer.DocumentAnalysisClient.begin_analyze_document_from_url',
+              create_async_mock(None)),
+>>>>>>> dc2c151 (b)
         
         # Other Azure services
         patch('azure.ai.textanalytics.TextAnalyticsClient'),
         patch('azure.cognitiveservices.vision.computervision.ComputerVisionClient'),
         
+<<<<<<< HEAD
         # Mock aiohttp ClientSession
+=======
+        # Mock aiohttp ClientSession response
+>>>>>>> dc2c151 (b)
         patch('aiohttp.ClientSession')
     ]
     

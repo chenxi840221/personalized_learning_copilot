@@ -13,12 +13,20 @@ import openai
 # Azure imports
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.aio import SearchClient
+<<<<<<< HEAD
 from utils.vector_compat import Vector  # Import the compatible Vector class
+=======
+# Import the compatible Vector class from utils directly
+from utils.vector_compat import Vector
+>>>>>>> dc2c151 (b)
 from azure.ai.formrecognizer import DocumentAnalysisClient
 from azure.ai.textanalytics import TextAnalyticsClient
 from azure.cognitiveservices.vision.computervision import ComputerVisionClient
 from azure.cognitiveservices.vision.computervision.models import VisualFeatureTypes
+<<<<<<< HEAD
 # Removed problematic import: VideoAnalysisParams
+=======
+>>>>>>> dc2c151 (b)
 
 from models.content import Content, ContentType, DifficultyLevel
 from config.settings import Settings
@@ -50,6 +58,7 @@ class ABCEducationScraper:
         openai.api_key = settings.get_openai_key()
         
         # Azure Computer Vision client using Cognitive Services
+<<<<<<< HEAD
         self.computer_vision_client = ComputerVisionClient(
             endpoint=settings.COMPUTER_VISION_ENDPOINT,
             credentials=AzureKeyCredential(settings.COMPUTER_VISION_KEY)
@@ -66,28 +75,91 @@ class ABCEducationScraper:
             endpoint=settings.TEXT_ANALYTICS_ENDPOINT, 
             credential=AzureKeyCredential(settings.TEXT_ANALYTICS_KEY)
         ) if settings.TEXT_ANALYTICS_ENDPOINT and settings.TEXT_ANALYTICS_KEY else None
+=======
+        self.computer_vision_client = None
+        if settings.COMPUTER_VISION_ENDPOINT and settings.COMPUTER_VISION_KEY:
+            try:
+                self.computer_vision_client = ComputerVisionClient(
+                    endpoint=settings.COMPUTER_VISION_ENDPOINT,
+                    credentials=AzureKeyCredential(settings.COMPUTER_VISION_KEY)
+                )
+            except Exception as e:
+                logger.error(f"Failed to initialize Computer Vision client: {e}")
+        
+        # Azure Form Recognizer client using Cognitive Services
+        self.document_analysis_client = None
+        if settings.FORM_RECOGNIZER_ENDPOINT and settings.FORM_RECOGNIZER_KEY:
+            try:
+                self.document_analysis_client = DocumentAnalysisClient(
+                    endpoint=settings.FORM_RECOGNIZER_ENDPOINT,
+                    credential=AzureKeyCredential(settings.FORM_RECOGNIZER_KEY)
+                )
+            except Exception as e:
+                logger.error(f"Failed to initialize Form Recognizer client: {e}")
+        
+        # Azure Text Analytics client using Cognitive Services
+        self.text_analytics_client = None
+        if settings.TEXT_ANALYTICS_ENDPOINT and settings.TEXT_ANALYTICS_KEY:
+            try:
+                self.text_analytics_client = TextAnalyticsClient(
+                    endpoint=settings.TEXT_ANALYTICS_ENDPOINT, 
+                    credential=AzureKeyCredential(settings.TEXT_ANALYTICS_KEY)
+                )
+            except Exception as e:
+                logger.error(f"Failed to initialize Text Analytics client: {e}")
+        
+        # Common stop words for keyword extraction
+        self.stop_words = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", 
+                          "with", "by", "about", "as", "of", "from", "this", "that", "these", 
+                          "those", "is", "are", "was", "were", "be", "been", "being", "have", 
+                          "has", "had", "do", "does", "did", "will", "would", "should", "can", 
+                          "could", "may", "might", "must", "shall"}
+>>>>>>> dc2c151 (b)
     
     async def initialize(self):
         """Initialize the HTTP session and search client."""
         self.session = aiohttp.ClientSession(
+<<<<<<< HEAD
             headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+=======
+            headers={"User-Agent": settings.USER_AGENT}
+>>>>>>> dc2c151 (b)
         )
         
         # Initialize Azure AI Search client
         if self.search_service_endpoint and self.search_service_key:
+<<<<<<< HEAD
             self.search_client = SearchClient(
                 endpoint=self.search_service_endpoint,
                 index_name=self.search_index_name,
                 credential=AzureKeyCredential(self.search_service_key)
             )
+=======
+            try:
+                self.search_client = SearchClient(
+                    endpoint=self.search_service_endpoint,
+                    index_name=self.search_index_name,
+                    credential=AzureKeyCredential(self.search_service_key)
+                )
+            except Exception as e:
+                logger.error(f"Failed to initialize Azure AI Search client: {e}")
+>>>>>>> dc2c151 (b)
     
     async def close(self):
         """Close the HTTP session and search client."""
         if self.session:
             await self.session.close()
+<<<<<<< HEAD
         
         if self.search_client:
             await self.search_client.close()
+=======
+            self.session = None
+        
+        if self.search_client:
+            await self.search_client.close()
+            self.search_client = None
+>>>>>>> dc2c151 (b)
     
     async def scrape_all_subjects(self):
         """Scrape all subjects."""
@@ -95,10 +167,20 @@ class ABCEducationScraper:
             await self.initialize()
         
         all_content = []
+<<<<<<< HEAD
         for subject in self.subjects:
             subject_content = await self.scrape_subject(subject)
             all_content.extend(subject_content)
             logger.info(f"Scraped {len(subject_content)} items from {subject}")
+=======
+        for subject in self.subjects[:2]:  # Limit to 2 subjects for testing
+            try:
+                subject_content = await self.scrape_subject(subject)
+                all_content.extend(subject_content)
+                logger.info(f"Scraped {len(subject_content)} items from {subject}")
+            except Exception as e:
+                logger.error(f"Error scraping subject {subject}: {e}")
+>>>>>>> dc2c151 (b)
         
         return all_content
     
@@ -277,12 +359,18 @@ class ABCEducationScraper:
         """Extract keywords from title and description."""
         text = f"{title} {description}".lower()
         
+<<<<<<< HEAD
         # Remove common words
         stop_words = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "with", "by", "about", "as"}
         
         # Extract words and filter out short words and stop words
         words = re.findall(r'\b\w+\b', text)
         keywords = [word for word in words if len(word) > 3 and word not in stop_words]
+=======
+        # Extract words and filter out short words and stop words
+        words = re.findall(r'\b\w+\b', text)
+        keywords = [word for word in words if len(word) > 3 and word not in self.stop_words]
+>>>>>>> dc2c151 (b)
         
         # Remove duplicates and return top keywords
         unique_keywords = list(set(keywords))
@@ -341,6 +429,7 @@ class ABCEducationScraper:
                 thumbnail_url = f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
                 
                 # Analyze the thumbnail image
+<<<<<<< HEAD
                 image_analysis = self.computer_vision_client.analyze_image(
                     thumbnail_url,
                     visual_features=[
@@ -358,6 +447,28 @@ class ABCEducationScraper:
                 if hasattr(image_analysis, 'description') and hasattr(image_analysis.description, 'captions'):
                     captions = [caption.text for caption in image_analysis.description.captions]
                     video_analysis["transcript"] = " ".join(captions)
+=======
+                try:
+                    image_analysis = self.computer_vision_client.analyze_image(
+                        thumbnail_url,
+                        visual_features=[
+                            VisualFeatureTypes.tags,
+                            VisualFeatureTypes.categories,
+                            VisualFeatureTypes.description,
+                            VisualFeatureTypes.objects
+                        ]
+                    )
+                    
+                    # Extract tags and descriptions
+                    if hasattr(image_analysis, 'tags'):
+                        video_analysis["topics"] = [tag.name for tag in image_analysis.tags]
+                    
+                    if hasattr(image_analysis, 'description') and hasattr(image_analysis.description, 'captions'):
+                        captions = [caption.text for caption in image_analysis.description.captions]
+                        video_analysis["transcript"] = " ".join(captions)
+                except Exception as e:
+                    logger.error(f"Error analyzing thumbnail image: {e}")
+>>>>>>> dc2c151 (b)
             
             return video_analysis
             
@@ -372,13 +483,18 @@ class ABCEducationScraper:
     
     async def extract_document_content(self, url: str) -> Dict[str, Any]:
         """
+<<<<<<< HEAD
         Extract document content using Azure Form Recognizer.
+=======
+        Extract document content using Azure Text Analytics.
+>>>>>>> dc2c151 (b)
         For document content (like worksheets), extracts text and structure.
         """
         try:
             # In a real implementation, download the document and analyze it
             # For this example, we'll use text analytics on the page content instead
             
+<<<<<<< HEAD
             async with self.session.get(url) as response:
                 if response.status != 200:
                     return {"text": "", "topics": [], "entities": []}
@@ -419,6 +535,56 @@ class ABCEducationScraper:
                         logger.error(f"Error in text analytics: {e}")
                 
                 return {"text": text_content, "topics": [], "entities": []}
+=======
+            if not self.session:
+                await self.initialize()
+                
+            try:
+                async with self.session.get(url) as response:
+                    if response.status != 200:
+                        return {"text": "", "topics": [], "entities": []}
+                    
+                    html = await response.text()
+            except Exception as e:
+                logger.error(f"Error extracting document content: {e}")
+                return {"text": "", "topics": [], "entities": []}
+                
+            soup = BeautifulSoup(html, "html.parser")
+            
+            # Extract main content
+            main_content = soup.find("main") or soup.find("article") or soup
+            if not main_content:
+                return {"text": "", "topics": [], "entities": []}
+            
+            # Get text content
+            paragraphs = main_content.find_all("p")
+            text_content = " ".join([p.text.strip() for p in paragraphs])
+            
+            # Only use Text Analytics if the client is initialized
+            if self.text_analytics_client and text_content:
+                try:
+                    # Get key phrases
+                    key_phrase_response = self.text_analytics_client.extract_key_phrases([text_content])
+                    key_phrases = []
+                    if key_phrase_response and not key_phrase_response[0].is_error:
+                        key_phrases = key_phrase_response[0].key_phrases
+                    
+                    # Get entities
+                    entity_response = self.text_analytics_client.recognize_entities([text_content])
+                    entities = []
+                    if entity_response and not entity_response[0].is_error:
+                        entities = [entity.text for entity in entity_response[0].entities]
+                    
+                    return {
+                        "text": text_content,
+                        "topics": key_phrases,
+                        "entities": entities
+                    }
+                except Exception as e:
+                    logger.error(f"Error in text analytics: {e}")
+            
+            return {"text": text_content, "topics": [], "entities": []}
+>>>>>>> dc2c151 (b)
                 
         except Exception as e:
             logger.error(f"Error extracting document content: {e}")

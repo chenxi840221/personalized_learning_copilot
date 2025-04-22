@@ -4,6 +4,10 @@ __pycache__/
 *$py.class
 *.so
 .Python
+<<<<<<< HEAD
+=======
+env/
+>>>>>>> dc2c151 (b)
 build/
 develop-eggs/
 dist/
@@ -15,6 +19,7 @@ lib64/
 parts/
 sdist/
 var/
+<<<<<<< HEAD
 wheels/
 *.egg-info/
 .installed.cfg
@@ -57,10 +62,27 @@ coverage/
 .env.production.local
 
 # IDE specific files
+=======
+*.egg-info/
+.installed.cfg
+*.egg
+.env
+.env.local
+.env.development
+.env.production
+
+# Virtual Environment
+venv/
+ENV/
+.venv/
+
+# IDE and editors
+>>>>>>> dc2c151 (b)
 .idea/
 .vscode/
 *.swp
 *.swo
+<<<<<<< HEAD
 .DS_Store
 *.sublime*
 .history/
@@ -132,3 +154,75 @@ qdrant_data/
 search_indexes/
 embeddings/
 vector_data/
+=======
+*~
+.DS_Store
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# FastAPI and Uvicorn specific
+.uvicorn
+
+# Application specific
+backend/.env
+*.db
+*.sqlite3
+
+# Azure configuration
+backend/config/settings.py.local
+backend/config/credentials.json
+
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Production build
+frontend/build/
+frontend/dist/
+.vercel
+
+# Temporary files
+tmp/
+temp/
+.temp/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Cache
+.mypy_cache/
+.pytest_cache/
+.cache/
+__pypackages__/
+
+# Security
+certs/
+*.pem
+*.cert
+*.key
+
+# Miscellaneous
+.DS_Store
+Thumbs.db
+>>>>>>> dc2c151 (b)
