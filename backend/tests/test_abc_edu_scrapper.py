@@ -1,5 +1,4 @@
 import unittest
-import asyncio
 from unittest.mock import patch, MagicMock, AsyncMock, call
 import sys
 import os
@@ -11,13 +10,16 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scrapers.abc_edu_scraper import ABCEducationScraper, run_scraper
 from models.content import ContentType, DifficultyLevel
+from tests.run_tests import AsyncioTestCase
 
 
-class TestABCEducationScraper(unittest.TestCase):
+class TestABCEducationScraper(AsyncioTestCase):
     """Test the ABC Education scraper with mocked Azure services."""
 
     def setUp(self):
         """Set up test case."""
+        super().setUp()
+        
         # Mock all external services
         self.mock_session = AsyncMock()
         self.mock_search_client = AsyncMock()
@@ -140,7 +142,7 @@ class TestABCEducationScraper(unittest.TestCase):
         self.assertNotIn("this", keywords)
     
     @patch('openai.Embedding.acreate')
-    async def test_generate_embedding(self, mock_acreate):
+    def test_generate_embedding(self, mock_acreate):
         """Test generating embeddings for content."""
         # Configure mock
         mock_response = {
@@ -153,13 +155,13 @@ class TestABCEducationScraper(unittest.TestCase):
         mock_acreate.return_value = mock_response
         
         # Generate embedding
-        embedding = await self.scraper.generate_embedding("Test text")
+        embedding = self.run_async(self.scraper.generate_embedding("Test text"))
         
         # Assertions
         mock_acreate.assert_called_once()
         self.assertEqual(embedding, [0.1, 0.2, 0.3, 0.4])
     
-    async def test_scrape_subject(self):
+    def test_scrape_subject(self):
         """Test scraping content for a specific subject."""
         # Configure mock response
         mock_response = AsyncMock()
@@ -171,7 +173,7 @@ class TestABCEducationScraper(unittest.TestCase):
         self.scraper.generate_embedding = AsyncMock(return_value=[0.1, 0.2, 0.3, 0.4])
         
         # Scrape the subject
-        results = await self.scraper.scrape_subject("mathematics")
+        results = self.run_async(self.scraper.scrape_subject("mathematics"))
         
         # Assertions
         self.mock_session.get.assert_called_once()
@@ -189,7 +191,7 @@ class TestABCEducationScraper(unittest.TestCase):
         self.assertIn("Geometry", results[2]["topics"])
     
     @patch('scrapers.abc_edu_scraper.ABCEducationScraper')
-    async def test_run_scraper(self, mock_scraper_class):
+    def test_run_scraper(self, mock_scraper_class):
         """Test running the main scraper function."""
         # Configure mocks
         mock_scraper_instance = AsyncMock()
@@ -198,7 +200,7 @@ class TestABCEducationScraper(unittest.TestCase):
         mock_scraper_class.return_value = mock_scraper_instance
         
         # Run the scraper
-        await run_scraper()
+        self.run_async(run_scraper())
         
         # Assertions
         mock_scraper_instance.initialize.assert_called_once()
@@ -206,7 +208,7 @@ class TestABCEducationScraper(unittest.TestCase):
         mock_scraper_instance.save_to_azure_search.assert_called_once_with(["content1", "content2"])
         mock_scraper_instance.close.assert_called_once()
     
-    async def test_extract_video_content(self):
+    def test_extract_video_content(self):
         """Test extracting content from videos."""
         # Configure mocks for Computer Vision
         mock_image_analysis = MagicMock()
@@ -222,14 +224,14 @@ class TestABCEducationScraper(unittest.TestCase):
         self.mock_computer_vision_client.analyze_image.return_value = mock_image_analysis
         
         # Extract video content
-        video_content = await self.scraper.extract_video_content("https://example.com/watch?v=12345")
+        video_content = self.run_async(self.scraper.extract_video_content("https://example.com/watch?v=12345"))
         
         # Assertions
         self.mock_computer_vision_client.analyze_image.assert_called_once()
         self.assertEqual(video_content["transcript"], "A teacher explaining algebra equations")
         self.assertEqual(video_content["topics"], ["algebra", "mathematics"])
     
-    async def test_extract_document_content(self):
+    def test_extract_document_content(self):
         """Test extracting content from documents."""
         # Configure mocks for the session
         mock_response = AsyncMock()
@@ -251,7 +253,7 @@ class TestABCEducationScraper(unittest.TestCase):
         self.mock_text_analytics_client.recognize_entities.return_value = mock_entity_response
         
         # Extract document content
-        doc_content = await self.scraper.extract_document_content("https://example.com/article")
+        doc_content = self.run_async(self.scraper.extract_document_content("https://example.com/article"))
         
         # Assertions
         self.mock_session.get.assert_called_once()
@@ -263,7 +265,7 @@ class TestABCEducationScraper(unittest.TestCase):
         self.assertIn("important information", doc_content["topics"])
         self.assertIn("information", doc_content["entities"])
     
-    async def test_process_content_details(self):
+    def test_process_content_details(self):
         """Test processing content details."""
         # Create sample content item
         content_item = {
@@ -283,7 +285,7 @@ class TestABCEducationScraper(unittest.TestCase):
         })
         
         # Process content details
-        processed_item = await self.scraper.process_content_details(content_item)
+        processed_item = self.run_async(self.scraper.process_content_details(content_item))
         
         # Assertions
         self.scraper.extract_video_content.assert_called_once_with("https://example.com/video")
@@ -292,7 +294,7 @@ class TestABCEducationScraper(unittest.TestCase):
         self.assertIn("algebra", processed_item["keywords"])
         self.assertIn("equations", processed_item["keywords"])
     
-    async def test_save_to_azure_search(self):
+    def test_save_to_azure_search(self):
         """Test saving content to Azure AI Search."""
         # Create sample content items
         content_items = [
@@ -327,7 +329,7 @@ class TestABCEducationScraper(unittest.TestCase):
         self.mock_search_client.upload_documents.return_value = mock_result
         
         # Save to Azure Search
-        await self.scraper.save_to_azure_search(content_items)
+        self.run_async(self.scraper.save_to_azure_search(content_items))
         
         # Assertions
         self.scraper.process_content_details.assert_has_calls([call(content_items[0]), call(content_items[1])])

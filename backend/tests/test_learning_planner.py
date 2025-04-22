@@ -1,5 +1,4 @@
 import unittest
-import asyncio
 from unittest.mock import patch, MagicMock, AsyncMock
 import sys
 import os
@@ -13,13 +12,20 @@ from rag.learning_planner import LearningPlanner, get_learning_planner
 from models.user import User, LearningStyle
 from models.content import Content, ContentType, DifficultyLevel
 from models.learning_plan import ActivityStatus
+from tests.run_tests import AsyncioTestCase
+from config.settings import Settings
+
+# Initialize settings
+settings = Settings()
 
 
-class TestLearningPlanner(unittest.TestCase):
+class TestLearningPlanner(AsyncioTestCase):
     """Test the Learning Planner with mocked OpenAI API."""
 
     def setUp(self):
         """Set up test case."""
+        super().setUp()
+        
         # Create a sample user
         self.user = User(
             id="user-123",
@@ -100,7 +106,7 @@ class TestLearningPlanner(unittest.TestCase):
         }"""
     
     @patch('rag.openai_adapter.get_openai_adapter')
-    async def test_create_learning_plan(self, mock_get_adapter):
+    def test_create_learning_plan(self, mock_get_adapter):
         """Test creating a learning plan."""
         # Configure mock
         mock_adapter = AsyncMock()
@@ -117,15 +123,23 @@ class TestLearningPlanner(unittest.TestCase):
         mock_get_adapter.return_value = mock_adapter
         
         # Create a learning plan
-        plan = await self.planner.create_learning_plan(
+        plan = self.run_async(self.planner.create_learning_plan(
             student=self.user,
             subject="Mathematics",
             relevant_content=self.content,
             duration_days=14
-        )
+        ))
         
         # Assertions
-        mock_adapter.create_chat_completion.assert_called_once()
+        mock_adapter.create_chat_completion.assert_called_once_with(
+            model=settings.AZURE_OPENAI_DEPLOYMENT,
+            messages=[
+                {"role": "system", "content": "You are an educational AI that creates personalized learning plans."},
+                {"role": "user", "content": mock_adapter.create_chat_completion.call_args[1]["messages"][1]["content"]}
+            ],
+            temperature=0.7,
+            response_format={"type": "json_object"}
+        )
         self.assertEqual(plan.title, "Algebra Fundamentals")
         self.assertEqual(plan.subject, "Mathematics")
         self.assertEqual(len(plan.activities), 3)
@@ -135,7 +149,7 @@ class TestLearningPlanner(unittest.TestCase):
         self.assertEqual(plan.progress_percentage, 0.0)
     
     @patch('rag.openai_adapter.get_openai_adapter')
-    async def test_create_learning_plan_with_error(self, mock_get_adapter):
+    def test_create_learning_plan_with_error(self, mock_get_adapter):
         """Test creating a learning plan with API error."""
         # Configure mock to raise an exception
         mock_adapter = AsyncMock()
@@ -143,20 +157,28 @@ class TestLearningPlanner(unittest.TestCase):
         mock_get_adapter.return_value = mock_adapter
         
         # Create a learning plan (should get a fallback plan)
-        plan = await self.planner.create_learning_plan(
+        plan = self.run_async(self.planner.create_learning_plan(
             student=self.user,
             subject="Mathematics",
             relevant_content=self.content,
             duration_days=14
-        )
+        ))
         
         # Assertions
-        mock_adapter.create_chat_completion.assert_called_once()
+        mock_adapter.create_chat_completion.assert_called_once_with(
+            model=settings.AZURE_OPENAI_DEPLOYMENT,
+            messages=[
+                {"role": "system", "content": "You are an educational AI that creates personalized learning plans."},
+                {"role": "user", "content": mock_adapter.create_chat_completion.call_args[1]["messages"][1]["content"]}
+            ],
+            temperature=0.7,
+            response_format={"type": "json_object"}
+        )
         self.assertEqual(plan.subject, "Mathematics")
         self.assertEqual(len(plan.activities), 0)  # Fallback plan has no activities
     
     @patch('rag.openai_adapter.get_openai_adapter')
-    async def test_create_advanced_learning_path(self, mock_get_adapter):
+    def test_create_advanced_learning_path(self, mock_get_adapter):
         """Test creating an advanced learning path."""
         # Sample learning path response
         sample_path_json = """{
@@ -203,15 +225,23 @@ class TestLearningPlanner(unittest.TestCase):
         mock_get_adapter.return_value = mock_adapter
         
         # Create a learning path
-        path = await self.planner.create_advanced_learning_path(
+        path = self.run_async(self.planner.create_advanced_learning_path(
             student=self.user,
             subject="Mathematics",
             relevant_content=self.content,
             duration_weeks=4
-        )
+        ))
         
         # Assertions
-        mock_adapter.create_chat_completion.assert_called_once()
+        mock_adapter.create_chat_completion.assert_called_once_with(
+            model=settings.AZURE_OPENAI_DEPLOYMENT,
+            messages=[
+                {"role": "system", "content": "You are an educational AI that creates comprehensive learning paths."},
+                {"role": "user", "content": mock_adapter.create_chat_completion.call_args[1]["messages"][1]["content"]}
+            ],
+            temperature=0.7,
+            response_format={"type": "json_object"}
+        )
         self.assertEqual(path["title"], "Advanced Algebra Path")
         self.assertEqual(path["subject"], "Mathematics")
         self.assertEqual(path["overall_goal"], "Develop strong algebraic skills and problem-solving abilities")
@@ -234,8 +264,8 @@ class TestLearningPlanner(unittest.TestCase):
         mock_planner_class.return_value = mock_instance
         
         # Call function twice to verify singleton behavior
-        planner1 = asyncio.run(get_learning_planner())
-        planner2 = asyncio.run(get_learning_planner())
+        planner1 = self.run_async(get_learning_planner())
+        planner2 = self.run_async(get_learning_planner())
         
         # Assertions
         mock_planner_class.assert_called_once()  # Constructor should be called only once

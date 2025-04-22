@@ -8,13 +8,14 @@ import asyncio
 import sys
 import os
 import logging
-from azure.core.credentials import AzureKeyCredential
-from azure.ai.openai import OpenAIClient
+import openai
 
-# Add the project root to sys.path
+# Add the project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from config.settings import Settings
+from rag.openai_adapter import OpenAIAdapter, get_openai_adapter
+from tests.run_tests import AsyncioTestCase
 
 # Initialize settings
 settings = Settings()
@@ -23,60 +24,92 @@ settings = Settings()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-async def test_azure_openai():
-    """Test Azure OpenAI connection and embedding generation."""
-    try:
-        logger.info("Testing Azure OpenAI connection...")
+class TestAzureOpenAI(AsyncioTestCase):
+    """Test Azure OpenAI integration using the standard openai package."""
+    
+    def setUp(self):
+        super().setUp()
+        # Initialize the OpenAI adapter
+        self.adapter = OpenAIAdapter()
         
-        # Initialize Azure OpenAI client
-        client = OpenAIClient(
-            endpoint=settings.AZURE_OPENAI_ENDPOINT,
-            credential=AzureKeyCredential(settings.AZURE_OPENAI_KEY)
-        )
+        # Configure OpenAI for Azure
+        openai.api_type = "azure"
+        openai.api_version = settings.AZURE_OPENAI_API_VERSION
+        openai.api_base = settings.get_openai_endpoint()
+        openai.api_key = settings.get_openai_key()
+    
+    @patch('openai.Embedding.acreate')
+    def test_embedding_generation(self, mock_acreate):
+        """Test generating embeddings."""
+        # Configure mock
+        mock_response = {
+            "data": [{"embedding": [0.1, 0.2, 0.3, 0.4]}],
+            "model": "text-embedding-ada-002",
+            "usage": {"prompt_tokens": 8, "total_tokens": 8}
+        }
+        mock_acreate.return_value = mock_response
         
-        # Test text embedding
-        logger.info("Testing text embedding...")
-        embedding_text = "This is a test to verify Azure OpenAI text embeddings are working."
+        # Test embedding generation
+        result = self.run_async(self.adapter.create_embedding(
+            model=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
+            text="This is a test."
+        ))
         
-        embedding_response = client.get_embeddings(
-            deployment_id=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
-            input=[embedding_text]
-        )
+        # Assertions
+        mock_acreate.assert_called_once()
+        self.assertEqual(result, [0.1, 0.2, 0.3, 0.4])
+    
+    @patch('openai.ChatCompletion.acreate')
+    def test_chat_completion(self, mock_acreate):
+        """Test chat completion."""
+        # Configure mock
+        mock_response = {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "This is a test response about mathematics."
+                    },
+                    "finish_reason": "stop",
+                    "index": 0
+                }
+            ]
+        }
+        mock_acreate.return_value = mock_response
         
-        # Check if the response contains data
-        if embedding_response.data and len(embedding_response.data) > 0:
-            embedding = embedding_response.data[0].embedding
-            embedding_length = len(embedding)
-            logger.info(f"Successfully generated an embedding with dimension: {embedding_length}")
-            logger.info(f"First 5 values: {embedding[:5]}")
-        else:
-            logger.error("Failed to generate embedding - no data in response")
-            return False
+        # Test parameters
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "Tell me about mathematics."}
+        ]
         
-        # Test completions
-        logger.info("Testing text completion...")
-        completion_prompt = "Generate a short paragraph about learning mathematics."
+        # Test chat completion
+        result = self.run_async(self.adapter.create_chat_completion(
+            model=settings.AZURE_OPENAI_DEPLOYMENT,
+            messages=messages,
+            temperature=0.7
+        ))
         
-        completion_response = client.get_completions(
-            deployment_id=settings.AZURE_OPENAI_DEPLOYMENT,
-            prompt=completion_prompt,
-            max_tokens=150
-        )
+        # Assertions
+        mock_acreate.assert_called_once()
+        self.assertIn("choices", result)
+        self.assertEqual(result["choices"][0]["message"]["content"], "This is a test response about mathematics.")
+    
+    @patch('rag.openai_adapter.OpenAIAdapter')
+    def test_get_openai_adapter(self, mock_adapter_class):
+        """Test the singleton pattern for the OpenAI adapter."""
+        # Configure mock
+        mock_instance = MagicMock()
+        mock_adapter_class.return_value = mock_instance
         
-        if completion_response.choices and len(completion_response.choices) > 0:
-            completion_text = completion_response.choices[0].text.strip()
-            logger.info(f"Successfully generated completion. Sample: {completion_text[:100]}...")
-        else:
-            logger.error("Failed to generate completion - no choices in response")
-            return False
+        # Call function twice to verify singleton behavior
+        adapter1 = self.run_async(get_openai_adapter())
+        adapter2 = self.run_async(get_openai_adapter())
         
-        logger.info("All Azure OpenAI tests passed successfully!")
-        return True
-        
-    except Exception as e:
-        logger.error(f"Error testing Azure OpenAI: {e}")
-        return False
+        # Assertions
+        mock_adapter_class.assert_called_once()  # Constructor should be called only once
+        self.assertEqual(adapter1, adapter2)  # Should return the same instance
 
 if __name__ == "__main__":
-    success = asyncio.run(test_azure_openai())
-    sys.exit(0 if success else 1)
+    from unittest.mock import patch, MagicMock
+    unittest.main()

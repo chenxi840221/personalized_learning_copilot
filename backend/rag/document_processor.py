@@ -6,7 +6,6 @@ import re
 from datetime import datetime
 from azure.ai.formrecognizer import DocumentAnalysisClient
 from azure.core.credentials import AzureKeyCredential
-from azure.search.documents.aio import SearchClient
 from models.content import Content
 from config.settings import Settings
 from rag.openai_adapter import get_openai_adapter
@@ -25,22 +24,12 @@ class DocumentProcessor:
     def __init__(self):
         # Initialize OpenAI client when needed
         self.openai_client = None
-        self.search_client = None
         
         # Initialize Form Recognizer client from Cognitive Services Multi-Service Resource
         self.document_analysis_client = DocumentAnalysisClient(
             endpoint=settings.FORM_RECOGNIZER_ENDPOINT,
             credential=AzureKeyCredential(settings.FORM_RECOGNIZER_KEY)
         ) if settings.FORM_RECOGNIZER_ENDPOINT and settings.FORM_RECOGNIZER_KEY else None
-    
-    async def initialize(self):
-        """Initialize search client."""
-        if not self.search_client:
-            self.search_client = SearchClient(
-                endpoint=settings.AZURE_SEARCH_ENDPOINT,
-                index_name=settings.CONTENT_INDEX_NAME,
-                credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
-            )
     
     async def process_content(self, content: Content) -> Dict[str, Any]:
         """
@@ -178,40 +167,6 @@ class DocumentProcessor:
         text = "\n".join(chunk for chunk in chunks if chunk)
         
         return text
-        
-    async def index_content(self, content: Content) -> bool:
-        """
-        Index content in Azure AI Search.
-        Args:
-            content: Content to index
-        Returns:
-            Success status
-        """
-        try:
-            if not self.search_client:
-                await self.initialize()
-                
-            # Process content for indexing
-            content_dict = await self.process_content(content)
-            
-            # Upload to Azure AI Search
-            result = await self.search_client.upload_documents(documents=[content_dict])
-            
-            if result and result[0].succeeded:
-                logger.info(f"Successfully indexed content: {content.title}")
-                return True
-            else:
-                logger.error(f"Failed to index content: {content.title}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Error indexing content: {e}")
-            return False
-    
-    async def close(self):
-        """Close the search client."""
-        if self.search_client:
-            await self.search_client.close()
 
 # Singleton instance
 document_processor = None
@@ -221,35 +176,45 @@ async def get_document_processor():
     global document_processor
     if document_processor is None:
         document_processor = DocumentProcessor()
-        await document_processor.initialize()
     return document_processor
 
-async def process_all_content(contents: List[Content]) -> Dict[str, int]:
-    """
-    Process all content items and index them in Azure AI Search.
-    Args:
-        contents: List of content items to process
-    Returns:
-        Counts of processed and failed items
-    """
+async def process_all_content():
+    """Process all content items in the database and add embeddings."""
     processor = await get_document_processor()
+    db = None  # This would be your database connector
+    
+    # Get all content
+    contents = await db.contents.find().to_list(length=1000)
     processed_count = 0
     error_count = 0
     
-    for content in contents:
+    for content_dict in contents:
         try:
-            success = await processor.index_content(content)
-            if success:
-                processed_count += 1
-            else:
-                error_count += 1
+            # Skip if already has embedding
+            if "embedding" in content_dict and content_dict["embedding"]:
+                continue
+                
+            # Convert to Content model
+            content = Content(**content_dict)
+            
+            # Process content
+            processed_content = await processor.process_content(content)
+            
+            # Update in database
+            await db.contents.update_one(
+                {"id": content.id},
+                {"$set": {"embedding": processed_content["embedding"]}}
+            )
+            
+            processed_count += 1
+            logger.info(f"Processed content: {content.title}")
+            
         except Exception as e:
             error_count += 1
             logger.error(f"Error processing content: {e}")
             
-    await processor.close()
     logger.info(f"Completed processing. Processed: {processed_count}, Errors: {error_count}")
-    return {"processed": processed_count, "errors": error_count}
+    return processed_count, error_count
 
 async def analyze_document(document_url: str) -> Dict[str, Any]:
     """

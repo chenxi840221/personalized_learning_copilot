@@ -103,7 +103,7 @@ class LearningPlanner:
                 
             # Generate learning plan using Azure OpenAI
             response = await self.openai_client.create_chat_completion(
-                model=settings.OPENAI_DEPLOYMENT_NAME,
+                model=settings.AZURE_OPENAI_DEPLOYMENT,
                 messages=[
                     {"role": "system", "content": "You are an educational AI that creates personalized learning plans."},
                     {"role": "user", "content": prompt}
@@ -260,7 +260,7 @@ class LearningPlanner:
                 
             # Generate learning path using Azure OpenAI
             response = await self.openai_client.create_chat_completion(
-                model=settings.OPENAI_DEPLOYMENT_NAME,
+                model=settings.AZURE_OPENAI_DEPLOYMENT,
                 messages=[
                     {"role": "system", "content": "You are an educational AI that creates comprehensive learning paths."},
                     {"role": "user", "content": prompt}

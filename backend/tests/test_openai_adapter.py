@@ -1,5 +1,4 @@
 import unittest
-import asyncio
 from unittest.mock import patch, MagicMock
 import json
 import sys
@@ -10,20 +9,23 @@ from typing import Dict, Any, List
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from rag.openai_adapter import OpenAIAdapter, get_openai_adapter
+from config.settings import Settings
+from tests.run_tests import AsyncioTestCase
 
 
-class TestOpenAIAdapter(unittest.TestCase):
+class TestOpenAIAdapter(AsyncioTestCase):
     """Test the OpenAI adapter with mocked API responses."""
 
     def setUp(self):
         """Set up test case."""
+        super().setUp()
         self.adapter = OpenAIAdapter()
         # Reset the singleton
         import rag.openai_adapter
         rag.openai_adapter.openai_adapter = None
     
     @patch('openai.ChatCompletion.acreate')
-    async def test_create_chat_completion(self, mock_acreate):
+    def test_create_chat_completion(self, mock_acreate):
         """Test creating a chat completion."""
         # Configure the mock
         mock_response = {
@@ -56,11 +58,11 @@ class TestOpenAIAdapter(unittest.TestCase):
         ]
         
         # Run the test
-        result = await self.adapter.create_chat_completion(
+        result = self.run_async(self.adapter.create_chat_completion(
             model="test-model",
             messages=messages,
             temperature=0.7
-        )
+        ))
         
         # Assertions
         mock_acreate.assert_called_once()
@@ -68,7 +70,7 @@ class TestOpenAIAdapter(unittest.TestCase):
         self.assertEqual(result["choices"][0]["message"]["content"], "This is a test response.")
     
     @patch('openai.Embedding.acreate')
-    async def test_create_embedding(self, mock_acreate):
+    def test_create_embedding(self, mock_acreate):
         """Test creating embeddings."""
         # Configure the mock
         mock_response = {
@@ -89,10 +91,10 @@ class TestOpenAIAdapter(unittest.TestCase):
         mock_acreate.return_value = mock_response
         
         # Run the test
-        result = await self.adapter.create_embedding(
+        result = self.run_async(self.adapter.create_embedding(
             model="test-embedding-model",
             text="This is a test."
-        )
+        ))
         
         # Assertions
         mock_acreate.assert_called_once()
@@ -106,15 +108,15 @@ class TestOpenAIAdapter(unittest.TestCase):
         mock_adapter_class.return_value = mock_instance
         
         # Call function twice to verify singleton behavior
-        adapter1 = asyncio.run(get_openai_adapter())
-        adapter2 = asyncio.run(get_openai_adapter())
+        adapter1 = self.run_async(get_openai_adapter())
+        adapter2 = self.run_async(get_openai_adapter())
         
         # Assertions
         mock_adapter_class.assert_called_once()  # Constructor should be called only once
         self.assertEqual(adapter1, adapter2)  # Should return the same instance
     
     @patch('openai.ChatCompletion.acreate')
-    async def test_chat_completion_with_error(self, mock_acreate):
+    def test_chat_completion_with_error(self, mock_acreate):
         """Test handling of errors during chat completion."""
         # Configure the mock to raise an exception
         mock_acreate.side_effect = Exception("Test error")
@@ -124,13 +126,13 @@ class TestOpenAIAdapter(unittest.TestCase):
         
         # Run the test and expect an exception
         with self.assertRaises(Exception):
-            await self.adapter.create_chat_completion(
+            self.run_async(self.adapter.create_chat_completion(
                 model="test-model",
                 messages=messages
-            )
+            ))
     
     @patch('openai.ChatCompletion.acreate')
-    async def test_chat_completion_with_response_format(self, mock_acreate):
+    def test_chat_completion_with_response_format(self, mock_acreate):
         """Test creating a chat completion with response_format."""
         # Configure the mock
         mock_response = {
@@ -149,12 +151,14 @@ class TestOpenAIAdapter(unittest.TestCase):
         # Test parameters
         messages = [{"role": "user", "content": "Respond in JSON"}]
         
-        # Run the test - we modified the adapter to always include response_format if provided
-        result = await self.adapter.create_chat_completion(
-            model="test-model",
-            messages=messages,
-            response_format={"type": "json_object"}
-        )
+        # Run the test
+        with patch('rag.openai_adapter.settings') as mock_settings:
+            mock_settings.AZURE_OPENAI_API_VERSION = "2023-07-01-preview"
+            result = self.run_async(self.adapter.create_chat_completion(
+                model="test-model",
+                messages=messages,
+                response_format={"type": "json_object"}
+            ))
         
         # Check that response_format was included in the API call
         kwargs = mock_acreate.call_args.kwargs

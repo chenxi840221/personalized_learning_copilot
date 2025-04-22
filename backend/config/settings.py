@@ -82,24 +82,13 @@ class Settings(BaseSettings):
             return self.AZURE_OPENAI_KEY
         return self.AZURE_COGNITIVE_KEY
     
-    # CORS Settings - Default values + environment variable if set
-    # Handle CORS_ORIGINS properly to avoid JSON parsing issues
-    @property
-    def CORS_ORIGINS(self) -> List[str]:
-        # Default values
-        origins = [
-            "http://localhost:3000",  # React frontend
-            "http://localhost:8000",  # FastAPI backend (for development)
-        ]
-        
-        # Add any additional origins from environment variable
-        env_origins = os.getenv("CORS_ORIGINS", "")
-        if env_origins:
-            # Split by comma for simple string list
-            additional_origins = [origin.strip() for origin in env_origins.split(",") if origin.strip()]
-            origins.extend(additional_origins)
-            
-        return origins
+    # CORS Settings
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:3000",  # React frontend
+        "http://localhost:8000",  # FastAPI backend (for development)
+    ]
+    if os.getenv("CORS_ORIGINS"):
+        CORS_ORIGINS.extend(os.getenv("CORS_ORIGINS").split(","))
     
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")

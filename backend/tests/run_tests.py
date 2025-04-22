@@ -9,6 +9,7 @@ import os
 import sys
 import argparse
 import warnings
+import asyncio
 from unittest.mock import patch
 import importlib.util
 
@@ -35,6 +36,18 @@ mock_env = {
 # Apply the mock environment variables
 for key, value in mock_env.items():
     os.environ[key] = value
+
+class AsyncioTestCase(unittest.TestCase):
+    """Base class for tests that use asyncio."""
+    def setUp(self):
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        
+    def tearDown(self):
+        self.loop.close()
+        
+    def run_async(self, coroutine):
+        return self.loop.run_until_complete(coroutine)
 
 def discover_tests(pattern=None):
     """Discover all test files in the current directory."""
