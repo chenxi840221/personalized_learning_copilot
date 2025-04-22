@@ -1,4 +1,4 @@
-// Update your frontend/src/services/content.js file
+// services/content.js
 import { api } from './api';
 
 // Get all content with optional filters

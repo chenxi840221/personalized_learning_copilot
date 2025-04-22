@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     AZURE_SEARCH_KEY: str = os.getenv("AZURE_SEARCH_KEY", "")
     AZURE_SEARCH_INDEX_NAME: str = os.getenv("AZURE_SEARCH_INDEX_NAME", "educational-content")
     
+    # Azure AI Search Indexes
+    CONTENT_INDEX_NAME: str = os.getenv("AZURE_SEARCH_CONTENT_INDEX", "educational-content")
+    USERS_INDEX_NAME: str = os.getenv("AZURE_SEARCH_USERS_INDEX", "user-profiles")
+    PLANS_INDEX_NAME: str = os.getenv("AZURE_SEARCH_PLANS_INDEX", "learning-plans")
+    
     # Azure OpenAI Settings (May be part of Cognitive Services or separate)
     AZURE_OPENAI_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT", "")
     AZURE_OPENAI_KEY: str = os.getenv("AZURE_OPENAI_KEY", "")

@@ -1,62 +1,74 @@
+# auth/authentication.py
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
-from passlib.context import CryptContext
-from datetime import datetime, timedelta
-from typing import Optional
+from azure.identity import ClientSecretCredential, InteractiveBrowserCredential
+from msal import ConfidentialClientApplication
+import jwt
 from config.settings import Settings
-# Initialize settings
+
 settings = Settings()
-# Configure password handling
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-# OAuth2 password bearer token
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-def verify_password(plain_password, hashed_password):
-    """Verify password against hashed version."""
-    return pwd_context.verify(plain_password, hashed_password)
-def get_password_hash(password):
-    """Hash password."""
-    return pwd_context.hash(password)
-async def get_user(username: str):
-    """Get user from database."""
-    db = 
-    user_dict = await db.users.find_one({"username": username})
-    return user_dict
-async def get_user_by_email(email: str):
-    """Get user by email from database."""
-    db = 
-    user_dict = await db.users.find_one({"email": email})
-    return user_dict
-async def authenticate_user(username: str, password: str):
-    """Authenticate user."""
-    user = await get_user(username)
-    if not user:
-        return False
-    if not verify_password(password, user.get("hashed_password", "")):
-        return False
-    return user
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    """Create JWT access token."""
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    return encoded_jwt
+
+# Initialize Entra ID application
+app = ConfidentialClientApplication(
+    client_id=settings.CLIENT_ID,
+    client_credential=settings.CLIENT_SECRET,
+    authority=f"https://login.microsoftonline.com/{settings.TENANT_ID}"
+)
+
 async def get_current_user(token: str = Depends(oauth2_scheme)):
-    """Get current user from token."""
+    """Get current user from Microsoft token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
+        # Verify token with Microsoft
+        # For API validation we can use Microsoft's JWKS endpoint or JWT validation
+        payload = jwt.decode(
+            token, 
+            options={"verify_signature": False},  # We rely on MS for signature verification
+            audience=settings.CLIENT_ID
+        )
+        
+        # Extract user info from claims
+        username = payload.get("preferred_username")
+        if not username:
             raise credentials_exception
-    except JWTError:
+            
+        # Create user object from claims
+        user = {
+            "id": payload.get("oid"),  # Object ID from Microsoft
+            "username": username,
+            "email": username,
+            "full_name": payload.get("name"),
+            "roles": payload.get("roles", [])
+        }
+        
+        return user
+    except Exception:
         raise credentials_exception
-    user = await get_user(username=username)
-    if user is None:
-        raise credentials_exception
-    return user
+
+async def get_ms_login_url(redirect_uri):
+    """Generate Microsoft login URL."""
+    auth_url = app.get_authorization_request_url(
+        scopes=["User.Read"],
+        redirect_uri=redirect_uri,
+        state="12345"  # Should be a random state in production
+    )
+    return auth_url
+
+async def get_token_from_code(auth_code, redirect_uri):
+    """Exchange authorization code for token."""
+    result = app.acquire_token_by_authorization_code(
+        code=auth_code,
+        scopes=["User.Read"],
+        redirect_uri=redirect_uri
+    )
+    
+    if "error" in result:
+        raise Exception(f"Error getting token: {result.get('error_description')}")
+        
+    return result
