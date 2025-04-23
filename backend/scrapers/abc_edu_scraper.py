@@ -13,20 +13,13 @@ import openai
 # Azure imports
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.aio import SearchClient
-<<<<<<< HEAD
-from utils.vector_compat import Vector  # Import the compatible Vector class
-=======
 # Import the compatible Vector class from utils directly
 from utils.vector_compat import Vector
->>>>>>> dc2c151 (b)
 from azure.ai.formrecognizer import DocumentAnalysisClient
 from azure.ai.textanalytics import TextAnalyticsClient
 from azure.cognitiveservices.vision.computervision import ComputerVisionClient
 from azure.cognitiveservices.vision.computervision.models import VisualFeatureTypes
-<<<<<<< HEAD
 # Removed problematic import: VideoAnalysisParams
-=======
->>>>>>> dc2c151 (b)
 
 from models.content import Content, ContentType, DifficultyLevel
 from config.settings import Settings

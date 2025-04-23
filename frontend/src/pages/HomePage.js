@@ -45,7 +45,7 @@ const HomePage = () => {
         
         <div className="lg:w-1/2">
           <img 
-            src="/api/placeholder/600/400" 
+            src="/images/DXCLearningCopilot.png" 
             alt="Learning illustration" 
             className="rounded-lg shadow-lg w-full"
           />
