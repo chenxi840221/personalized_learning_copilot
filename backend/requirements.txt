@@ -29,3 +29,6 @@ openai==0.28.0  # Using standard openai package with Azure configuration
 # Testing
 pytest==7.3.1
 pytest-asyncio==0.21.0
+
+# Playwright for browser automation
+playwright==1.41.0  # Latest stable version
