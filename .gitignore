@@ -132,5 +132,16 @@ qdrant_data/
 search_indexes/
 embeddings/
 vector_data/
-backend/education_resources/
+
+# Debug output and scraped data
+debug_output/
+education_resources/
 backend/debug_output/
+backend/education_resources/
+*_debug_info/
+*_output/
+*.debug
+scraper_output/
+crawl_data/
+test_outputs/
+snapshots/
