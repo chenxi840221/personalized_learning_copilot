@@ -4,7 +4,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -16,97 +15,122 @@ lib64/
 parts/
 sdist/
 var/
+wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
+.pytest_cache/
+coverage.xml
+*.cover
 .env
-.env.local
-.env.development
-.env.production
-
-# Virtual Environment
+.venv
+env/
 venv/
 ENV/
-.venv/
+.python-version
 
-# IDE and editors
+# JavaScript/Node.js
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+.npm
+.yarn-integrity
+.next
+.nuxt
+.cache/
+.parcel-cache
+dist/
+coverage/
+*.lcov
+.eslintcache
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE specific files
 .idea/
 .vscode/
 *.swp
 *.swo
-*~
 .DS_Store
+*.sublime*
+.history/
 
-# Logs
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# Azure and cloud specific
+.azure/
+azureauth.json
+*.publishsettings
+*.azurePubxml
+.deployment
+.settings.json
+local.settings.json
+appsettings.*.json
+applicationhost.config
+ServiceDefinition.csdef
+ServiceConfiguration.*.cscfg
+ecf.*.cache
+rcf.*.cache
+*.azurewebsites.net.PublishSettings
 
-# Testing
-.coverage
-htmlcov/
-.pytest_cache/
-.tox/
-.nox/
-coverage.xml
-*.cover
-.hypothesis/
+# Docker
+.docker/
+docker-compose.override.yml
 
-# FastAPI and Uvicorn specific
-.uvicorn
-
-# Application specific
-backend/.env
-*.db
-*.sqlite3
-
-# Azure configuration
-backend/config/settings.py.local
-backend/config/credentials.json
-
-# Dependencies
-node_modules/
-.pnp/
-.pnp.js
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Production build
+# Generated files
 frontend/build/
 frontend/dist/
-.vercel
+backend/logs/
+logs/
+*.log
 
-# Temporary files
+# Database
+*.sqlite3
+*.db
+mongodb_data/
+data/
+
+# Secrets and keys
+*.pem
+*.key
+*.pfx
+*.p12
+*.cer
+*.der
+*.crt
+.env*
+!.env.example
+secrets.yaml
+secrets.yml
+secrets.json
+credentials.json
+
+# Large files and media
+*.zip
+*.tar.gz
+*.rar
+*.mp4
+*.mov
+*.avi
+*.pdf
+*.xlsx
+*.csv
+*.bin
 tmp/
 temp/
-.temp/
 
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Cache
-.mypy_cache/
-.pytest_cache/
-.cache/
-__pypackages__/
-
-# Security
-certs/
-*.pem
-*.cert
-*.key
-
-# Miscellaneous
-.DS_Store
-Thumbs.db
-
-# debug_output
-debug_output/
-backend/debug_output/
+# Project specific
+qdrant_data/
+search_indexes/
+embeddings/
+vector_data/
 backend/education_resources/
-*.json
+backend/debug_output/
