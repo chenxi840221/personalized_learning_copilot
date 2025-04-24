@@ -1,29 +1,52 @@
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import re
 import uuid
-import random
+import json
 import os
 import sys
 from datetime import datetime
 from urllib.parse import urljoin, urlparse
 
-# Setup path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 # Playwright imports for browser automation
 from playwright.async_api import async_playwright, Page, Browser, BrowserContext
 
-# Import our new multimedia content processor
-from utils.multimedia_content_processor import get_content_processor, process_and_index_content
+# Setup path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import models and settings
-from models.content import Content, ContentType, DifficultyLevel
-from config.settings import Settings
-
-# Initialize settings
-settings = Settings()
+# Try to import necessary components, with fallbacks for testing
+try:
+    # Import the multimedia content processor
+    from utils.multimedia_content_processor import get_content_processor, process_and_index_content
+    
+    # Import models and settings
+    from models.content import Content, ContentType, DifficultyLevel
+    from config.settings import Settings
+    
+    # Initialize settings
+    settings = Settings()
+except ImportError:
+    # Fallback ContentType enum for testing
+    class ContentType:
+        ARTICLE = "article"
+        VIDEO = "video"
+        AUDIO = "audio"
+        INTERACTIVE = "interactive"
+        WORKSHEET = "worksheet"
+        QUIZ = "quiz"
+        LESSON = "lesson"
+        ACTIVITY = "activity"
+    
+    # Fallback DifficultyLevel enum for testing
+    class DifficultyLevel:
+        BEGINNER = "beginner"
+        INTERMEDIATE = "intermediate"
+        ADVANCED = "advanced"
+    
+    # Mock process_and_index_content function
+    async def process_and_index_content(url, content_info):
+        return content_info
 
 # Initialize logger
 logging.basicConfig(
@@ -31,36 +54,43 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('abc_scraper.log')
+        logging.FileHandler('edu_scraper.log')
     ]
 )
 
 logger = logging.getLogger(__name__)
 
-# Target subjects to focus on
-TARGET_SUBJECTS = [
-    "Arts",
-    "English",
-    "Geography", 
-    "History",
-    "Mathematics",
-    "Science",
-    "Technologies"
+# Predefined list of subjects with their URLs
+SUBJECT_LINKS = [
+    {"name": "Arts", "url": "https://www.abc.net.au/education/subjects-and-topics/arts"},
+    {"name": "English", "url": "https://www.abc.net.au/education/subjects-and-topics/english"},
+    {"name": "Geography", "url": "https://www.abc.net.au/education/subjects-and-topics/geography"},
+    {"name": "Maths", "url": "https://www.abc.net.au/education/subjects-and-topics/maths"},
+    {"name": "Science", "url": "https://www.abc.net.au/education/subjects-and-topics/science"},
+    {"name": "Technologies", "url": "https://www.abc.net.au/education/subjects-and-topics/technologies"},
+    {"name": "Languages", "url": "https://www.abc.net.au/education/subjects-and-topics/languages"}
 ]
 
-class EnhancedEducationScraper:
-    """Enhanced scraper for educational content with multimedia processing."""
+class SimplifiedEducationScraper:
+    """Simplified scraper for educational content focusing on direct subject URLs."""
     
     def __init__(self):
         """Initialize the scraper."""
         self.base_url = "https://www.abc.net.au/education"
-        self.subjects_url = "https://www.abc.net.au/education/subjects-and-topics"
         
         # Will be initialized later
         self.browser = None
         self.context = None
         self.page = None
         self.content_processor = None
+        
+        # Create debug output directory
+        self.debug_dir = os.path.join(os.getcwd(), "debug_output")
+        os.makedirs(self.debug_dir, exist_ok=True)
+        
+        # Directory for saving resources
+        self.resources_dir = os.path.join(os.getcwd(), "education_resources")
+        os.makedirs(self.resources_dir, exist_ok=True)
         
         # Common stop words for keyword extraction
         self.stop_words = {
@@ -72,8 +102,8 @@ class EnhancedEducationScraper:
         }
     
     async def setup(self, headless=True):
-        """Initialize Playwright browser and content processor."""
-        logger.info(f"Setting up Playwright browser (headless={headless}) and content processor...")
+        """Initialize Playwright browser."""
+        logger.info(f"Setting up Playwright browser (headless={headless})...")
         
         # Initialize Playwright
         playwright = await async_playwright().start()
@@ -92,12 +122,16 @@ class EnhancedEducationScraper:
         # Set default timeout (120 seconds)
         self.page.set_default_timeout(120000)
         
-        # Initialize content processor
-        self.content_processor = await get_content_processor()
+        # Try to initialize content processor if available
+        try:
+            self.content_processor = await get_content_processor()
+            logger.info("Content processor initialized")
+        except:
+            logger.warning("Content processor not available. Running in data collection mode only.")
     
     async def teardown(self):
         """Close browser and other resources."""
-        logger.info("Tearing down browser and content processor...")
+        logger.info("Tearing down browser...")
         
         if self.page:
             await self.page.close()
@@ -108,412 +142,380 @@ class EnhancedEducationScraper:
         if self.browser:
             await self.browser.close()
     
-    async def get_subjects(self) -> List[Dict[str, str]]:
-        """Get available subjects from the website."""
-        logger.info(f"Navigating to subjects page: {self.subjects_url}")
-        
-        # Navigate to the subjects page
-        await self.page.goto(self.subjects_url, wait_until="networkidle")
-        
-        # Wait for subjects to load
-        await self.page.wait_for_selector("h1", state="visible", timeout=30000)
-        
-        # Find all subject links
-        subject_links = []
-        
-        # Try multiple selectors to find subject links
-        subject_selectors = [
-            "a[href*='/subjects-and-topics/']",
-            ".banner__header a",
-            ".content-block-tiles__tile a",
-            "a.content-block-list__item-link",
-            ".content-block-topic-cards a"
-        ]
-        
-        all_subjects = []
-        for selector in subject_selectors:
-            links = await self.page.query_selector_all(selector)
-            logger.info(f"Found {len(links)} potential subject links with selector: {selector}")
-            
-            for link in links:
-                try:
-                    href = await link.get_attribute("href")
-                    
-                    # Skip if not a valid subject link
-                    if not href or not ('/subjects-and-topics/' in href):
-                        continue
-                    
-                    # Skip duplicate links to the subjects page itself
-                    if href.rstrip('/') == self.subjects_url.rstrip('/'):
-                        continue
-                    
-                    # Get text from the link or its parent
-                    text = await link.text_content()
-                    text = text.strip()
-                    
-                    # If text is empty, try to get it from a heading inside the link
-                    if not text:
-                        heading = await link.query_selector("h2, h3, h4")
-                        if heading:
-                            text = await heading.text_content()
-                            text = text.strip()
-                    
-                    # Skip if no text found
-                    if not text:
-                        continue
-                    
-                    # Ensure href is an absolute URL
-                    if not href.startswith(('http://', 'https://')):
-                        href = urljoin(self.subjects_url, href)
-                    
-                    # Add to all subjects list
-                    subject_data = {"name": text, "url": href}
-                    if subject_data not in all_subjects:
-                        all_subjects.append(subject_data)
-                        logger.info(f"Found subject: {text} at {href}")
-                
-                except Exception as e:
-                    logger.error(f"Error extracting subject: {e}")
-        
-        # Filter to only include target subjects
-        target_subjects = []
-        for subject in all_subjects:
-            # Check if this subject is in our target list (case-insensitive partial match)
-            for target in TARGET_SUBJECTS:
-                if target.lower() in subject["name"].lower():
-                    target_subjects.append(subject)
-                    logger.info(f"Selected target subject: {subject['name']} at {subject['url']}")
-                    break
-        
-        return target_subjects
+    async def save_screenshot(self, name):
+        """Save a screenshot for debugging."""
+        if self.page:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            screenshot_path = os.path.join(self.debug_dir, f"{name}_{timestamp}.png")
+            await self.page.screenshot(path=screenshot_path)
+            logger.info(f"Screenshot saved to {screenshot_path}")
     
-    async def extract_content_cards(self, page_url: str, subject_name: str) -> List[Dict[str, Any]]:
+    async def save_html(self, name):
+        """Save the current page HTML for debugging."""
+        if self.page:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            html_path = os.path.join(self.debug_dir, f"{name}_{timestamp}.html")
+            html_content = await self.page.content()
+            with open(html_path, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+            logger.info(f"HTML saved to {html_path}")
+    
+    async def find_education_resources(self, subject_link: Dict[str, str]) -> List[Dict[str, str]]:
         """
-        Extract content cards from a subject page.
+        Find all education resource links on a subject page.
         
         Args:
-            page_url: URL of the subject page
-            subject_name: Name of the subject for categorization
+            subject_link: Dictionary with subject name and URL
             
         Returns:
-            List of processed content items
+            List of dictionaries with resource title and URL
         """
-        logger.info(f"Extracting content from: {page_url}")
+        subject_name = subject_link["name"]
+        subject_url = subject_link["url"]
         
-        # Navigate to the page
-        await self.page.goto(page_url, wait_until="networkidle")
+        logger.info(f"Finding education resources for {subject_name} at {subject_url}")
         
-        # Wait for content to load
+        # Navigate to the subject page
+        await self.page.goto(subject_url, wait_until="networkidle")
         await self.page.wait_for_selector("body", state="visible")
         
-        # All processed content items
-        all_content_items = []
-        processed_urls = set()  # Track processed URLs to avoid duplicates
+        # Take screenshot and save HTML for debugging
+        await self.save_screenshot(f"subject_{subject_name}")
+        await self.save_html(f"subject_{subject_name}")
         
-        # Main scraping loop - continue until no more "Load more" button
-        page_counter = 1
-        
-        while True:
-            logger.info(f"Processing content page {page_counter}")
-            
-            # Wait for network to be idle to ensure all content is loaded
-            await self.page.wait_for_load_state("networkidle")
-            
-            # Extract content cards/tiles on the current page
-            content_cards = await self._find_content_cards()
-            
-            if not content_cards:
-                logger.info("No content cards found on the current page")
-                break
-                
-            logger.info(f"Found {len(content_cards)} content cards on page {page_counter}")
-            
-            # Process each content card
-            for i, card in enumerate(content_cards):
-                try:
-                    # Extract basic info from the card
-                    card_info = await self._extract_card_info(card, subject_name)
-                    
-                    if not card_info or not card_info.get("url"):
-                        logger.warning(f"Skipping card {i+1} - could not extract URL")
-                        continue
-                    
-                    content_url = card_info["url"]
-                    
-                    # Skip if we've already processed this URL
-                    if content_url in processed_urls:
-                        logger.info(f"Skipping already processed URL: {content_url}")
-                        continue
-                        
-                    logger.info(f"Processing content card {i+1}/{len(content_cards)}: {card_info.get('title', 'Unknown')}")
-                    
-                    # Process the content using our multimedia content processor
-                    processed_content = await process_and_index_content(content_url, card_info)
-                    
-                    if processed_content:
-                        all_content_items.append(processed_content)
-                        processed_urls.add(content_url)
-                        logger.info(f"Successfully processed: {processed_content['title']}")
-                    
-                except Exception as e:
-                    logger.error(f"Error processing content card: {e}")
-            
-            # Try to click "Load more" button to get more content
-            load_more_clicked = await self._click_load_more()
-            
-            if not load_more_clicked:
-                logger.info("No more content to load, finishing extraction")
-                break
-                
-            page_counter += 1
-            
-            # Wait for new content to load
-            await asyncio.sleep(2)
-            
-            # Safety measure: limit to 20 pages maximum to avoid infinite loops
-            if page_counter > 20:
-                logger.warning("Reached maximum page limit (20), stopping pagination")
-                break
-        
-        logger.info(f"Completed extracting content from {page_url}. Total items: {len(all_content_items)}")
-        return all_content_items
-    
-    async def _find_content_cards(self):
-        """Find all content cards/tiles on the current page."""
-        # Try multiple selectors to find content cards
-        selectors = [
-            ".content-block-tiles__tile",  # Main tile selector for ABC Education
-            "article",  # Article elements
-            ".resource-card",  # Resource card class
-            ".card",  # Generic card class
-            ".content-card",  # Content card class
-            ".tile",  # Generic tile class
-            ".list-view-item",  # List view items
-            "[data-testid='card']",  # Cards with test ID
-            "a.content-block-tiles__item-link"  # Direct content links
+        # Get the main content area, excluding header and navigation
+        main_content_selectors = [
+            "main",
+            "#main",
+            ".main-content",
+            "article",
+            ".content-main",
+            ".content-wrapper",
+            "body"  # Fallback to body if no other containers found
         ]
         
-        found_cards = []
+        main_content = None
+        for selector in main_content_selectors:
+            content = await self.page.query_selector(selector)
+            if content:
+                main_content = content
+                logger.info(f"Found main content with selector: {selector}")
+                break
         
-        for selector in selectors:
-            cards = await self.page.query_selector_all(selector)
-            if cards:
-                logger.info(f"Found {len(cards)} content cards with selector: {selector}")
-                found_cards.extend(cards)
-                break  # Use the first successful selector
+        if not main_content:
+            logger.warning(f"Could not find main content area for {subject_name}")
+            return []
         
-        return found_cards
+        # Find all links in the main content
+        links = await main_content.query_selector_all("a")
+        logger.info(f"Found {len(links)} links in the main content for {subject_name}")
+        
+        # Filter links to identify education resources
+        resource_links = []
+        
+        for link in links:
+            try:
+                # Get href and text
+                href = await link.get_attribute("href")
+                if not href:
+                    continue
+                
+                # Make absolute URL if needed
+                if href.startswith('/'):
+                    href = urljoin(self.base_url, href)
+                
+                # Skip non-ABC links or navigation links
+                if not ('abc.net.au' in href and '/education/' in href):
+                    continue
+                
+                # Skip if it's the current subject page
+                if href == subject_url:
+                    continue
+                
+                # Get text content
+                text = await link.text_content()
+                text = text.strip()
+                
+                # Skip if no text or very short text (likely UI elements)
+                if not text or len(text) < 5:
+                    continue
+                
+                # Check if it's not in a typical navigation element
+                parent_element = await link.evaluate("""el => {
+                    let parent = el.parentElement;
+                    for (let i = 0; i < 5 && parent; i++) {
+                        if (parent.tagName && ['NAV', 'HEADER', 'FOOTER'].includes(parent.tagName)) {
+                            return false;
+                        }
+                        if (parent.className && ['nav', 'header', 'footer', 'menu', 'navigation'].some(c => parent.className.includes(c))) {
+                            return false;
+                        }
+                        parent = parent.parentElement;
+                    }
+                    return true;
+                }""")
+                
+                if not parent_element:
+                    continue
+                
+                # Looks like an education resource - add to list
+                resource_links.append({
+                    "title": text,
+                    "url": href,
+                    "subject": subject_name
+                })
+                logger.info(f"Found resource: {text[:40]}{'...' if len(text) > 40 else ''}")
+                
+            except Exception as e:
+                logger.error(f"Error processing link: {e}")
+        
+        logger.info(f"Identified {len(resource_links)} education resources for {subject_name}")
+        
+        # Save the resource links to a JSON file
+        self.save_resource_links_to_json(resource_links, subject_name)
+        
+        return resource_links
     
-    async def _extract_card_info(self, card, subject_name: str) -> Dict[str, Any]:
-        """Extract basic information from a content card."""
+    def save_resource_links_to_json(self, resource_links: List[Dict[str, str]], subject_name: str):
+        """Save resource links to a JSON file."""
+        if not resource_links:
+            return
+            
+        # Create a safe filename
+        safe_subject = subject_name.replace(" ", "_").replace("/", "_")
+        filename = os.path.join(self.resources_dir, f"{safe_subject}_resources.json")
+        
         try:
-            # Get inner HTML for debugging
-            card_html = await card.inner_html()
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(resource_links, f, indent=2)
+                
+            logger.info(f"Saved {len(resource_links)} resource links to {filename}")
             
-            # Extract title
-            title_selectors = [
-                "h2, h3, h4",  # Heading elements
-                ".title, .heading",  # Class-based title elements
-                "a > strong",  # Strong text in links
-                ".content-block-tiles__title",  # Specific title class
-                ".tile__title"  # Tile title class
-            ]
-            
-            title_elem = None
-            for selector in title_selectors:
-                elem = await card.query_selector(selector)
-                if elem:
-                    title_elem = elem
-                    break
-            
-            if not title_elem:
-                return None
-            
-            title = await title_elem.text_content()
-            title = title.strip()
-            
-            if not title:
-                return None
-            
-            # Extract link
-            link_elem = await card.query_selector("a")
-            if not link_elem:
-                # The card itself might be a link
-                if await card.get_attribute("href"):
-                    link_elem = card
-            
-            if not link_elem:
-                return None
-            
-            content_url = await link_elem.get_attribute("href")
-            if not content_url:
-                return None
-            
-            # Ensure URL is absolute
-            if not content_url.startswith(('http://', 'https://')):
-                content_url = urljoin(self.base_url, content_url)
-            
-            # Extract description
-            description_selectors = [
-                "p:not(h2 ~ p, h3 ~ p)",  # Paragraphs not following headings
-                ".description, .summary",  # Generic description classes
-                ".content-block-tiles__description",  # Specific description class
-                ".tile__description"  # Tile description class
-            ]
-            
-            description_elem = None
-            for selector in description_selectors:
-                elem = await card.query_selector(selector)
-                if elem:
-                    description_elem = elem
-                    break
-            
-            description = ""
-            if description_elem:
-                description = await description_elem.text_content()
-                description = description.strip()
-            
-            # Extract topics
-            topics = await self._extract_topics_from_card(card, subject_name)
-            
-            # Determine content type
-            content_type_value = self._determine_content_type(card_html, content_url).value
-            
-            # Extract keywords
-            keywords = self._extract_keywords(title, description)
-            
-            # Determine difficulty level and grade levels
-            difficulty, grade_levels = self._determine_difficulty_and_grade(title, description, subject_name)
-            
-            # Return the basic card information
-            return {
-                "title": title,
-                "description": description,
-                "url": content_url,
-                "topics": topics,
-                "subject": subject_name,
-                "content_type": content_type_value,
-                "difficulty_level": difficulty.value,
-                "grade_level": grade_levels,
-                "keywords": keywords,
-                "source": "ABC Education"
-            }
-        
         except Exception as e:
-            logger.error(f"Error extracting card info: {e}")
-            return None
+            logger.error(f"Error saving resource links to JSON: {e}")
     
-    async def _extract_topics_from_card(self, card, subject_name: str) -> List[str]:
-        """Extract topics from a content card."""
+    async def extract_content_details(self, resource_link: Dict[str, str]) -> Dict[str, Any]:
+        """
+        Extract detailed content from a resource page.
+        
+        Args:
+            resource_link: Dictionary with resource title, URL, and subject
+            
+        Returns:
+            Dictionary with extracted content details
+        """
+        resource_url = resource_link["url"]
+        resource_title = resource_link["title"]
+        subject_name = resource_link["subject"]
+        
+        logger.info(f"Extracting content details from: {resource_title[:30]}{'...' if len(resource_title) > 30 else ''}")
+        
+        # Navigate to the resource page
+        await self.page.goto(resource_url, wait_until="networkidle")
+        await self.page.wait_for_selector("body", state="visible")
+        
+        # Take screenshot and save HTML for debugging
+        safe_title = resource_title.replace(" ", "_").replace("/", "_")[:30]
+        await self.save_screenshot(f"resource_{safe_title}")
+        await self.save_html(f"resource_{safe_title}")
+        
+        # Extract basic metadata
+        metadata = {
+            "title": resource_title,
+            "url": resource_url,
+            "subject": subject_name,
+            "source": "ABC Education",
+            "id": str(uuid.uuid4())
+        }
+        
+        # Extract description
+        description = await self._extract_description()
+        if description:
+            metadata["description"] = description
+        else:
+            # If no description found, use a generic one
+            metadata["description"] = f"Educational resource about {subject_name}"
+        
+        # Determine content type
+        content_type = await self._determine_content_type()
+        metadata["content_type"] = content_type.value
+        
+        # Extract topics
+        topics = await self._extract_topics(subject_name)
+        metadata["topics"] = topics
+        
+        # Determine difficulty level and grade levels
+        difficulty, grade_levels = self._determine_difficulty_and_grade(
+            resource_title, 
+            metadata.get("description", ""), 
+            subject_name
+        )
+        metadata["difficulty_level"] = difficulty.value
+        metadata["grade_level"] = grade_levels
+        
+        # Extract duration
+        duration = await self._extract_duration()
+        if duration:
+            metadata["duration_minutes"] = duration
+        else:
+            # Estimate based on content type
+            metadata["duration_minutes"] = self._estimate_duration(content_type)
+        
+        # Extract keywords
+        keywords = self._extract_keywords(
+            resource_title, 
+            metadata.get("description", "")
+        )
+        metadata["keywords"] = keywords
+        
+        # Extract content based on content type
+        if content_type == ContentType.VIDEO:
+            video_info = await self._extract_video_content()
+            metadata.update(video_info)
+            
+        elif content_type == ContentType.AUDIO:
+            audio_info = await self._extract_audio_content()
+            metadata.update(audio_info)
+            
+        elif content_type in [ContentType.ARTICLE, ContentType.WORKSHEET]:
+            article_text = await self._extract_article_text()
+            metadata["article_text"] = article_text
+            
+        elif content_type in [ContentType.INTERACTIVE, ContentType.ACTIVITY]:
+            interactive_info = await self._extract_interactive_content()
+            metadata.update(interactive_info)
+            
+        elif content_type == ContentType.QUIZ:
+            quiz_info = await self._extract_quiz_content()
+            metadata.update(quiz_info)
+        
+        # Extract author if available
+        author = await self._extract_author()
+        if author:
+            metadata["author"] = author
+        
+        # Get current page content for processing
+        html_content = await self.page.content()
+        metadata["content_html"] = html_content
+        
+        logger.info(f"Extracted content details for: {resource_title[:30]}{'...' if len(resource_title) > 30 else ''}")
+        return metadata
+    
+    async def _extract_description(self) -> Optional[str]:
+        """Extract description from the current page."""
+        description_selectors = [
+            "meta[name='description']",
+            ".description",
+            ".summary",
+            ".content-block-article__summary",
+            "p.intro",
+            ".intro p",
+            "article p:first-of-type"
+        ]
+        
+        for selector in description_selectors:
+            if selector.startswith("meta"):
+                # Handle meta tags
+                meta = await self.page.query_selector(selector)
+                if meta:
+                    content = await meta.get_attribute("content")
+                    if content and content.strip():
+                        return content.strip()
+            else:
+                # Handle regular elements
+                elem = await self.page.query_selector(selector)
+                if elem:
+                    text = await elem.text_content()
+                    if text and text.strip():
+                        return text.strip()
+        
+        return None
+    
+    async def _determine_content_type(self) -> ContentType:
+        """Determine the content type of the current page."""
+        url = self.page.url
+        html = await self.page.content()
+        
+        # Check URL and page content for indicators
+        if any(video_term in url for video_term in ['/video/', '/watch/', '.mp4', '/iview/']):
+            return ContentType.VIDEO
+        elif any(audio_term in url for audio_term in ['/audio/', '/podcast/', '.mp3', '/radio/']):
+            return ContentType.AUDIO
+        elif any(quiz_term in url for quiz_term in ['/quiz/', '/test/', '/assessment/']):
+            return ContentType.QUIZ
+        elif any(worksheet_term in url for worksheet_term in ['/worksheet/', '/exercise/', '/printable/']):
+            return ContentType.WORKSHEET
+        elif any(interactive_term in url for interactive_term in ['/interactive/', '/game/', '/simulation/']):
+            return ContentType.INTERACTIVE
+        elif any(lesson_term in url for lesson_term in ['/lesson/', '/class/', '/course/']):
+            return ContentType.LESSON
+        elif any(activity_term in url for activity_term in ['/activity/', '/project/', '/lab/']):
+            return ContentType.ACTIVITY
+        
+        # Check for specific elements in the page
+        has_video = await self.page.query_selector("video, .video-player, iframe[src*='youtube'], iframe[src*='vimeo']")
+        if has_video:
+            return ContentType.VIDEO
+            
+        has_audio = await self.page.query_selector("audio, .audio-player")
+        if has_audio:
+            return ContentType.AUDIO
+            
+        has_quiz = await self.page.query_selector(".quiz, .assessment, form[data-quiz]")
+        if has_quiz:
+            return ContentType.QUIZ
+            
+        has_interactive = await self.page.query_selector("iframe[src*='interactive'], canvas, .interactive, [data-component-name='Interactive']")
+        if has_interactive:
+            return ContentType.INTERACTIVE
+            
+        # Default to article if no specific indicators found
+        return ContentType.ARTICLE
+    
+    async def _extract_topics(self, subject_name: str) -> List[str]:
+        """Extract topics from the current page."""
         topics = []
         
-        # Try to find topic tags
+        # Look for topic tags
         topic_selectors = [
-            ".tag", 
-            ".topic", 
-            ".category", 
-            ".subjects",
-            ".tile__subject",
-            ".content-block-tiles__subject",
-            "[data-testid='tag']", 
-            "[data-testid='topic']"
+            ".tag",
+            ".topic",
+            ".category",
+            ".subject",
+            "[data-testid='tag']",
+            "[data-testid='topic']",
+            "meta[name='keywords']"
         ]
         
         for selector in topic_selectors:
-            topic_elems = await card.query_selector_all(selector)
-            for elem in topic_elems:
-                topic_text = await elem.text_content()
-                topic_text = topic_text.strip()
-                if topic_text and topic_text not in topics:
-                    topics.append(topic_text)
+            if selector.startswith("meta"):
+                # Handle meta tags
+                meta = await self.page.query_selector(selector)
+                if meta:
+                    content = await meta.get_attribute("content")
+                    if content:
+                        # Split by commas
+                        keywords = [k.strip() for k in content.split(",")]
+                        topics.extend([k for k in keywords if k])
+            else:
+                # Handle regular elements
+                elems = await self.page.query_selector_all(selector)
+                for elem in elems:
+                    text = await elem.text_content()
+                    if text and text.strip():
+                        topics.append(text.strip())
         
-        # If no topics found, use the subject name
-        if not topics:
-            topics = [subject_name]
+        # Clean up and remove duplicates
+        unique_topics = list(set(topics))
         
-        return topics
+        # Always include the main subject as a topic
+        if subject_name not in unique_topics:
+            unique_topics.append(subject_name)
+        
+        return unique_topics
     
-    async def _click_load_more(self) -> bool:
-        """Try to click the 'Load more' button if it exists."""
-        load_more_selectors = [
-            "button:has-text('Load more')",
-            "button:text-is('Load more')",
-            "button.content-block-tiles__load-more",
-            "[data-testid='load-more-button']"
-        ]
-        
-        for selector in load_more_selectors:
-            try:
-                # Check if button is visible
-                button = await self.page.query_selector(selector)
-                if button and await button.is_visible():
-                    logger.info(f"Clicking 'Load more' button with selector: {selector}")
-                    await button.click()
-                    return True
-            except Exception as e:
-                logger.debug(f"Could not click 'Load more' button with selector '{selector}': {e}")
-        
-        # Try to find any button that looks like "Load more"
-        try:
-            all_buttons = await self.page.query_selector_all("button")
-            for button in all_buttons:
-                text = await button.text_content()
-                if text and text.lower().strip() == "load more" and await button.is_visible():
-                    logger.info("Clicking 'Load more' button found by text")
-                    await button.click()
-                    return True
-        except Exception as e:
-            logger.debug(f"Could not find 'Load more' button by text: {e}")
-        
-        logger.info("No 'Load more' button found")
-        return False
-    
-    def _determine_content_type(self, card_html: str, url: str) -> ContentType:
-        """Determine the content type based on card HTML and URL."""
-        # Convert to lowercase for case-insensitive matching
-        card_html_lower = card_html.lower()
-        url_lower = url.lower()
-        
-        # Check for video indicators
-        if any(video_term in card_html_lower for video_term in ['video', 'watch', 'play button', 'duration']) or \
-           any(video_term in url_lower for video_term in ['/video/', '/watch/', '.mp4', '/tv/', '/iview/']):
-            return ContentType.VIDEO
-        
-        # Check for audio indicators
-        elif any(audio_term in card_html_lower for audio_term in ['audio', 'listen', 'podcast', 'sound']) or \
-             any(audio_term in url_lower for audio_term in ['/audio/', '/podcast/', '.mp3', '.wav', '/radio/']):
-            return ContentType.AUDIO
-        
-        # Check for quiz indicators
-        elif any(quiz_term in card_html_lower for quiz_term in ['quiz', 'test yourself', 'assessment']) or \
-             any(quiz_term in url_lower for quiz_term in ['/quiz/', '/test/', '/assessment/']):
-            return ContentType.QUIZ
-        
-        # Check for worksheet indicators
-        elif any(worksheet_term in card_html_lower for worksheet_term in ['worksheet', 'printable', 'exercise']) or \
-             any(worksheet_term in url_lower for worksheet_term in ['/worksheet/', '/exercise/', '/printable/']):
-            return ContentType.WORKSHEET
-        
-        # Check for interactive indicators
-        elif any(interactive_term in card_html_lower for interactive_term in ['interactive', 'game', 'simulation', 'play']) or \
-             any(interactive_term in url_lower for interactive_term in ['/interactive/', '/game/', '/simulation/', '/play/']):
-            return ContentType.INTERACTIVE
-        
-        # Check for lesson indicators
-        elif any(lesson_term in card_html_lower for lesson_term in ['lesson', 'class', 'course', 'teacher notes']) or \
-             any(lesson_term in url_lower for lesson_term in ['/lesson/', '/class/', '/course/']):
-            return ContentType.LESSON
-        
-        # Check for activity indicators
-        elif any(activity_term in card_html_lower for activity_term in ['activity', 'project', 'try this', 'experiment']) or \
-             any(activity_term in url_lower for activity_term in ['/activity/', '/project/', '/lab/', '/experiment/']):
-            return ContentType.ACTIVITY
-        
-        # Default to article
-        return ContentType.ARTICLE
-    
-    def _determine_difficulty_and_grade(self, title: str, description: str, subject: str):
-        """Determine the difficulty level and grade levels based on content."""
+    def _determine_difficulty_and_grade(self, title: str, description: str, subject: str) -> Tuple[DifficultyLevel, List[int]]:
+        """Determine difficulty level and grade levels from text."""
         text = f"{title} {description}".lower()
         
         # Extract grade/year level patterns
@@ -596,6 +598,85 @@ class EnhancedEducationScraper:
         
         return difficulty, grade_levels
     
+    async def _extract_duration(self) -> Optional[int]:
+        """Extract duration from the current page."""
+        duration_selectors = [
+            ".duration",
+            ".video-duration",
+            ".audio-duration",
+            "[data-testid='duration']"
+        ]
+        
+        for selector in duration_selectors:
+            elem = await self.page.query_selector(selector)
+            if elem:
+                duration_text = await elem.text_content()
+                if duration_text and duration_text.strip():
+                    # Try to parse duration
+                    return self._parse_duration_text(duration_text.strip())
+        
+        return None
+    
+    def _parse_duration_text(self, duration_text: str) -> Optional[int]:
+        """Parse duration text to extract minutes."""
+        try:
+            # Clean up the text
+            duration_text = duration_text.strip().lower()
+            
+            # Check for MM:SS format
+            if ":" in duration_text:
+                parts = duration_text.split(":")
+                if len(parts) == 2:
+                    minutes = int(parts[0])
+                    seconds = int(parts[1])
+                    return minutes + (1 if seconds >= 30 else 0)  # Round up for 30+ seconds
+                elif len(parts) == 3:  # HH:MM:SS format
+                    hours = int(parts[0])
+                    minutes = int(parts[1])
+                    seconds = int(parts[2])
+                    return hours * 60 + minutes + (1 if seconds >= 30 else 0)
+            
+            # Check for "X min Y sec" format
+            minutes_match = re.search(r'(\d+)\s*(?:min|m)', duration_text)
+            seconds_match = re.search(r'(\d+)\s*(?:sec|s)', duration_text)
+            
+            if minutes_match:
+                minutes = int(minutes_match.group(1))
+                if seconds_match:
+                    seconds = int(seconds_match.group(1))
+                    return minutes + (1 if seconds >= 30 else 0)
+                return minutes
+            
+            # Check for just seconds
+            if seconds_match:
+                seconds = int(seconds_match.group(1))
+                return 1 if seconds > 0 else 0  # At least 1 minute for any duration
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error parsing duration text '{duration_text}': {e}")
+            return None
+    
+    def _estimate_duration(self, content_type: ContentType) -> int:
+        """Estimate duration based on content type."""
+        if content_type == ContentType.VIDEO:
+            return 10  # 10 minutes for video
+        elif content_type == ContentType.AUDIO:
+            return 15  # 15 minutes for audio
+        elif content_type == ContentType.INTERACTIVE:
+            return 20  # 20 minutes for interactive content
+        elif content_type == ContentType.QUIZ:
+            return 10  # 10 minutes for quiz
+        elif content_type == ContentType.WORKSHEET:
+            return 30  # 30 minutes for worksheet
+        elif content_type == ContentType.LESSON:
+            return 45  # 45 minutes for lesson
+        elif content_type == ContentType.ACTIVITY:
+            return 30  # 30 minutes for activity
+        else:  # Article
+            return 15  # 15 minutes for article
+    
     def _extract_keywords(self, title: str, description: str) -> List[str]:
         """Extract keywords from title and description."""
         if not title and not description:
@@ -611,94 +692,451 @@ class EnhancedEducationScraper:
         unique_keywords = sorted(list(set(keywords)), key=lambda x: text.count(x), reverse=True)
         return unique_keywords[:15]
     
-    async def scrape_all_subjects(self, subject_limit=None):
+    async def _extract_video_content(self) -> Dict[str, Any]:
+        """Extract video content from the current page."""
+        video_info = {}
+        
+        # Look for video elements
+        video_selectors = [
+            "video",
+            ".video-player",
+            ".media-player",
+            "iframe[src*='youtube']",
+            "iframe[src*='vimeo']",
+            "iframe[src*='iview']",
+            "[data-component-name='VideoPlayer']"
+        ]
+        
+        for selector in video_selectors:
+            video_elem = await self.page.query_selector(selector)
+            if video_elem:
+                # For video element
+                if selector == "video":
+                    src = await video_elem.get_attribute("src")
+                    if src:
+                        video_info["video_url"] = src
+                    
+                    poster = await video_elem.get_attribute("poster")
+                    if poster:
+                        video_info["thumbnail_url"] = poster
+                
+                # For iframe (YouTube, Vimeo, etc.)
+                if selector.startswith("iframe"):
+                    src = await video_elem.get_attribute("src")
+                    if src:
+                        video_info["video_url"] = src
+                
+                break
+        
+        # Look for transcript
+        transcript_selectors = [
+            ".transcript",
+            ".video-transcript",
+            "[data-testid='transcript']",
+            ".closed-captions"
+        ]
+        
+        for selector in transcript_selectors:
+            transcript_elem = await self.page.query_selector(selector)
+            if transcript_elem:
+                transcript = await transcript_elem.text_content()
+                if transcript and transcript.strip():
+                    video_info["transcription"] = transcript.strip()
+                break
+        
+        return video_info
+    
+    async def _extract_audio_content(self) -> Dict[str, Any]:
+        """Extract audio content from the current page."""
+        audio_info = {}
+        
+        # Look for audio elements
+        audio_selectors = [
+            "audio",
+            ".audio-player",
+            "[data-component-name='AudioPlayer']",
+            ".podcast-player"
+        ]
+        
+        for selector in audio_selectors:
+            audio_elem = await self.page.query_selector(selector)
+            if audio_elem:
+                # For audio element
+                if selector == "audio":
+                    src = await audio_elem.get_attribute("src")
+                    if src:
+                        audio_info["audio_url"] = src
+                
+                break
+        
+        # Look for transcript
+        transcript_selectors = [
+            ".transcript",
+            ".audio-transcript",
+            "[data-testid='transcript']"
+        ]
+        
+        for selector in transcript_selectors:
+            transcript_elem = await self.page.query_selector(selector)
+            if transcript_elem:
+                transcript = await transcript_elem.text_content()
+                if transcript and transcript.strip():
+                    audio_info["transcription"] = transcript.strip()
+                break
+        
+        return audio_info
+    
+    async def _extract_article_text(self) -> str:
+        """Extract article text from the current page."""
+        # Look for article content
+        content_selectors = [
+            "article",
+            "main",
+            ".content-block-article__content",
+            ".article__body",
+            ".content-main",
+            "#content-main",
+            ".main-content"
+        ]
+        
+        for selector in content_selectors:
+            content_elem = await self.page.query_selector(selector)
+            if content_elem:
+                # Get all paragraphs
+                paragraphs = await content_elem.query_selector_all("p")
+                if paragraphs:
+                    text_parts = []
+                    for p in paragraphs:
+                        text = await p.text_content()
+                        if text and text.strip():
+                            text_parts.append(text.strip())
+                    
+                    if text_parts:
+                        return "\n\n".join(text_parts)
+                
+                # If no paragraphs found, get all text content
+                text = await content_elem.text_content()
+                if text and text.strip():
+                    return text.strip()
+        
+        return ""
+    
+    async def _extract_interactive_content(self) -> Dict[str, Any]:
+        """Extract interactive content from the current page."""
+        interactive_info = {}
+        
+        # Check for interactive elements
+        interactive_selectors = [
+            "iframe",
+            ".interactive",
+            ".game",
+            "canvas",
+            "[data-component-name='Interactive']"
+        ]
+        
+        for selector in interactive_selectors:
+            elem = await self.page.query_selector(selector)
+            if elem:
+                if selector == "iframe":
+                    src = await elem.get_attribute("src")
+                    if src:
+                        interactive_info["iframe_src"] = src
+                
+                interactive_info["has_interactive"] = True
+                break
+        
+        # Extract instructions
+        instruction_selectors = [
+            ".instructions",
+            ".description",
+            ".how-to-play",
+            ".guidelines"
+        ]
+        
+        for selector in instruction_selectors:
+            elem = await self.page.query_selector(selector)
+            if elem:
+                instructions = await elem.text_content()
+                if instructions and instructions.strip():
+                    interactive_info["instructions"] = instructions.strip()
+                    break
+        
+        return interactive_info
+    
+    async def _extract_quiz_content(self) -> Dict[str, Any]:
+        """Extract quiz content from the current page."""
+        quiz_info = {}
+        
+        # Look for quiz elements
+        quiz_selectors = [
+            ".quiz",
+            ".assessment",
+            ".questions",
+            "form[data-quiz]",
+            "[data-component-name='Quiz']"
+        ]
+        
+        for selector in quiz_selectors:
+            quiz_elem = await self.page.query_selector(selector)
+            if quiz_elem:
+                quiz_info["has_quiz"] = True
+                
+                # Try to extract number of questions
+                questions = await quiz_elem.query_selector_all(".question, .quiz-question")
+                if questions:
+                    quiz_info["question_count"] = len(questions)
+                
+                break
+        
+        # Extract instructions
+        instruction_selectors = [
+            ".quiz-instructions",
+            ".quiz-intro",
+            ".instructions",
+            ".description"
+        ]
+        
+        for selector in instruction_selectors:
+            elem = await self.page.query_selector(selector)
+            if elem:
+                instructions = await elem.text_content()
+                if instructions and instructions.strip():
+                    quiz_info["instructions"] = instructions.strip()
+                    break
+        
+        return quiz_info
+    
+    async def _extract_author(self) -> Optional[str]:
+        """Extract author from the current page."""
+        author_selectors = [
+            ".author",
+            ".byline",
+            ".content-block-article__byline",
+            "[data-testid='author']",
+            "meta[name='author']"
+        ]
+        
+        for selector in author_selectors:
+            if selector.startswith("meta"):
+                elem = await self.page.query_selector(selector)
+                if elem:
+                    author = await elem.get_attribute("content")
+                    if author and author.strip():
+                        return author.strip()
+            else:
+                elem = await self.page.query_selector(selector)
+                if elem:
+                    author = await elem.text_content()
+                    if author and author.strip():
+                        # Remove "By" prefix if present
+                        author = author.strip()
+                        if author.lower().startswith("by "):
+                            author = author[3:].strip()
+                        return author
+        
+        return None
+    
+    async def process_subject(self, subject_link: Dict[str, str]) -> List[Dict[str, Any]]:
         """
-        Scrape all targeted subjects, optionally limiting to a specific number.
+        Process a subject: find resources and extract content.
         
         Args:
-            subject_limit: Maximum number of subjects to scrape (None for all)
+            subject_link: Dictionary with subject name and URL
             
         Returns:
-            All scraped content items
+            List of processed content items
         """
+        subject_name = subject_link["name"]
+        logger.info(f"Processing subject: {subject_name}")
+        
+        # Find education resources for this subject
+        resources = await self.find_education_resources(subject_link)
+        
+        if not resources:
+            logger.warning(f"No education resources found for {subject_name}")
+            return []
+        
+        # Process each resource
+        processed_items = []
+        
+        for i, resource in enumerate(resources):
+            try:
+                logger.info(f"Processing resource {i+1}/{len(resources)}: {resource['title'][:30]}{'...' if len(resource['title']) > 30 else ''}")
+                
+                # Extract content details
+                content_details = await self.extract_content_details(resource)
+                
+                # Process and index content if possible
+                if self.content_processor:
+                    try:
+                        processed_content = await process_and_index_content(resource["url"], content_details)
+                        if processed_content:
+                            processed_items.append(processed_content)
+                            logger.info(f"Successfully processed: {resource['title'][:30]}{'...' if len(resource['title']) > 30 else ''}")
+                    except Exception as e:
+                        logger.error(f"Error processing content: {e}")
+                        # Still save the extracted details even if processing fails
+                        processed_items.append(content_details)
+                else:
+                    # Just save the extracted details
+                    processed_items.append(content_details)
+                    logger.info(f"Extracted details for: {resource['title'][:30]}{'...' if len(resource['title']) > 30 else ''}")
+                
+            except Exception as e:
+                logger.error(f"Error processing resource: {e}")
+        
+        # Save all processed items for this subject
+        self.save_processed_items_to_json(processed_items, subject_name)
+        
+        logger.info(f"Processed {len(processed_items)} resources for {subject_name}")
+        return processed_items
+    
+    def save_processed_items_to_json(self, processed_items: List[Dict[str, Any]], subject_name: str):
+        """Save processed items to a JSON file."""
+        if not processed_items:
+            return
+            
+        # Create a safe filename
+        safe_subject = subject_name.replace(" ", "_").replace("/", "_")
+        filename = os.path.join(self.resources_dir, f"{safe_subject}_processed.json")
+        
         try:
-            # Get the list of targeted subjects
-            subjects = await self.get_subjects()
+            # Remove embeddings and large HTML content to save space
+            items_for_saving = []
+            for item in processed_items:
+                item_copy = item.copy()
+                if 'embedding' in item_copy:
+                    del item_copy['embedding']
+                if 'content_html' in item_copy and len(item_copy['content_html']) > 500:
+                    item_copy['content_html'] = item_copy['content_html'][:500] + "... [truncated]"
+                items_for_saving.append(item_copy)
             
-            if not subjects:
-                logger.error("No subjects found!")
-                return []
-            
-            # Apply subject limit if specified
-            if subject_limit and isinstance(subject_limit, int) and subject_limit > 0:
-                subjects = subjects[:subject_limit]
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(items_for_saving, f, indent=2)
                 
-            logger.info(f"Starting to scrape {len(subjects)} subjects")
-            
-            all_content_items = []
-            
-            # Process each subject
-            for subject_info in subjects:
-                subject_name = subject_info["name"]
-                subject_url = subject_info["url"]
-                
-                logger.info(f"Processing subject: {subject_name} at {subject_url}")
-                
-                try:
-                    # Extract content for this subject
-                    content_items = await self.extract_content_cards(subject_url, subject_name)
-                    all_content_items.extend(content_items)
-                    
-                    # Add a delay between subjects to avoid overloading the server
-                    await asyncio.sleep(2)
-                    
-                except Exception as e:
-                    logger.error(f"Error processing subject {subject_name}: {e}")
-            
-            logger.info(f"Completed scraping all subjects. Total content items: {len(all_content_items)}")
-            return all_content_items
+            logger.info(f"Saved {len(processed_items)} processed items to {filename}")
             
         except Exception as e:
-            logger.error(f"Error in scrape_all_subjects: {e}")
-            return []
+            logger.error(f"Error saving processed items to JSON: {e}")
+    
+    async def create_resource_index(self) -> Dict[str, Any]:
+        """
+        Create an index of all educational resources by subject.
+        
+        Returns:
+            Dictionary with subjects as keys and resource lists as values
+        """
+        # Path to the directory containing resource files
+        resources_dir = self.resources_dir
+        
+        # Dictionary to hold the index
+        index = {
+            "total_resources": 0,
+            "subjects": {}
+        }
+        
+        # Look for processed resource files
+        processed_files = [f for f in os.listdir(resources_dir) if f.endswith('_processed.json')]
+        
+        for file in processed_files:
+            try:
+                # Extract subject name from filename
+                subject_name = file.replace('_processed.json', '').replace('_', ' ')
+                
+                # Read the file
+                with open(os.path.join(resources_dir, file), 'r', encoding='utf-8') as f:
+                    resources = json.load(f)
+                
+                # Add to index
+                if subject_name not in index["subjects"]:
+                    index["subjects"][subject_name] = {
+                        "count": 0,
+                        "resources": []
+                    }
+                
+                # Add summary of each resource
+                for resource in resources:
+                    resource_summary = {
+                        "id": resource.get("id", ""),
+                        "title": resource.get("title", ""),
+                        "description": resource.get("description", ""),
+                        "url": resource.get("url", ""),
+                        "content_type": resource.get("content_type", ""),
+                        "difficulty_level": resource.get("difficulty_level", ""),
+                        "topics": resource.get("topics", [])
+                    }
+                    index["subjects"][subject_name]["resources"].append(resource_summary)
+                
+                # Update counts
+                index["subjects"][subject_name]["count"] = len(resources)
+                index["total_resources"] += len(resources)
+                
+            except Exception as e:
+                logger.error(f"Error processing file {file}: {e}")
+        
+        # Save the index to a JSON file
+        index_path = os.path.join(resources_dir, "resource_index.json")
+        try:
+            with open(index_path, 'w', encoding='utf-8') as f:
+                json.dump(index, f, indent=2)
+            logger.info(f"Saved resource index to {index_path}")
+        except Exception as e:
+            logger.error(f"Error saving resource index: {e}")
+        
+        return index
 
-async def run_scraper(subject_limit=None, save_to_search=True, headless=True):
+async def run_scraper(subject_limit=None, headless=True):
     """
-    Run the ABC Education scraper with multimedia support.
+    Run the simplified education scraper.
     
     Args:
-        subject_limit: Maximum number of subjects to scrape (None for all)
-        save_to_search: Whether to save content to Azure AI Search
+        subject_limit: Maximum number of subjects to process (None for all)
         headless: Whether to run browser in headless mode
         
     Returns:
-        All scraped content items
+        Dictionary with resource index
     """
-    scraper = EnhancedEducationScraper()
+    scraper = SimplifiedEducationScraper()
     
     try:
-        # Setup browser and content processor
+        # Setup browser
         await scraper.setup(headless=headless)
         
-        # Scrape all subjects (or limited number)
-        logger.info(f"Starting scraper with subject_limit={subject_limit}")
-        content_items = await scraper.scrape_all_subjects(subject_limit=subject_limit)
+        # Get subjects to process
+        subjects = SUBJECT_LINKS
+        if subject_limit and isinstance(subject_limit, int) and subject_limit > 0:
+            subjects = subjects[:subject_limit]
         
-        logger.info(f"Scraping completed. Found {len(content_items)} content items")
-        return content_items
+        logger.info(f"Starting scraper with {len(subjects)} subjects")
+        
+        # Process each subject
+        all_processed_items = []
+        for subject in subjects:
+            try:
+                processed_items = await scraper.process_subject(subject)
+                all_processed_items.extend(processed_items)
+                # Add a small delay between subjects
+                await asyncio.sleep(1)
+            except Exception as e:
+                logger.error(f"Error processing subject {subject['name']}: {e}")
+        
+        # Create resource index
+        resource_index = await scraper.create_resource_index()
+        
+        logger.info(f"Scraping completed. Processed {len(all_processed_items)} resources across {len(subjects)} subjects")
+        return resource_index
         
     except Exception as e:
         logger.error(f"Error running scraper: {e}")
-        return []
+        return {}
         
     finally:
         # Clean up resources
         await scraper.teardown()
 
 if __name__ == "__main__":
-    # Run the scraper directly
+    # Run the scraper with a limit of 2 subjects for testing
     asyncio.run(run_scraper(
         subject_limit=2,  # Limit to 2 subjects for testing
-        save_to_search=True,
         headless=False  # Run with visible browser for debugging
     ))
