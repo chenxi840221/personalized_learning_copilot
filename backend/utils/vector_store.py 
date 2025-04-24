@@ -1,0 +1,408 @@
+import logging
+from typing import List, Dict, Any, Optional
+import asyncio
+import numpy as np
+import os
+from datetime import datetime
+
+from azure.core.credentials import AzureKeyCredential
+from azure.search.documents.aio import SearchClient
+from azure.search.documents.models import Vector
+
+from config.settings import Settings
+from rag.openai_adapter import get_openai_adapter
+
+# Initialize settings
+settings = Settings()
+
+# Initialize logger
+logger = logging.getLogger(__name__)
+
+class ContentVectorStore:
+    """
+    Vector store for managing educational content embeddings using Azure AI Search.
+    Provides methods for adding, updating, and retrieving content based on vector similarity.
+    """
+    def __init__(self):
+        """Initialize the vector store."""
+        self.search_client = None
+        self.openai_client = None
+    
+    async def initialize(self):
+        """Initialize the search client and OpenAI client."""
+        # Initialize search client
+        self.search_client = SearchClient(
+            endpoint=settings.AZURE_SEARCH_ENDPOINT,
+            index_name=settings.AZURE_SEARCH_INDEX_NAME,
+            credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
+        )
+        
+        # Initialize OpenAI client for generating embeddings
+        self.openai_client = await get_openai_adapter()
+    
+    async def close(self):
+        """Close the search client."""
+        if self.search_client:
+            await self.search_client.close()
+    
+    async def add_content(self, content_item: Dict[str, Any]) -> bool:
+        """
+        Add content to the vector store.
+        
+        Args:
+            content_item: Content item to add
+            
+        Returns:
+            Success status
+        """
+        if not self.search_client:
+            await self.initialize()
+        
+        try:
+            # Ensure the content has an embedding
+            if "embedding" not in content_item:
+                text_for_embedding = self._prepare_text_for_embedding(content_item)
+                content_item["embedding"] = await self._generate_embedding(text_for_embedding)
+            
+            # Upload to search index
+            result = await self.search_client.upload_documents(documents=[content_item])
+            
+            # Check if successful
+            return result[0].succeeded
+            
+        except Exception as e:
+            logger.error(f"Error adding content to vector store: {e}")
+            return False
+    
+    async def add_batch(self, content_items: List[Dict[str, Any]], batch_size: int = 20) -> Dict[str, int]:
+        """
+        Add a batch of content items to the vector store.
+        
+        Args:
+            content_items: List of content items to add
+            batch_size: Size of each batch to upload
+            
+        Returns:
+            Dictionary with success and error counts
+        """
+        if not self.search_client:
+            await self.initialize()
+        
+        result_counts = {"success": 0, "error": 0}
+        
+        try:
+            # Process in batches
+            for i in range(0, len(content_items), batch_size):
+                batch = content_items[i:i+batch_size]
+                
+                # Generate embeddings for items that don't have them
+                for item in batch:
+                    if "embedding" not in item:
+                        text_for_embedding = self._prepare_text_for_embedding(item)
+                        item["embedding"] = await self._generate_embedding(text_for_embedding)
+                        # Add a small delay to avoid overwhelming the API
+                        await asyncio.sleep(0.1)
+                
+                # Upload batch
+                result = await self.search_client.upload_documents(documents=batch)
+                
+                # Count successes and failures
+                for idx, upload_result in enumerate(result):
+                    if upload_result.succeeded:
+                        result_counts["success"] += 1
+                    else:
+                        result_counts["error"] += 1
+                        logger.error(f"Failed to upload document: {upload_result.key}, {upload_result.error_message}")
+                
+                # Add delay between batches to avoid throttling
+                await asyncio.sleep(1)
+            
+            return result_counts
+            
+        except Exception as e:
+            logger.error(f"Error adding batch to vector store: {e}")
+            return result_counts
+    
+    async def update_content(self, content_id: str, updated_fields: Dict[str, Any]) -> bool:
+        """
+        Update specific fields of a content item.
+        
+        Args:
+            content_id: ID of the content to update
+            updated_fields: Dictionary of fields to update
+            
+        Returns:
+            Success status
+        """
+        if not self.search_client:
+            await self.initialize()
+        
+        try:
+            # Get the existing document
+            existing_doc = await self.search_client.get_document(key=content_id)
+            
+            if not existing_doc:
+                logger.error(f"Content with ID {content_id} not found")
+                return False
+            
+            # Convert to dictionary
+            doc_dict = dict(existing_doc)
+            
+            # Update fields
+            doc_dict.update(updated_fields)
+            
+            # Check if we need to update the embedding
+            need_embedding_update = False
+            for field in ["title", "description", "subject", "topics", "keywords"]:
+                if field in updated_fields:
+                    need_embedding_update = True
+                    break
+            
+            # If text content or transcription was updated, we should update the embedding
+            if "metadata" in updated_fields:
+                metadata = updated_fields["metadata"]
+                if "content_text" in metadata or "transcription" in metadata:
+                    need_embedding_update = True
+            
+            # Update embedding if needed
+            if need_embedding_update:
+                text_for_embedding = self._prepare_text_for_embedding(doc_dict)
+                doc_dict["embedding"] = await self._generate_embedding(text_for_embedding)
+            
+            # Upload the updated document
+            result = await self.search_client.upload_documents(documents=[doc_dict])
+            
+            return result[0].succeeded
+            
+        except Exception as e:
+            logger.error(f"Error updating content in vector store: {e}")
+            return False
+    
+    async def delete_content(self, content_id: str) -> bool:
+        """
+        Delete a content item from the vector store.
+        
+        Args:
+            content_id: ID of the content to delete
+            
+        Returns:
+            Success status
+        """
+        if not self.search_client:
+            await self.initialize()
+        
+        try:
+            # Delete the document
+            result = await self.search_client.delete_documents(documents=[{"id": content_id}])
+            
+            return result[0].succeeded
+            
+        except Exception as e:
+            logger.error(f"Error deleting content from vector store: {e}")
+            return False
+    
+    async def vector_search(
+        self, 
+        query_text: str, 
+        filter_expression: Optional[str] = None, 
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for content using vector similarity.
+        
+        Args:
+            query_text: Text to search for
+            filter_expression: Optional OData filter expression
+            limit: Maximum number of results to return
+            
+        Returns:
+            List of matching content items
+        """
+        if not self.search_client:
+            await self.initialize()
+        
+        try:
+            # Generate embedding for query
+            query_embedding = await self._generate_embedding(query_text)
+            
+            # Create vector query
+            vector_query = Vector(
+                value=query_embedding,
+                k=limit,
+                fields="embedding",
+                exhaustive=True
+            )
+            
+            # Execute search
+            results = await self.search_client.search(
+                search_text=None,
+                vectors=[vector_query],
+                filter=filter_expression,
+                top=limit
+            )
+            
+            # Convert results to list of dictionaries
+            content_items = []
+            async for result in results:
+                content_items.append(dict(result))
+            
+            return content_items
+            
+        except Exception as e:
+            logger.error(f"Error in vector search: {e}")
+            return []
+    
+    async def get_content(self, content_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a specific content item by ID.
+        
+        Args:
+            content_id: ID of the content to retrieve
+            
+        Returns:
+            Content item or None if not found
+        """
+        if not self.search_client:
+            await self.initialize()
+        
+        try:
+            # Get the document
+            result = await self.search_client.get_document(key=content_id)
+            
+            if result:
+                return dict(result)
+            else:
+                logger.warning(f"Content with ID {content_id} not found")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error getting content: {e}")
+            return None
+    
+    async def filter_search(
+        self, 
+        filter_expression: str,
+        order_by: Optional[List[str]] = None,
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for content using filter expressions.
+        
+        Args:
+            filter_expression: OData filter expression
+            order_by: Optional list of fields to sort by
+            limit: Maximum number of results to return
+            
+        Returns:
+            List of matching content items
+        """
+        if not self.search_client:
+            await self.initialize()
+        
+        try:
+            # Execute search
+            results = await self.search_client.search(
+                search_text="*",
+                filter=filter_expression,
+                order_by=order_by,
+                top=limit
+            )
+            
+            # Convert results to list of dictionaries
+            content_items = []
+            async for result in results:
+                content_items.append(dict(result))
+            
+            return content_items
+            
+        except Exception as e:
+            logger.error(f"Error in filter search: {e}")
+            return []
+    
+    async def _generate_embedding(self, text: str) -> List[float]:
+        """
+        Generate embedding for text using Azure OpenAI.
+        
+        Args:
+            text: Text to embed
+            
+        Returns:
+            Vector embedding
+        """
+        try:
+            if not self.openai_client:
+                self.openai_client = await get_openai_adapter()
+                
+            embedding = await self.openai_client.create_embedding(
+                model=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
+                text=text
+            )
+            
+            return embedding
+            
+        except Exception as e:
+            logger.error(f"Error generating embedding: {e}")
+            # Fall back to empty embedding vector with appropriate dimensions
+            return [0.0] * 1536  # Default dimension for text-embedding-ada-002
+    
+    def _prepare_text_for_embedding(self, content_item: Dict[str, Any]) -> str:
+        """
+        Prepare text for embedding by combining relevant fields.
+        
+        Args:
+            content_item: Content item with fields
+            
+        Returns:
+            Text prepared for embedding
+        """
+        # Start with the basic content info
+        text_parts = [
+            f"Title: {content_item.get('title', '')}",
+            f"Subject: {content_item.get('subject', '')}"
+        ]
+        
+        # Add description if available
+        if content_item.get('description'):
+            text_parts.append(f"Description: {content_item['description']}")
+        
+        # Add topics if available
+        if content_item.get('topics'):
+            topics_text = ', '.join(content_item['topics']) if isinstance(content_item['topics'], list) else content_item['topics']
+            text_parts.append(f"Topics: {topics_text}")
+        
+        # Add keywords if available
+        if content_item.get('keywords'):
+            keywords_text = ', '.join(content_item['keywords']) if isinstance(content_item['keywords'], list) else content_item['keywords']
+            text_parts.append(f"Keywords: {keywords_text}")
+        
+        # Add content text or transcription if available in metadata
+        metadata = content_item.get('metadata', {})
+        content_text = metadata.get('content_text', '')
+        transcription = metadata.get('transcription', '')
+        
+        if content_text:
+            # Add truncated content text if it's long
+            if len(content_text) > 2000:
+                text_parts.append(f"Content: {content_text[:2000]}...")
+            else:
+                text_parts.append(f"Content: {content_text}")
+        elif transcription:
+            # Add truncated transcription if it's long
+            if len(transcription) > 2000:
+                text_parts.append(f"Transcription: {transcription[:2000]}...")
+            else:
+                text_parts.append(f"Transcription: {transcription}")
+        
+        # Join all parts with newlines
+        return "\n".join(text_parts)
+
+# Singleton instance
+vector_store = None
+
+async def get_vector_store():
+    """Get or create vector store singleton."""
+    global vector_store
+    if vector_store is None:
+        vector_store = ContentVectorStore()
+        await vector_store.initialize()
+    return vector_store
