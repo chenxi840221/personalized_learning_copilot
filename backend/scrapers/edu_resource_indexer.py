@@ -140,6 +140,8 @@ class EducationResourceIndexer:
         ]
         
         age_groups = []
+        
+        # Find specific age groups (excluding "All Years")
         for selector in age_group_selectors:
             tabs = await self.page.query_selector_all(selector)
             if tabs:
@@ -151,23 +153,26 @@ class EducationResourceIndexer:
                         text = await tab.text_content()
                         
                         if href and text:
-                            # Check for age group pattern in href (e.g., #years-f-2)
-                            if "#years" in href or "all-years" in href:
-                                # Extract the fragment from the URL
-                                fragment = href.split("#")[-1] if "#" in href else ""
-                                
-                                # Clean the age group text
-                                age_group = text.strip()
-                                
-                                # Skip if it's not an age group tab
-                                if not (age_group.lower().startswith(("year", "all", "foundation")) or 
-                                       re.search(r"f-\d+|years \d+-\d+|\d+-\d+", age_group.lower())):
-                                    continue
-                                
+                            # Extract the fragment from the URL
+                            fragment = href.split("#")[-1] if "#" in href else ""
+                            
+                            # Clean the age group text
+                            age_group = text.strip()
+                            
+                            # Skip if it's not an age group tab or if it's "All Years" or contains "all-years"
+                            if (not (age_group.lower().startswith(("year", "foundation")) or 
+                                   re.search(r"f-\d+|years \d+-\d+|\d+-\d+", age_group.lower())) or
+                                   age_group.lower() == "all years" or
+                                   "all-years" in href.lower()):
+                                continue
+                            
+                            # Check if this age group is already in our list
+                            if not any(ag["name"] == age_group for ag in age_groups):
                                 age_groups.append({
                                     "name": age_group,
                                     "fragment": fragment,
-                                    "url": f"{subject_url}#{fragment}" if fragment else subject_url
+                                    "url": f"{subject_url}#{fragment}" if fragment else subject_url,
+                                    "is_default": False
                                 })
                                 logger.info(f"Found age group: {age_group} ({fragment})")
                     except Exception as e:
@@ -177,24 +182,17 @@ class EducationResourceIndexer:
                 if age_groups:
                     break
         
-        # If no age groups found, add a default "All Years" entry
-        if not age_groups:
-            logger.info("No specific age groups found, using 'All Years' as default")
-            age_groups.append({
-                "name": "All Years",
-                "fragment": "all-years",
-                "url": subject_url
-            })
-        
+        logger.info(f"Discovered {len(age_groups)} age groups: {[ag['name'] for ag in age_groups]}")
         return age_groups
     
-    async def find_education_resources(self, subject_link: Dict[str, str], age_group: Dict[str, str]) -> List[Dict[str, str]]:
+    async def find_education_resources(self, subject_link: Dict[str, str], age_group: Dict[str, str], max_retry=3) -> List[Dict[str, str]]:
         """
         Find all education resource links for a subject and age group.
         
         Args:
             subject_link: Dictionary with subject name and URL
             age_group: Dictionary with age group name and URL fragment
+            max_retry: Maximum number of retries if no resources found
             
         Returns:
             List of dictionaries with resource title, URL, subject, and age group
@@ -202,6 +200,12 @@ class EducationResourceIndexer:
         subject_name = subject_link["name"]
         age_group_name = age_group["name"]
         age_group_url = age_group["url"]
+        fragment = age_group.get("fragment", "")
+        
+        # Skip if URL contains all-years
+        if "all-years" in age_group_url:
+            logger.info(f"Skipping all-years URL: {age_group_url}")
+            return []
         
         logger.info(f"Finding education resources for {subject_name} - {age_group_name} at {age_group_url}")
         
@@ -214,120 +218,293 @@ class EducationResourceIndexer:
         await self.save_screenshot(f"subject_{safe_name}")
         await self.save_html(f"subject_{safe_name}")
         
-        # Wait for age-specific content to load (after clicking the tab)
-        if age_group["fragment"] != "all-years" and "#" in age_group_url:
-            try:
-                # Find and click the tab for this age group if fragment is present
-                tab_selector = f"a[href*='#{age_group['fragment']}']"
-                tab = await self.page.query_selector(tab_selector)
-                if tab:
-                    await tab.click()
-                    logger.info(f"Clicked tab for age group: {age_group_name}")
-                    # Wait for content to update
-                    await asyncio.sleep(2)
-                    await self.page.wait_for_load_state("networkidle")
-                    # Take another screenshot after clicking
-                    await self.save_screenshot(f"subject_{safe_name}_after_click")
-            except Exception as e:
-                logger.error(f"Error clicking age group tab: {e}")
+        # Check if we need to click on a tab to show age-specific content
+        resources = []
+        retries = 0
         
-        # Get the main content area
-        main_content_selectors = [
-            "main",
-            "#main",
-            ".main-content",
-            "article",
-            ".content-main",
-            ".content-wrapper",
-            "body"  # Fallback to body if no other containers found
-        ]
-        
-        main_content = None
-        for selector in main_content_selectors:
-            content = await self.page.query_selector(selector)
-            if content:
-                main_content = content
-                logger.info(f"Found main content with selector: {selector}")
+        while len(resources) == 0 and retries < max_retry:
+            if retries > 0:
+                logger.info(f"Retry {retries} for {subject_name} - {age_group_name}")
+            
+            # Handle age group tab clicking strategy
+            if fragment and retries == 0:
+                try:
+                    # Try different tab selection strategies
+                    tab_selectors = [
+                        f"a[href*='#{fragment}']",
+                        f"a[data-testid='{fragment}']",
+                        f"a[data-value='{fragment}']",
+                        f"a[aria-controls='{fragment}']",
+                        f"a:has-text('{age_group_name}')"
+                    ]
+                    
+                    tab_clicked = False
+                    for selector in tab_selectors:
+                        tab = await self.page.query_selector(selector)
+                        if tab and await tab.is_visible():
+                            await tab.click()
+                            tab_clicked = True
+                            logger.info(f"Clicked tab for age group using selector: {selector}")
+                            # Wait for content to update
+                            await asyncio.sleep(2)
+                            await self.page.wait_for_load_state("networkidle")
+                            # Take another screenshot after clicking
+                            await self.save_screenshot(f"subject_{safe_name}_after_click")
+                            await self.save_html(f"subject_{safe_name}_after_click")
+                            break
+                            
+                    if not tab_clicked:
+                        logger.warning(f"Could not find clickable tab for age group: {age_group_name}")
+                except Exception as e:
+                    logger.error(f"Error clicking age group tab: {e}")
+            
+            # Different retry strategies
+            if retries == 1:
+                # Second try: reload page and wait longer
+                await self.page.reload(wait_until="networkidle")
+                await asyncio.sleep(3)
+            elif retries == 2:
+                # Third try: try clicking the tab again with a different approach
+                if fragment:
+                    try:
+                        # Click any element that looks like the age group
+                        elements = await self.page.query_selector_all("a, button, li, div")
+                        for element in elements:
+                            text = await element.text_content()
+                            if text and age_group_name.lower() in text.lower() and await element.is_visible():
+                                await element.click()
+                                logger.info(f"Clicked element with text matching age group: {text}")
+                                await asyncio.sleep(2)
+                                break
+                    except Exception as e:
+                        logger.error(f"Error in alternate tab clicking: {e}")
+            
+            # Get the main content area
+            main_content_selectors = [
+                "main",
+                "#main",
+                ".main-content",
+                "article",
+                ".content-main",
+                ".content-wrapper",
+                ".content-block-tiles__container",  # ABC Education specific content container
+                ".content-body",
+                "body"  # Fallback to body if no other containers found
+            ]
+            
+            main_content = None
+            for selector in main_content_selectors:
+                content = await self.page.query_selector(selector)
+                if content:
+                    main_content = content
+                    logger.info(f"Found main content with selector: {selector}")
+                    break
+            
+            if not main_content:
+                logger.warning(f"Could not find main content area for {subject_name} - {age_group_name}")
+                retries += 1
+                continue
+            
+            # Find all links in the main content
+            links = await main_content.query_selector_all("a")
+            logger.info(f"Found {len(links)} links in the main content for {subject_name} - {age_group_name}")
+            
+            # Get resource containers - sometimes resources are in cards or tiles
+            resource_container_selectors = [
+                ".content-card",
+                ".content-tile",
+                ".card",
+                ".tile",
+                ".resource-item",
+                ".content-block-tiles__item",
+                "li.tile",
+                "article"
+            ]
+            
+            resource_containers = []
+            for selector in resource_container_selectors:
+                containers = await self.page.query_selector_all(selector)
+                if containers and len(containers) > 0:
+                    logger.info(f"Found {len(containers)} resource containers with selector: {selector}")
+                    resource_containers.extend(containers)
+            
+            # Process resource containers if found
+            if resource_containers:
+                for container in resource_containers:
+                    try:
+                        # Find the link inside the container
+                        container_link = await container.query_selector("a")
+                        if not container_link:
+                            continue
+                        
+                        # Get href and title
+                        href = await container_link.get_attribute("href")
+                        if not href:
+                            continue
+                        
+                        # Skip URLs with #all-years
+                        if "#all-years" in href:
+                            continue
+                        
+                        # Make absolute URL if needed
+                        if href.startswith('/'):
+                            href = urljoin(self.base_url, href)
+                        
+                        # Skip non-ABC links or navigation links
+                        if not ('abc.net.au' in href and '/education/' in href):
+                            continue
+                        
+                        # Skip if it's the current subject page
+                        if href == subject_link["url"]:
+                            continue
+                        
+                        # Skip if it contains hash fragments (likely tab navigation)
+                        if "#" in href:
+                            continue
+                        
+                        # Get title - first try the link text, then look for heading elements
+                        title = await container_link.text_content()
+                        if not title or len(title.strip()) < 3:
+                            heading = await container.query_selector("h1, h2, h3, h4, h5, h6")
+                            if heading:
+                                title = await heading.text_content()
+                        
+                        title = title.strip() if title else ""
+                        
+                        # Skip if no title
+                        if not title:
+                            continue
+                        
+                        # This looks like a resource - add to list
+                        resources.append({
+                            "title": title,
+                            "url": href,
+                            "subject": subject_name,
+                            "age_group": age_group_name
+                        })
+                        logger.info(f"Found resource from container: {title[:40]}{'...' if len(title) > 40 else ''}")
+                    except Exception as e:
+                        logger.error(f"Error processing resource container: {e}")
+            
+            # If no resources found from containers, fall back to processing all links
+            if not resources:
+                for link in links:
+                    try:
+                        # Get href and text
+                        href = await link.get_attribute("href")
+                        if not href:
+                            continue
+                        
+                        # Skip URLs with #all-years
+                        if "#all-years" in href:
+                            continue
+                        
+                        # Make absolute URL if needed
+                        if href.startswith('/'):
+                            href = urljoin(self.base_url, href)
+                        
+                        # Skip non-ABC links or navigation links
+                        if not ('abc.net.au' in href and '/education/' in href):
+                            continue
+                        
+                        # Skip if it's the current subject page
+                        if href == subject_link["url"]:
+                            continue
+                        
+                        # Skip if it contains hash fragments (likely tab navigation)
+                        if "#" in href:
+                            continue
+                        
+                        # Get text content
+                        text = await link.text_content()
+                        text = text.strip() if text else ""
+                        
+                        # Skip if no text or very short text (likely UI elements)
+                        if not text or len(text) < 5:
+                            continue
+                        
+                        # Check if it's not in a typical navigation element
+                        is_navigation = await link.evaluate("""el => {
+                            let parent = el.parentElement;
+                            for (let i = 0; i < 5 && parent; i++) {
+                                if (parent.tagName && ['NAV', 'HEADER', 'FOOTER'].includes(parent.tagName)) {
+                                    return true;
+                                }
+                                if (parent.className && ['nav', 'header', 'footer', 'menu', 'navigation'].some(c => parent.className.includes(c))) {
+                                    return true;
+                                }
+                                parent = parent.parentElement;
+                            }
+                            return false;
+                        }""")
+                        
+                        if is_navigation:
+                            continue
+                        
+                        # Check if it looks like a content link - has some visual prominence
+                        # like being in a card, having a heading as parent or being styled prominently
+                        is_content_link = await link.evaluate("""el => {
+                            // Check if inside a card or tile-like element
+                            let parent = el.parentElement;
+                            for (let i = 0; i < 4 && parent; i++) {
+                                if (parent.className && ['card', 'tile', 'item', 'content-'].some(c => parent.className.includes(c))) {
+                                    return true;
+                                }
+                                parent = parent.parentElement;
+                            }
+                            
+                            // Check if the link is a heading or has a heading as a child
+                            if (el.tagName && ['H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(el.tagName)) {
+                                return true;
+                            }
+                            
+                            if (el.querySelector('h1, h2, h3, h4, h5, h6')) {
+                                return true;
+                            }
+                            
+                            // Check if link has an image
+                            if (el.querySelector('img')) {
+                                return true;
+                            }
+                            
+                            // Check if link text is prominent (not too short, not too long)
+                            if (el.textContent && el.textContent.trim().length > 10 && el.textContent.trim().length < 100) {
+                                return true;
+                            }
+                            
+                            return false;
+                        }""")
+                        
+                        if not is_content_link and retries < 2:
+                            continue
+                        
+                        # Looks like an education resource - add to list
+                        resources.append({
+                            "title": text,
+                            "url": href,
+                            "subject": subject_name,
+                            "age_group": age_group_name
+                        })
+                        logger.info(f"Found resource: {text[:40]}{'...' if len(text) > 40 else ''}")
+                        
+                    except Exception as e:
+                        logger.error(f"Error processing link: {e}")
+            
+            retries += 1
+            
+            # If we found resources, no need to retry
+            if resources:
                 break
+                
+            logger.warning(f"No resources found for {subject_name} - {age_group_name} on attempt {retries}. Retrying...")
+            await asyncio.sleep(1)
         
-        if not main_content:
-            logger.warning(f"Could not find main content area for {subject_name} - {age_group_name}")
-            return []
-        
-        # Find all links in the main content
-        links = await main_content.query_selector_all("a")
-        logger.info(f"Found {len(links)} links in the main content for {subject_name} - {age_group_name}")
-        
-        # Filter links to identify education resources
-        resource_links = []
-        
-        for link in links:
-            try:
-                # Get href and text
-                href = await link.get_attribute("href")
-                if not href:
-                    continue
-                
-                # Make absolute URL if needed
-                if href.startswith('/'):
-                    href = urljoin(self.base_url, href)
-                
-                # Skip non-ABC links or navigation links
-                if not ('abc.net.au' in href and '/education/' in href):
-                    continue
-                
-                # Skip if it's the current subject page
-                if href == subject_link["url"]:
-                    continue
-                
-                # Skip if it contains hash fragments (likely tab navigation)
-                if "#" in href:
-                    continue
-                
-                # Get text content
-                text = await link.text_content()
-                text = text.strip()
-                
-                # Skip if no text or very short text (likely UI elements)
-                if not text or len(text) < 5:
-                    continue
-                
-                # Check if it's not in a typical navigation element
-                parent_element = await link.evaluate("""el => {
-                    let parent = el.parentElement;
-                    for (let i = 0; i < 5 && parent; i++) {
-                        if (parent.tagName && ['NAV', 'HEADER', 'FOOTER'].includes(parent.tagName)) {
-                            return false;
-                        }
-                        if (parent.className && ['nav', 'header', 'footer', 'menu', 'navigation'].some(c => parent.className.includes(c))) {
-                            return false;
-                        }
-                        parent = parent.parentElement;
-                    }
-                    return true;
-                }""")
-                
-                if not parent_element:
-                    continue
-                
-                # Looks like an education resource - add to list
-                resource_links.append({
-                    "title": text,
-                    "url": href,
-                    "subject": subject_name,
-                    "age_group": age_group_name
-                })
-                logger.info(f"Found resource: {text[:40]}{'...' if len(text) > 40 else ''}")
-                
-            except Exception as e:
-                logger.error(f"Error processing link: {e}")
-        
-        logger.info(f"Identified {len(resource_links)} education resources for {subject_name} - {age_group_name}")
+        logger.info(f"Identified {len(resources)} education resources for {subject_name} - {age_group_name}")
         
         # Save the resource links to a JSON file
-        self.save_resource_links_to_json(resource_links, subject_name, age_group_name)
+        self.save_resource_links_to_json(resources, subject_name, age_group_name)
         
-        return resource_links
+        return resources
     
     def save_resource_links_to_json(self, resource_links: List[Dict[str, str]], subject_name: str, age_group_name: str = None):
         """Save resource links to a JSON file."""
@@ -358,7 +535,9 @@ class EducationResourceIndexer:
             "button:has-text('Show more')",
             "button.load-more",
             ".content-block-tiles__load-more",
-            "[data-testid='load-more-button']"
+            "[data-testid='load-more-button']",
+            ".load-more button",
+            ".show-more button"
         ]
         
         for selector in load_more_selectors:
@@ -370,6 +549,7 @@ class EducationResourceIndexer:
                     await button.click()
                     # Wait for new content to load
                     await asyncio.sleep(2)
+                    await self.page.wait_for_load_state("networkidle")
                     return True
             except Exception as e:
                 logger.debug(f"Could not click button with selector '{selector}': {e}")
@@ -383,6 +563,7 @@ class EducationResourceIndexer:
                     logger.info("Clicking 'Load more' button found by text")
                     await button.click()
                     await asyncio.sleep(2)
+                    await self.page.wait_for_load_state("networkidle")
                     return True
         except Exception as e:
             logger.debug(f"Could not find 'Load more' button by text: {e}")
@@ -407,6 +588,12 @@ class EducationResourceIndexer:
         """
         subject_name = subject_link["name"]
         age_group_name = age_group["name"]
+        
+        # Skip if this is an all-years URL
+        if "all-years" in age_group.get("fragment", "") or "all-years" in age_group.get("url", ""):
+            logger.info(f"Skipping all-years age group: {subject_name} - {age_group_name}")
+            return []
+        
         logger.info(f"Processing subject: {subject_name} - Age group: {age_group_name}")
         
         # Find initial education resources
@@ -446,7 +633,7 @@ class EducationResourceIndexer:
         
         return resources
     
-    async def process_subject(self, subject_link: Dict[str, str], max_pages: int = 10) -> List[Dict[str, str]]:
+    async def process_subject(self, subject_link: Dict[str, str], max_pages: int = 10) -> Dict[str, Any]:
         """
         Process a subject to discover age groups and extract resources for each age group.
         
@@ -455,7 +642,7 @@ class EducationResourceIndexer:
             max_pages: Maximum number of pages to process per age group
             
         Returns:
-            List of all resource links across all age groups
+            Dictionary with resources by age group
         """
         subject_name = subject_link["name"]
         subject_url = subject_link["url"]
@@ -467,29 +654,70 @@ class EducationResourceIndexer:
         
         if not age_groups:
             logger.warning(f"No age groups found for {subject_name}. Using default.")
-            age_groups = [{
-                "name": "All Years",
-                "fragment": "",
-                "url": subject_url
-            }]
+            # Using a specific age group range when no age groups found
+            age_groups = [
+                {
+                    "name": "Years F-2",
+                    "fragment": "years-f-2",
+                    "url": f"{subject_url}#years-f-2",
+                    "is_default": False
+                },
+                {
+                    "name": "Years 3-4", 
+                    "fragment": "years-3-4",
+                    "url": f"{subject_url}#years-3-4",
+                    "is_default": False
+                },
+                {
+                    "name": "Years 5-6",
+                    "fragment": "years-5-6",
+                    "url": f"{subject_url}#years-5-6",
+                    "is_default": False
+                }
+            ]
         
-        logger.info(f"Found {len(age_groups)} age groups for {subject_name}: {[g['name'] for g in age_groups]}")
+        # Filter out all-years age groups
+        filtered_age_groups = [
+            g for g in age_groups 
+            if "all-years" not in g.get("fragment", "") and "all-years" not in g.get("url", "")
+        ]
+        
+        logger.info(f"Found {len(filtered_age_groups)} specific age groups for {subject_name}: {[g['name'] for g in filtered_age_groups]}")
         
         # Process each age group
-        all_resources = []
-        for age_group in age_groups:
+        result = {
+            "subject_name": subject_name,
+            "subject_url": subject_url,
+            "age_groups": {},
+            "all_resources": []
+        }
+        
+        for age_group in filtered_age_groups:
             try:
                 resources = await self.process_subject_age_group(subject_link, age_group, max_pages)
-                all_resources.extend(resources)
+                
+                # Add to the result structure
+                result["age_groups"][age_group["name"]] = {
+                    "resources": resources,
+                    "count": len(resources)
+                }
+                
+                # Add resources to the all_resources list, avoiding duplicates
+                existing_urls = {r["url"] for r in result["all_resources"]}
+                for resource in resources:
+                    if resource["url"] not in existing_urls:
+                        result["all_resources"].append(resource)
+                        existing_urls.add(resource["url"])
+                
                 # Add a small delay between age groups
                 await asyncio.sleep(2)
             except Exception as e:
                 logger.error(f"Error processing age group {age_group['name']} for subject {subject_name}: {e}")
         
         # Save combined resources for all age groups
-        self.save_resource_links_to_json(all_resources, subject_name)
+        self.save_resource_links_to_json(result["all_resources"], subject_name)
         
-        return all_resources
+        return result
     
     async def create_resource_index(self) -> Dict[str, Any]:
         """
@@ -519,6 +747,10 @@ class EducationResourceIndexer:
                 if len(file_parts) > 1:
                     age_group = ' '.join(file_parts[1:]).replace('_', ' ')
                 
+                # Skip if all-years is in the age group
+                if age_group and "all-years" in age_group.lower():
+                    continue
+                
                 # Read the file
                 with open(os.path.join(self.output_dir, file), 'r', encoding='utf-8') as f:
                     resources = json.load(f)
@@ -539,26 +771,42 @@ class EducationResourceIndexer:
                             "resources": resources
                         }
                     else:
-                        # Append resources if age group already exists
-                        index["subjects"][subject_name]["age_groups"][age_group]["resources"].extend(resources)
+                        # Merge resources if age group already exists (avoiding duplicates)
+                        existing_urls = {r["url"] for r in index["subjects"][subject_name]["age_groups"][age_group]["resources"]}
+                        for resource in resources:
+                            if resource["url"] not in existing_urls:
+                                index["subjects"][subject_name]["age_groups"][age_group]["resources"].append(resource)
+                                existing_urls.add(resource["url"])
+                        
                         index["subjects"][subject_name]["age_groups"][age_group]["count"] = len(index["subjects"][subject_name]["age_groups"][age_group]["resources"])
+                else:
+                    # This is the combined file for all age groups
+                    # Merge resources (avoiding duplicates)
+                    existing_urls = {r["url"] for r in index["subjects"][subject_name]["resources"]}
+                    for resource in resources:
+                        if resource["url"] not in existing_urls:
+                            index["subjects"][subject_name]["resources"].append(resource)
+                            existing_urls.add(resource["url"])
                 
-                # Add all resources to the main subject list as well
-                index["subjects"][subject_name]["resources"].extend(resources)
+                # Update subject count
                 index["subjects"][subject_name]["count"] = len(index["subjects"][subject_name]["resources"])
-                
-                # Update total count
-                index["total_resources"] += len(resources)
                 
             except Exception as e:
                 logger.error(f"Error processing resource file {file}: {e}")
+        
+        # Calculate total resources across all subjects
+        total = 0
+        for subject in index["subjects"].values():
+            total += subject["count"]
+        
+        index["total_resources"] = total
         
         # Save the complete index
         index_path = os.path.join(self.output_dir, "resource_index.json")
         try:
             with open(index_path, 'w', encoding='utf-8') as f:
                 json.dump(index, f, indent=2)
-            logger.info(f"Saved complete resource index to {index_path}")
+            logger.info(f"Saved complete resource index to {index_path} with {total} resources")
         except Exception as e:
             logger.error(f"Error saving resource index: {e}")
         
@@ -590,11 +838,11 @@ async def run_indexer(subject_limit=None, headless=True, max_pages_per_subject=1
         logger.info(f"Starting indexer with {len(subjects)} subjects")
         
         # Process each subject
-        all_resources = []
+        all_results = {}
         for subject in subjects:
             try:
-                subject_resources = await indexer.process_subject(subject, max_pages=max_pages_per_subject)
-                all_resources.extend(subject_resources)
+                subject_result = await indexer.process_subject(subject, max_pages=max_pages_per_subject)
+                all_results[subject["name"]] = subject_result
                 # Add a small delay between subjects
                 await asyncio.sleep(2)
             except Exception as e:
@@ -603,7 +851,7 @@ async def run_indexer(subject_limit=None, headless=True, max_pages_per_subject=1
         # Create comprehensive resource index
         resource_index = await indexer.create_resource_index()
         
-        logger.info(f"Indexing completed. Found {len(all_resources)} resources across {len(subjects)} subjects with age groups")
+        logger.info(f"Indexing completed. Found {resource_index['total_resources']} resources across {len(subjects)} subjects")
         return resource_index
         
     except Exception as e:
