@@ -1,4 +1,5 @@
-# utils/vector_compat.py
+# backend/utils/vector_compat.py
+
 """
 Compatibility module for Azure Search Vector class.
 This module provides the Vector class for different versions of the Azure Search SDK.

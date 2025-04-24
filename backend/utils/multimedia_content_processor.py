@@ -15,8 +15,9 @@ from azure.cognitiveservices.vision.computervision.models import OperationStatus
 from msrest.authentication import CognitiveServicesCredentials
 
 # For vector store
+from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.aio import SearchClient
-from azure.search.documents.models import Vector
+from utils.vector_compat import Vector  # Updated import
 
 from models.content import Content, ContentType
 from config.settings import Settings
