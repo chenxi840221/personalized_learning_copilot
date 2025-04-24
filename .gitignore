@@ -105,7 +105,8 @@ certs/
 .DS_Store
 Thumbs.db
 
-
+# debug_output
 debug_output/
 backend/debug_output/
 backend/education_resources/
+*.json
