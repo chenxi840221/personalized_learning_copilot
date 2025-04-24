@@ -138,6 +138,8 @@ debug_output/
 education_resources/
 backend/debug_output/
 backend/education_resources/
+**/debug_output/
+**/education_resources/
 *_debug_info/
 *_output/
 *.debug
