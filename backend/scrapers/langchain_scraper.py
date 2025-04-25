@@ -19,7 +19,7 @@ from urllib.parse import urljoin
 from langchain.document_loaders import WebBaseLoader, BSHTMLLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings import AzureOpenAIEmbeddings
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 from langchain.chat_models import AzureChatOpenAI
 from langchain.chains import create_extraction_chain
 from langchain.schema import Document
@@ -607,8 +607,7 @@ class LangChainScraperManager:
                     metadata["content_type"] = "interactive"
                 else:
                     metadata["content_type"] = "article"
-            
-            # Create vector store if embeddings are available
+# Create vector store if embeddings are available
             if self.azure_embeddings and chunks:
                 # Create document objects with metadata for each chunk
                 docs = [
