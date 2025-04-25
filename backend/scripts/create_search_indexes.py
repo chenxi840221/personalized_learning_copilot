@@ -1,4 +1,3 @@
-# backend/scripts/create_search_indexes.py
 #!/usr/bin/env python3
 """
 Create Azure Search indexes for the Personalized Learning Co-pilot project.

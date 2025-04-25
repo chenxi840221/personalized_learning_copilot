@@ -1,4 +1,3 @@
-# backend/rag/openai_adapter.py
 import logging
 from typing import List, Dict, Any, Optional
 import openai
@@ -86,14 +85,10 @@ class OpenAIAdapter:
                 input=text
             )
             
-            # Extract the embedding and return as a flat list
-            if "data" in response and len(response["data"]) > 0:
-                # Return the embedding directly as a flat list, not nested
-                return response["data"][0]["embedding"]
-            else:
-                logger.error("No embedding data returned from OpenAI API")
-                return [0.0] * 1536  # Default dimension for empty embedding
-                
+            # Extract the embedding
+            embedding = response["data"][0]["embedding"]
+            return embedding
+            
         except Exception as e:
             logger.error(f"Error creating embedding: {e}")
             raise
