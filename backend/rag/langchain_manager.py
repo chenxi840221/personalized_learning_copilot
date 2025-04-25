@@ -75,7 +75,9 @@ class LangChainManager:
                     azure_search_endpoint=settings.AZURE_SEARCH_ENDPOINT,
                     azure_search_key=settings.AZURE_SEARCH_KEY,
                     index_name=settings.AZURE_SEARCH_INDEX_NAME,
-                    embedding_function=self.embeddings.embed_query
+                    embedding_function=self.embeddings.embed_query,
+                    vector_field_name="embedding",  # Explicitly set vector field name
+                    text_field_name="page_content",  # Use page_content instead of "content"
                 )
                 
                 # Create retriever
@@ -233,8 +235,19 @@ class LangChainManager:
                 return False
             
         try:
-            # Add texts to vector store
-            self.vector_store.add_texts(texts=texts, metadatas=metadatas)
+            # Create Document objects
+            documents = []
+            for i, text in enumerate(texts):
+                metadata = {}
+                if metadatas and i < len(metadatas):
+                    metadata = metadatas[i]
+                    
+                # Create Document object with text in page_content field
+                doc = Document(page_content=text, metadata=metadata)
+                documents.append(doc)
+            
+            # Add documents to vector store
+            self.vector_store.add_documents(documents)
             return True
             
         except Exception as e:

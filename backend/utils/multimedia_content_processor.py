@@ -1,10 +1,8 @@
 # backend/utils/multimedia_content_processor.py
 """
-Multimedia Content Processor – **full source v2.1 (2025‑04‑25)**
-===============================================================
-This file replaces all previous partial snippets. Nothing is omitted.
-It processes text, audio and video resources, generates embeddings with
-Azure OpenAI, sanitises documents and uploads them to Azure AI Search.
+Multimedia Content Processor – **updated version for Azure Search compatibility (2025‑04‑25)**
+===========================================================================================
+Updates fixed field incompatibility and added page_content field for LangChain compatibility.
 """
 
 from __future__ import annotations
@@ -48,7 +46,7 @@ ISO = lambda dt: dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")  # n
 # Main class
 ###############################################################################
 class MultimediaContentProcessor:  # noqa: C901 – cohesive but large
-    """Extract text/transcripts, embed with OpenAI, and index into Azure Search."""
+    """Extract text/transcripts, embed with OpenAI, and index into Azure Search."""
 
     def __init__(self) -> None:
         self.openai_client = None
@@ -87,7 +85,7 @@ class MultimediaContentProcessor:  # noqa: C901 – cohesive but large
                 credentials=CognitiveServicesCredentials(settings.COMPUTER_VISION_KEY),
             )
 
-        # Azure AI Search
+        # Azure AI Search
         if settings.AZURE_SEARCH_ENDPOINT and settings.AZURE_SEARCH_KEY:
             self.search_client = SearchClient(
                 endpoint=settings.AZURE_SEARCH_ENDPOINT,
@@ -141,8 +139,9 @@ class MultimediaContentProcessor:  # noqa: C901 – cohesive but large
         current_time = datetime.utcnow().isoformat(timespec='seconds') + 'Z'
         
         # Initialize the content item with basic info
+        content_id = content_info.get("id", str(uuid.uuid4()))
         content_item = {
-            "id": str(uuid.uuid4()),
+            "id": content_id,
             "title": content_info.get('title', 'Untitled Content'),
             "description": content_info.get('description', ''),
             "content_type": content_type,
@@ -166,11 +165,15 @@ class MultimediaContentProcessor:  # noqa: C901 – cohesive but large
             # Process text content
             extracted_text = await self._process_text_content(content_url, content_info)
             content_item["metadata"]["content_text"] = extracted_text
+            # Add flattened metadata fields for Azure Search
+            content_item["metadata_content_text"] = extracted_text
             
         elif 'audio' in content_type or 'podcast' in content_type:
             # Process audio content
             audio_text, duration = await self._process_audio_content(content_url)
             content_item["metadata"]["transcription"] = audio_text
+            # Add flattened metadata field for Azure Search
+            content_item["metadata_transcription"] = audio_text
             extracted_text = audio_text
             
             # Update duration if available
@@ -181,12 +184,19 @@ class MultimediaContentProcessor:  # noqa: C901 – cohesive but large
             # Process video content
             video_text, duration, thumbnail_url = await self._process_video_content(content_url)
             content_item["metadata"]["transcription"] = video_text
-            content_item["metadata"]["thumbnail_url"] = thumbnail_url
+            # Add flattened metadata fields for Azure Search 
+            content_item["metadata_transcription"] = video_text
+            if thumbnail_url:
+                content_item["metadata"]["thumbnail_url"] = thumbnail_url
+                content_item["metadata_thumbnail_url"] = thumbnail_url
             extracted_text = video_text
             
             # Update duration if available
             if duration and duration > 0:
                 content_item["duration_minutes"] = duration
+        
+        # Add the page_content field for LangChain compatibility
+        content_item["page_content"] = extracted_text
         
         # Generate embedding for search
         if extracted_text and self.openai_client:
@@ -197,10 +207,10 @@ class MultimediaContentProcessor:  # noqa: C901 – cohesive but large
             except Exception as e:
                 logger.error(f"Error generating embedding: {e}")
                 # Use a default empty vector of the right size
-                content_item["embedding"] = [0.0] * 1536  # Default dimension for text-embedding-ada-002
+                content_item["embedding"] = [0.0] * self.embedding_dimension
         else:
             # Set a default empty vector if we can't generate embeddings
-            content_item["embedding"] = [0.0] * 1536  # Default dimension for text-embedding-ada-002
+            content_item["embedding"] = [0.0] * self.embedding_dimension
         
         return content_item
     
@@ -775,11 +785,11 @@ class MultimediaContentProcessor:  # noqa: C901 – cohesive but large
             except Exception as e:
                 logger.error(f"Failed to initialize OpenAI client: {e}")
                 # Return empty vector
-                return [0.0] * 1536
+                return [0.0] * self.embedding_dimension
                 
         if not self.openai_client:
             logger.error("OpenAI client not initialized. Falling back to empty embedding.")
-            return [0.0] * 1536  # Default dimension for text-embedding-ada-002
+            return [0.0] * self.embedding_dimension
             
         try:
             embedding = await self.openai_client.create_embedding(
@@ -801,12 +811,12 @@ class MultimediaContentProcessor:  # noqa: C901 – cohesive but large
                 
             # Default case for unexpected formats
             logger.warning(f"Unexpected embedding format: {type(embedding)}. Using default empty vector.")
-            return [0.0] * 1536  # Default dimension for text-embedding-ada-002
+            return [0.0] * self.embedding_dimension
             
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")
             # Fall back to empty embedding vector with appropriate dimensions
-            return [0.0] * 1536  # Default dimension for text-embedding-ada-002
+            return [0.0] * self.embedding_dimension
     
     async def save_to_search(self, content_items: List[Dict[str, Any]]) -> bool:
         """
@@ -861,7 +871,7 @@ class MultimediaContentProcessor:  # noqa: C901 – cohesive but large
                     if "embedding" in item:
                         if item["embedding"] is None:
                             # Initialize with empty vector if None
-                            item["embedding"] = [0.0] * 1536
+                            item["embedding"] = [0.0] * self.embedding_dimension
                 
                 try:
                     # Upload batch

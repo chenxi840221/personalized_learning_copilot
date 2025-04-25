@@ -47,7 +47,7 @@ class LangChainVectorStore:
                 return {
                     "id": content_id,
                     **doc.metadata,
-                    "content": doc.page_content
+                    "page_content": doc.page_content  # Use page_content instead of content
                 }
             return None
             
@@ -80,7 +80,7 @@ class LangChainVectorStore:
             return [
                 {
                     **doc.metadata,
-                    "content": doc.page_content
+                    "page_content": doc.page_content  # Use page_content instead of content
                 }
                 for doc in documents
             ]
@@ -102,7 +102,10 @@ class LangChainVectorStore:
         try:
             # Prepare text and metadata
             text = self._prepare_text_from_content(content_item)
-            metadata = {k: v for k, v in content_item.items() if k != "content" and k != "embedding"}
+            
+            # Remove fields that aren't in Azure Search schema
+            metadata = {k: v for k, v in content_item.items() 
+                      if k != "page_content" and k != "content" and k != "embedding"}
             
             # Add to vector store
             return await self.langchain_manager.add_documents([text], [metadata])
@@ -182,7 +185,7 @@ class LangChainVectorStore:
             return [
                 {
                     **doc.metadata,
-                    "content": doc.page_content
+                    "page_content": doc.page_content  # Use page_content instead of content
                 }
                 for doc in documents
             ]
@@ -217,6 +220,8 @@ class LangChainVectorStore:
         # Add content text if available
         if "content" in content_item:
             text_parts.append(f"Content: {content_item['content']}")
+        elif "page_content" in content_item:
+            text_parts.append(f"Content: {content_item['page_content']}")
         elif "text" in content_item:
             text_parts.append(f"Content: {content_item['text']}")
             

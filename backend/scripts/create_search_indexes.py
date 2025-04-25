@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import List
+from typing import List, Dict, Any, Optional
 
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.indexes.aio import SearchIndexClient
@@ -19,6 +19,7 @@ from azure.search.documents.indexes.models import (
     SearchIndex,
     SearchableField,
     SimpleField,
+    SearchField,
 )
 from dotenv import load_dotenv
 
@@ -41,7 +42,7 @@ PLANS_INDEX_NAME = os.getenv("AZURE_SEARCH_PLANS_INDEX", "learning-plans")
 # Helpers                                                                     #
 ###############################################################################
 
-async def _create_index(client: SearchIndexClient, index_name: str, fields: List):
+async def _create_index(client: SearchIndexClient, index_name: str, fields: List, vector_config: bool = True):
     """Create an index, deleting it first if it already exists."""
     # Check if index exists
     existing = [idx.name async for idx in client.list_indexes()]
@@ -49,19 +50,89 @@ async def _create_index(client: SearchIndexClient, index_name: str, fields: List
         logger.info("Index '%s' exists – deleting", index_name)
         await client.delete_index(index_name)
 
+    # Create index - Try to detect vector search capabilities if required
+    index_config = {
+        "name": index_name,
+        "fields": fields,
+    }
+    
+    # Add vector search configurations if requested and supported
+    # We'll try to check the SDK version and add what's supported
+    if vector_config:
+        try:
+            # Try to check what vector capabilities are available
+            from azure.search.documents.indexes.models import VectorSearch
+            
+            # Basic vector config - adjust parameters based on your needs
+            vector_config = {
+                "algorithms": [
+                    {
+                        "name": "hnsw-config",
+                        "kind": "hnsw",
+                        "parameters": {
+                            "m": 4,
+                            "efConstruction": 400,
+                            "efSearch": 500,
+                            "metric": "cosine"
+                        }
+                    }
+                ],
+                "profiles": [
+                    {
+                        "name": "myHnswProfile",
+                        "algorithm_configuration_name": "hnsw-config",
+                        "vectorizer": "none"  # We'll handle our own vectorization
+                    }
+                ]
+            }
+            
+            # Add to index config
+            index_config["vector_search"] = vector_config
+            logger.info("Added vector search config to index")
+            
+        except ImportError:
+            # VectorSearch not available in this SDK version
+            logger.warning("VectorSearch not available in this SDK version - proceeding without vector config")
+    
     # Create index
-    index = SearchIndex(name=index_name, fields=fields)
+    index = SearchIndex(**index_config)
     await client.create_index(index)
     logger.info("✅ Created index: %s", index_name)
 
 ###############################################################################
-# Field definitions - simplified since LangChain handles vectors              #
+# Field definitions - updated for compatibility                               #
 ###############################################################################
+
+# Function to create vector-capable field if possible
+def create_vector_field(name: str, dimensions: int = 1536) -> SearchField:
+    """Create a vector field if supported, otherwise regular field."""
+    try:
+        # Try to add vector search dimensions parameter
+        return SearchField(
+            name=name, 
+            type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
+            dimensions=dimensions  # This works with some SDK versions
+        )
+    except Exception:
+        try:
+            # Try vector search dimensions parameter
+            return SearchField(
+                name=name, 
+                type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
+                vector_search_dimensions=dimensions  # This works with other SDK versions
+            )
+        except Exception:
+            # Fall back to regular field without vector capabilities
+            logger.warning(f"Could not create vector field for {name} - using standard field")
+            return SearchField(
+                name=name, 
+                type=SearchFieldDataType.Collection(SearchFieldDataType.Single)
+            )
 
 CONTENT_FIELDS = [
     SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
-    SearchableField(name="title", type=SearchFieldDataType.String, analyzer_name="en.microsoft"),
-    SearchableField(name="description", type=SearchFieldDataType.String, analyzer_name="en.microsoft"),
+    SearchableField(name="title", type=SearchFieldDataType.String, filterable=True),
+    SearchableField(name="description", type=SearchFieldDataType.String),
     SimpleField(name="content_type", type=SearchFieldDataType.String, filterable=True, facetable=True),
     SimpleField(name="subject", type=SearchFieldDataType.String, filterable=True, facetable=True),
     SimpleField(name="topics", type=SearchFieldDataType.Collection(SearchFieldDataType.String), filterable=True, facetable=True),
@@ -74,10 +145,13 @@ CONTENT_FIELDS = [
     SimpleField(name="created_at", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
     SimpleField(name="updated_at", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
     # Flattened metadata
-    SearchableField(name="metadata_content_text", type=SearchFieldDataType.String, analyzer_name="en.microsoft"),
-    SearchableField(name="metadata_transcription", type=SearchFieldDataType.String, analyzer_name="en.microsoft"),
+    SearchableField(name="metadata_content_text", type=SearchFieldDataType.String),
+    SearchableField(name="metadata_transcription", type=SearchFieldDataType.String),
     SimpleField(name="metadata_thumbnail_url", type=SearchFieldDataType.String),
-    # LangChain will create and manage the vector field
+    # This is the main field that will be used for text content
+    SearchableField(name="page_content", type=SearchFieldDataType.String),
+    # Vector field for embeddings
+    create_vector_field(name="embedding", dimensions=1536)
 ]
 
 USER_FIELDS = [
@@ -90,7 +164,8 @@ USER_FIELDS = [
     SimpleField(name="subjects_of_interest", type=SearchFieldDataType.Collection(SearchFieldDataType.String), filterable=True, facetable=True),
     SimpleField(name="created_at", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
     SimpleField(name="updated_at", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
-    # LangChain will create and manage the vector field
+    # Vector field for embeddings
+    create_vector_field(name="embedding", dimensions=1536)
 ]
 
 PLAN_FIELDS = [
@@ -107,7 +182,10 @@ PLAN_FIELDS = [
     SimpleField(name="updated_at", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
     SimpleField(name="start_date", type=SearchFieldDataType.DateTimeOffset, filterable=True),
     SimpleField(name="end_date", type=SearchFieldDataType.DateTimeOffset, filterable=True),
-    # LangChain will create and manage the vector field
+    # LangChain can work with page_content field 
+    SearchableField(name="page_content", type=SearchFieldDataType.String),
+    # Vector field for embeddings
+    create_vector_field(name="embedding", dimensions=1536)
 ]
 
 ###############################################################################
@@ -133,7 +211,7 @@ async def main() -> bool:
         await client.close()
         
         logger.info("🎉 All indexes created successfully")
-        logger.info("Note: Vector fields will be created by LangChain when data is first added")
+        logger.info("Vector search is configured to the extent supported by your SDK version")
         return True
         
     except Exception as e:

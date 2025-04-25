@@ -1,3 +1,4 @@
+# backend/utils/cognitive_services.py
 """
 Utility functions for Azure Cognitive Services Multi-Service Resource.
 Handles endpoint formatting and validation.

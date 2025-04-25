@@ -1,14 +1,28 @@
 # backend/rag/openai_adapter.py
 import logging
 from typing import List, Dict, Any, Optional
-from openai import OpenAI, AzureOpenAI
-from config.settings import Settings
+import os
+import sys
+
+# Fix import paths by adding the backend directory to sys.path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+backend_dir = os.path.dirname(current_dir)
+project_root = os.path.dirname(backend_dir)
+sys.path.insert(0, project_root)
+
+# Now use absolute imports
+from backend.config.settings import Settings
 
 # Initialize settings
 settings = Settings()
 
 # Initialize logger
 logger = logging.getLogger(__name__)
+
+try:
+    from openai import OpenAI, AzureOpenAI
+except ImportError:
+    logger.warning("OpenAI package not installed. Please run: pip install openai>=1.0.0")
 
 class OpenAIAdapter:
     """
@@ -101,6 +115,33 @@ class OpenAIAdapter:
             
         except Exception as e:
             logger.error(f"Error creating chat completion: {e}")
+            raise
+    
+    async def create_embedding(
+        self,
+        model: str,
+        text: str
+    ) -> List[float]:
+        """
+        Create an embedding using Azure OpenAI.
+        Args:
+            model: The deployment name in Azure OpenAI
+            text: Text to embed
+        Returns:
+            List of embedding values
+        """
+        try:
+            # Make the API call
+            response = self.client.embeddings.create(
+                model=model,  # Use the deployment name 
+                input=text
+            )
+            
+            # Extract the embedding and return as a flat list
+            return response.data[0].embedding
+                
+        except Exception as e:
+            logger.error(f"Error creating embedding: {e}")
             raise
 
 # Singleton instance

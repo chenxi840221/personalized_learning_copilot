@@ -1,10 +1,15 @@
+# backend/config/settings.py
 from pydantic import BaseSettings
 import os
 from typing import List, Optional
-from dotenv import load_dotenv
+import logging
 
-# Load environment variables from .env file
-load_dotenv()
+# Try to import dotenv, but handle gracefully if not installed
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    logging.warning("python-dotenv not installed, using environment variables as is")
 
 class Settings(BaseSettings):
     # Application Settings
@@ -43,41 +48,18 @@ class Settings(BaseSettings):
     AZURE_OPENAI_DEPLOYMENT: str = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4")
     AZURE_OPENAI_EMBEDDING_DEPLOYMENT: str = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-ada-002")
     
-    # Derived settings for individual services (using multi-service endpoint & key)
-    @property
-    def FORM_RECOGNIZER_ENDPOINT(self) -> str:
-        from utils.cognitive_services import get_service_specific_endpoint
-        return get_service_specific_endpoint(self.AZURE_COGNITIVE_ENDPOINT, "formrecognizer")
-    
-    @property
-    def FORM_RECOGNIZER_KEY(self) -> str:
-        return self.AZURE_COGNITIVE_KEY
-        
-    @property
-    def TEXT_ANALYTICS_ENDPOINT(self) -> str:
-        from utils.cognitive_services import get_service_specific_endpoint
-        return get_service_specific_endpoint(self.AZURE_COGNITIVE_ENDPOINT, "textanalytics")
-    
-    @property
-    def TEXT_ANALYTICS_KEY(self) -> str:
-        return self.AZURE_COGNITIVE_KEY
-        
-    @property
-    def COMPUTER_VISION_ENDPOINT(self) -> str:
-        from utils.cognitive_services import get_service_specific_endpoint
-        return get_service_specific_endpoint(self.AZURE_COGNITIVE_ENDPOINT, "computervision")
-    
-    @property
-    def COMPUTER_VISION_KEY(self) -> str:
-        return self.AZURE_COGNITIVE_KEY
-    
-    # If OpenAI is part of the same Cognitive Services resource
+    # For OpenAI adapter compatibility
     def get_openai_endpoint(self) -> str:
         """Get the OpenAI endpoint, using Cognitive Services endpoint if OpenAI-specific is not provided."""
         if self.AZURE_OPENAI_ENDPOINT:
             return self.AZURE_OPENAI_ENDPOINT
-        from utils.cognitive_services import get_service_specific_endpoint
-        return get_service_specific_endpoint(self.AZURE_COGNITIVE_ENDPOINT, "openai", self.AZURE_OPENAI_API_VERSION)
+        
+        # If we don't have cognitive_services module, return default endpoint
+        try:
+            from backend.utils.cognitive_services import get_service_specific_endpoint
+            return get_service_specific_endpoint(self.AZURE_COGNITIVE_ENDPOINT, "openai", self.AZURE_OPENAI_API_VERSION)
+        except ImportError:
+            return self.AZURE_COGNITIVE_ENDPOINT
     
     def get_openai_key(self) -> str:
         """Get the OpenAI key, using Cognitive Services key if OpenAI-specific is not provided."""
@@ -101,7 +83,6 @@ class Settings(BaseSettings):
                 additional_origins = [origin.strip() for origin in cors_env.split(",") if origin.strip()]
                 default_origins.extend(additional_origins)
             except Exception as e:
-                import logging
                 logging.warning(f"Error parsing CORS_ORIGINS: {e}")
         
         return default_origins
