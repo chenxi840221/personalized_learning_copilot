@@ -2,23 +2,22 @@
 """
 LangChain integration for the Personalized Learning Co-pilot.
 This module provides a simplified interface to LangChain components
-with Azure OpenAI integration.
+with Azure OpenAI integration and handles all vector operations.
 """
 
 import logging
 from typing import List, Dict, Any, Optional, Union
 import os
 
-from langchain.chat_models import AzureChatOpenAI
-from langchain.embeddings import AzureOpenAIEmbeddings
-from langchain.schema import HumanMessage, SystemMessage
+from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
+from langchain_community.vectorstores import AzureSearch
 from langchain.chains import ConversationalRetrievalChain, LLMChain
 from langchain.memory import ConversationBufferMemory
-from langchain.vectorstores import AzureSearch
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.callbacks.manager import CallbackManager
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.document_loaders import TextLoader
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.documents import Document
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from config.settings import Settings
 
@@ -38,10 +37,10 @@ class LangChainManager:
         """Initialize the LangChain manager with configured settings."""
         self.llm = None
         self.embeddings = None
+        self.vector_store = None
         self.retriever = None
         self.conversation_chain = None
         self.conversation_memory = None
-        self.vector_store = None
     
     def initialize(self):
         """Initialize LangChain components."""
@@ -50,8 +49,8 @@ class LangChainManager:
             self.llm = AzureChatOpenAI(
                 openai_api_version=settings.AZURE_OPENAI_API_VERSION,
                 azure_deployment=settings.AZURE_OPENAI_DEPLOYMENT,
-                azure_endpoint=settings.get_openai_endpoint(),
-                openai_api_key=settings.get_openai_key(),
+                azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+                api_key=settings.AZURE_OPENAI_KEY,
                 temperature=0.7,
                 streaming=True
             )
@@ -60,8 +59,8 @@ class LangChainManager:
             self.embeddings = AzureOpenAIEmbeddings(
                 openai_api_version=settings.AZURE_OPENAI_API_VERSION,
                 azure_deployment=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
-                azure_endpoint=settings.get_openai_endpoint(),
-                openai_api_key=settings.get_openai_key(),
+                azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+                api_key=settings.AZURE_OPENAI_KEY,
             )
             
             # Initialize conversation memory
@@ -120,18 +119,13 @@ class LangChainManager:
         try:
             # Setup chat messages
             messages = [
-                SystemMessage(content=system_message),
-                HumanMessage(content=prompt)
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": prompt}
             ]
             
             # Generate response
-            response = await self.llm.agenerate([messages])
-            
-            # Extract and return the content
-            if response and response.generations and response.generations[0]:
-                return response.generations[0][0].text
-            
-            return "I apologize, but I couldn't generate a response."
+            response = await self.llm.ainvoke(messages)
+            return response.content
             
         except Exception as e:
             logger.error(f"Error generating completion: {e}")
@@ -139,7 +133,7 @@ class LangChainManager:
     
     async def generate_embedding(self, text: str) -> List[float]:
         """
-        Generate embedding for text using Azure OpenAI.
+        Generate embedding for text using LangChain's embedding model.
         
         Args:
             text: Text to embed
@@ -191,26 +185,24 @@ class LangChainManager:
             if chat_history:
                 for message in chat_history:
                     if message.get("role") == "user":
-                        formatted_history.append((message.get("content"), ""))
+                        formatted_history.append((message.get("content", ""), ""))
                     elif message.get("role") == "assistant":
                         if formatted_history:
-                            formatted_history[-1] = (formatted_history[-1][0], message.get("content"))
+                            formatted_history[-1] = (formatted_history[-1][0], message.get("content", ""))
                         else:
-                            formatted_history.append(("", message.get("content")))
+                            formatted_history.append(("", message.get("content", "")))
             
             # Generate RAG response
-            result = await self.conversation_chain.arun(
-                question=query,
-                chat_history=formatted_history
-            )
+            response = await self.conversation_chain.ainvoke({
+                "question": query,
+                "chat_history": formatted_history
+            })
             
             # Extract source documents
-            source_documents = []
-            if hasattr(result, "source_documents"):
-                source_documents = result.source_documents
+            source_documents = response.get("source_documents", [])
             
             return {
-                "answer": result,
+                "answer": response.get("answer", ""),
                 "source_documents": source_documents
             }
             
@@ -223,44 +215,66 @@ class LangChainManager:
                 "source_documents": []
             }
     
-    async def create_vector_store_from_texts(
-        self,
-        texts: List[str],
-        metadatas: Optional[List[Dict[str, Any]]] = None
-    ) -> Any:
+    async def add_documents(self, texts: List[str], metadatas: Optional[List[Dict[str, Any]]] = None) -> bool:
         """
-        Create an Azure Search vector store from texts.
+        Add documents to the vector store.
         
         Args:
             texts: List of text content
             metadatas: Optional metadata for each text
             
         Returns:
-            Vector store
+            Success status
         """
-        if not self.embeddings:
+        if not self.vector_store:
             self.initialize()
+            if not self.vector_store:
+                logger.error("Vector store not initialized")
+                return False
             
         try:
-            # Create vector store with Azure Search
-            self.vector_store = AzureSearch.from_texts(
-                texts=texts,
-                embedding=self.embeddings,
-                metadatas=metadatas,
-                azure_search_endpoint=settings.AZURE_SEARCH_ENDPOINT,
-                azure_search_key=settings.AZURE_SEARCH_KEY,
-                index_name=settings.AZURE_SEARCH_INDEX_NAME
-            )
-            
-            return self.vector_store
+            # Add texts to vector store
+            self.vector_store.add_texts(texts=texts, metadatas=metadatas)
+            return True
             
         except Exception as e:
-            logger.error(f"Error creating vector store: {e}")
-            return None
+            logger.error(f"Error adding documents to vector store: {e}")
+            return False
     
-    async def process_document(self, document_path: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> Any:
+    async def search_documents(self, query: str, filter: Optional[str] = None, k: int = 5) -> List[Document]:
         """
-        Process a document and create a vector store from its content.
+        Search for documents using a query string.
+        
+        Args:
+            query: Query string
+            filter: Optional filter expression
+            k: Number of results to return
+            
+        Returns:
+            List of matching documents
+        """
+        if not self.vector_store:
+            self.initialize()
+            if not self.vector_store:
+                logger.error("Vector store not initialized")
+                return []
+            
+        try:
+            # Search for documents
+            search_kwargs = {"k": k}
+            if filter:
+                search_kwargs["filter"] = filter
+                
+            documents = self.vector_store.similarity_search(query, **search_kwargs)
+            return documents
+            
+        except Exception as e:
+            logger.error(f"Error searching documents: {e}")
+            return []
+    
+    async def process_document(self, document_path: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> bool:
+        """
+        Process a document and add it to the vector store.
         
         Args:
             document_path: Path to the document
@@ -268,12 +282,17 @@ class LangChainManager:
             chunk_overlap: Overlap between chunks
             
         Returns:
-            Vector store
+            Success status
         """
-        if not self.embeddings:
+        if not self.vector_store:
             self.initialize()
+            if not self.vector_store:
+                logger.error("Vector store not initialized")
+                return False
             
         try:
+            from langchain_community.document_loaders import TextLoader
+            
             # Load document
             loader = TextLoader(document_path)
             documents = loader.load()
@@ -284,22 +303,16 @@ class LangChainManager:
                 chunk_overlap=chunk_overlap
             )
             
-            texts = text_splitter.split_documents(documents)
+            chunks = text_splitter.split_documents(documents)
             
-            # Create vector store
-            self.vector_store = AzureSearch.from_documents(
-                documents=texts,
-                embedding=self.embeddings,
-                azure_search_endpoint=settings.AZURE_SEARCH_ENDPOINT,
-                azure_search_key=settings.AZURE_SEARCH_KEY,
-                index_name=settings.AZURE_SEARCH_INDEX_NAME
-            )
+            # Add to vector store
+            self.vector_store.add_documents(documents=chunks)
             
-            return self.vector_store
+            return True
             
         except Exception as e:
             logger.error(f"Error processing document: {e}")
-            return None
+            return False
     
     async def generate_personalized_learning_plan(
         self,
@@ -343,7 +356,7 @@ class LangChainManager:
             - Interests: {', '.join(student_profile.get('subjects_of_interest', []))}
             """
             
-            prompt = f"""
+            prompt_template = f"""
             Create a personalized learning plan for the following student:
             
             {profile_text}
@@ -377,21 +390,19 @@ class LangChainManager:
             """
             
             # Create prompt template
-            prompt_template = ChatPromptTemplate.from_messages([
-                SystemMessage(content="You are an expert educational assistant that creates personalized learning plans."),
-                HumanMessage(content=prompt)
-            ])
+            messages = [
+                {"role": "system", "content": "You are an expert educational assistant that creates personalized learning plans."},
+                {"role": "user", "content": prompt_template}
+            ]
             
-            # Create chain
-            chain = LLMChain(llm=self.llm, prompt=prompt_template)
-            
-            # Run chain
-            result = await chain.arun({})
+            # Generate learning plan
+            response = await self.llm.ainvoke(messages)
             
             # Parse the JSON result
             import json
             try:
                 # Extract JSON if it's within a code block
+                result = response.content
                 if "```json" in result:
                     json_start = result.find("```json") + 7
                     json_end = result.find("```", json_start)

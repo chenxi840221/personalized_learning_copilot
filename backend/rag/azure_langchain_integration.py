@@ -7,18 +7,18 @@ Azure OpenAI and Azure AI Search services.
 
 import logging
 import os
+import asyncio
 from typing import List, Dict, Any, Optional
 
 # LangChain imports
-from langchain.chat_models import AzureChatOpenAI
-from langchain.embeddings import AzureOpenAIEmbeddings
-from langchain.vectorstores import AzureSearch
-from langchain.retrievers import AzureAISearchRetriever
+from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
+from langchain_community.vectorstores import AzureSearch
+from langchain_community.retrievers import AzureAISearchRetriever
 from langchain.chains import RetrievalQA, ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
-from langchain.prompts import ChatPromptTemplate, PromptTemplate
-from langchain.schema import StrOutputParser
-from langchain.schema.runnable import RunnablePassthrough
+from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
 
 # Azure imports
 from azure.core.credentials import AzureKeyCredential
@@ -240,7 +240,7 @@ class AzureLangChainIntegration:
                          for i, doc in enumerate(documents)]
             
             # Add documents to the vector store
-            await self.vector_store.add_texts(texts=texts, metadatas=metadatas)
+            await asyncio.to_thread(self.vector_store.add_texts, texts, metadatas)
             
             logger.info(f"Successfully indexed {len(documents)} documents")
             return True

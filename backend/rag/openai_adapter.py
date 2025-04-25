@@ -102,34 +102,6 @@ class OpenAIAdapter:
         except Exception as e:
             logger.error(f"Error creating chat completion: {e}")
             raise
-    
-    async def create_embedding(
-        self,
-        model: str,
-        text: str
-    ) -> List[float]:
-        """
-        Create an embedding using Azure OpenAI.
-        Args:
-            model: The deployment name in Azure OpenAI
-            text: Text to embed
-        Returns:
-            List of embedding values
-        """
-        try:
-            # Make the API call
-            response = self.client.embeddings.create(
-                model=model,  # Use the deployment name 
-                input=text
-            )
-            
-            # Extract the embedding and return as a flat list
-            return response.data[0].embedding
-                
-        except Exception as e:
-            logger.error(f"Error creating embedding: {e}")
-            # Return a default empty vector in case of error
-            return [0.0] * 1536  # Default embedding size for text-embedding-ada-002
 
 # Singleton instance
 openai_adapter = None

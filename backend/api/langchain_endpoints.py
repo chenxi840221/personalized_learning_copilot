@@ -164,7 +164,7 @@ async def generate_embedding(
     current_user: Dict = Depends(get_current_user)
 ):
     """
-    Generate an embedding for text using LangChain.
+    Generate an embedding for text using LangChain's embedding model.
     
     Args:
         text: Text to embed

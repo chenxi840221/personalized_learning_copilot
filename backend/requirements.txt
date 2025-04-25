@@ -32,12 +32,13 @@ msrest==0.7.1
 # OpenAI with Azure
 openai==1.10.0  # Specifically using 1.10.0 version
 
-# LangChain Integration
+# LangChain Integration - Updated versions
 langchain==0.1.12
 langchain-core==0.1.33
-langchain-openai==0.0.8  # Add specific langchain-openai package
+langchain-openai==0.0.8
 langchain-community==0.0.29  # Contains Azure functionality
 langchain-text-splitters==0.0.1  # Text splitting utilities
+tiktoken==0.5.2  # For token counting
 
 # Testing
 pytest==7.3.1
