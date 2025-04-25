@@ -384,9 +384,12 @@ class ContentVectorStore:
                 text=text
             )
             
-            # Ensure embedding is in the correct format for Azure Search
-            # If it's a list, return it directly
+            # Ensure embedding is a list of float values, not a nested array
             if isinstance(embedding, list):
+                # Check if this is a nested list or contains lists
+                if embedding and isinstance(embedding[0], list):
+                    # Flatten nested list - take the first inner list
+                    return embedding[0]
                 return embedding
             
             # If it's a numpy array, convert to list

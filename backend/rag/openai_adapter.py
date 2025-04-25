@@ -88,6 +88,7 @@ class OpenAIAdapter:
             
             # Extract the embedding and return as a flat list
             if "data" in response and len(response["data"]) > 0:
+                # Return the embedding directly as a flat list, not nested
                 return response["data"][0]["embedding"]
             else:
                 logger.error("No embedding data returned from OpenAI API")

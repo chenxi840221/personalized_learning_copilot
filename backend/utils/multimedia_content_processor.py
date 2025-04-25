@@ -412,21 +412,27 @@ class MultimediaContentProcessor:
                 text=text
             )
             
-            # Ensure embedding is in the correct format for Azure Search
-            # If it's a list, return it directly
+            # Ensure the embedding is a flat list of float values (not nested arrays)
+            # This is critical for Azure Search which expects a simple array of floats
             if isinstance(embedding, list):
+                # Check if this is a nested array
+                if embedding and isinstance(embedding[0], list):
+                    # Return the first inner array (flatten the structure)
+                    return embedding[0]
                 return embedding
-            
+                
+            # If it's a dictionary with the expected OpenAI format
+            if isinstance(embedding, dict) and 'data' in embedding and len(embedding['data']) > 0:
+                return embedding['data'][0]['embedding']
+                
             # If it's a numpy array, convert to list
             if hasattr(embedding, 'tolist'):
                 return embedding.tolist()
                 
-            # If it's a dictionary (OpenAI response format), extract the embedding
-            if isinstance(embedding, dict) and 'data' in embedding and len(embedding['data']) > 0:
-                return embedding['data'][0]['embedding']
-                
-            # Default case - empty vector with appropriate dimensions
+            # Default case for unexpected formats
+            logger.warning(f"Unexpected embedding format: {type(embedding)}. Using default empty vector.")
             return [0.0] * 1536  # Default dimension for text-embedding-ada-002
+            
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")
             # Fall back to empty embedding vector with appropriate dimensions
@@ -473,6 +479,12 @@ class MultimediaContentProcessor:
                             except (ValueError, TypeError):
                                 # If conversion fails, set to current time
                                 item[date_field] = datetime.utcnow().isoformat(timespec='seconds') + 'Z'
+                    
+                    # Ensure embedding is a flat list, not a nested structure
+                    if "embedding" in item and isinstance(item["embedding"], list):
+                        # Check if it's a nested list and flatten if needed
+                        if item["embedding"] and isinstance(item["embedding"][0], list):
+                            item["embedding"] = item["embedding"][0]
                 
                 try:
                     # Upload batch to Azure Search
