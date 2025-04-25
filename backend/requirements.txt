@@ -32,6 +32,14 @@ msrest==0.7.1
 # OpenAI with Azure
 openai==0.28.0  # Using standard openai package with Azure configuration
 
+# LangChain Integration
+langchain==0.1.9
+langchain-openai==0.0.7
+langchain-azure==0.0.3  # For Azure AI Search integration
+langchain-core==0.1.19
+langchain-community==0.0.26
+faiss-cpu==1.7.4  # For vector similarity search
+
 # Testing
 pytest==7.3.1
 pytest-asyncio==0.21.0

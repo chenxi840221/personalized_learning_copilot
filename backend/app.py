@@ -1,3 +1,4 @@
+# backend/app.py
 from fastapi import FastAPI, Depends, HTTPException, status, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -97,6 +98,22 @@ async def startup_event():
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat()
         }
+    
+    # Initialize Azure LangChain integration
+    try:
+        from rag.azure_langchain_integration import get_azure_langchain
+        azure_langchain = await get_azure_langchain()
+        logger.info("Azure LangChain integration initialized")
+    except Exception as e:
+        logger.warning(f"Could not initialize Azure LangChain integration: {e}")
+    
+    # Initialize LangChain service
+    try:
+        from services.azure_langchain_service import get_azure_langchain_service
+        langchain_service = await get_azure_langchain_service()
+        logger.info("Azure LangChain service initialized")
+    except Exception as e:
+        logger.warning(f"Could not initialize Azure LangChain service: {e}")
     
     logger.info("Server started with test user: testuser (password: password)")
     logger.info(f"Added {len(mock_contents)} sample content items")
@@ -440,6 +457,14 @@ async def update_activity_status(
         "progress_percentage": progress_percentage,
         "plan_status": plan_status
     }
+
+# Include LangChain endpoints
+from api.langchain_endpoints import langchain_router
+app.include_router(langchain_router)
+
+# Include Azure LangChain endpoints
+from api.azure_langchain_routes import azure_langchain_router
+app.include_router(azure_langchain_router)
 
 # Main entrypoint
 if __name__ == "__main__":
