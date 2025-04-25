@@ -4,16 +4,20 @@
 """
 Deploy script for Azure Search indexes.
 This script:
-1. Creates the required Azure Search indexes
-2. Rebuilds the index with the correct schema
-3. Provides utilities for initial data loading
+1. Creates the required Azure Search indexes with proper vector configuration using direct REST API
+2. Loads sample data into the indexes
+3. Verifies the indexes are working correctly
 """
 
 import asyncio
 import logging
 import os
 import sys
+import json
+import aiohttp
+import uuid
 from typing import Optional, Dict, Any, List
+from datetime import datetime
 
 # Add the project root to the path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -21,7 +25,7 @@ backend_dir = os.path.dirname(current_dir)
 sys.path.insert(0, backend_dir)
 
 # Import the index creation script
-from scripts.create_search_indexes import main as create_indexes
+from scripts.create_search_indexes import main as create_indexes, API_VERSION
 from config.settings import Settings
 from dotenv import load_dotenv
 
@@ -46,7 +50,7 @@ settings = Settings()
 # Sample data for initial index population
 SAMPLE_CONTENT = [
     {
-        "id": "sample-math-001",
+        "id": f"sample-math-{uuid.uuid4()}",
         "title": "Introduction to Algebra",
         "description": "Learn the basics of algebraic expressions and equations",
         "content_type": "video",
@@ -72,7 +76,7 @@ SAMPLE_CONTENT = [
         """
     },
     {
-        "id": "sample-science-001",
+        "id": f"sample-science-{uuid.uuid4()}",
         "title": "The Solar System",
         "description": "Explore our solar system and learn about planets",
         "content_type": "interactive",
@@ -104,100 +108,113 @@ SAMPLE_CONTENT = [
 ]
 
 async def load_sample_data():
-    """Load sample data into the Azure Search index."""
+    """Load sample data into the Azure Search index using direct REST API."""
     logger.info("Loading sample data into Azure Search...")
     
+    if not settings.AZURE_SEARCH_ENDPOINT or not settings.AZURE_SEARCH_KEY:
+        logger.error("AZURE_SEARCH_ENDPOINT and AZURE_SEARCH_KEY must be set.")
+        return False
+    
     try:
-        # Import these at runtime to avoid circular imports
-        from azure.search.documents.aio import SearchClient
-        from azure.core.credentials import AzureKeyCredential
-        
-        # Initialize search client
-        search_client = SearchClient(
-            endpoint=settings.AZURE_SEARCH_ENDPOINT,
-            index_name=settings.AZURE_SEARCH_INDEX_NAME,
-            credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
-        )
-        
         # Format dates properly for Azure Search
-        from datetime import datetime
         current_time = datetime.utcnow().isoformat(timespec='seconds') + 'Z'
         
-        # Process and index sample content
-        for sample in SAMPLE_CONTENT:
-            # Ensure proper fields for Azure Search
-            document = sample.copy()
+        # Process sample content
+        async with aiohttp.ClientSession() as session:
+            # Set up headers
+            headers = {
+                "Content-Type": "application/json",
+                "api-key": settings.AZURE_SEARCH_KEY
+            }
             
-            # Add timestamps if not present
-            if "created_at" not in document:
-                document["created_at"] = current_time
-            if "updated_at" not in document:
-                document["updated_at"] = current_time
+            # Process and index sample content
+            for sample in SAMPLE_CONTENT:
+                # Ensure proper fields for Azure Search
+                document = sample.copy()
                 
-            # Add empty embedding (will be filled by LangChain when searching)
-            if "embedding" not in document:
-                document["embedding"] = [0.0] * 1536  # Standard dimension for OpenAI embeddings
-             
-            # Add metadata fields from the page_content
-            if "page_content" in document:
-                document["metadata_content_text"] = document["page_content"]
-            
-            # Upload the document
-            result = await search_client.upload_documents(documents=[document])
-            
-            if result[0].succeeded:
-                logger.info(f"Successfully indexed sample content: {sample['title']}")
-            else:
-                logger.warning(f"Failed to index sample content: {sample['title']} - {result[0].error_message}")
+                # Add timestamps if not present
+                if "created_at" not in document:
+                    document["created_at"] = current_time
+                if "updated_at" not in document:
+                    document["updated_at"] = current_time
+                    
+                # Add embedding vector with proper dimensions
+                # Use a list of zeros with the right dimension (1536 for OpenAI embeddings)
+                if "embedding" not in document:
+                    document["embedding"] = [0.0] * 1536  # Standard dimension for OpenAI embeddings
+                 
+                # Add metadata fields from the page_content
+                if "page_content" in document:
+                    document["metadata_content_text"] = document["page_content"]
+                
+                # Prepare the payload
+                payload = {
+                    "value": [document]
+                }
+                
+                # Upload the document
+                docs_url = f"{settings.AZURE_SEARCH_ENDPOINT}/indexes/{settings.AZURE_SEARCH_INDEX_NAME}/docs/index?api-version={API_VERSION}"
+                async with session.post(docs_url, headers=headers, json=payload) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        if result.get("value", [])[0].get("status") == "succeeded":
+                            logger.info(f"Successfully indexed sample content: {sample['title']}")
+                        else:
+                            error = result.get("value", [])[0].get("errorMessage", "Unknown error")
+                            logger.warning(f"Failed to index sample content: {sample['title']} - {error}")
+                    else:
+                        error_text = await response.text()
+                        logger.warning(f"Failed to index sample content: {sample['title']} - {response.status} - {error_text}")
         
-        # Close the client
-        await search_client.close()
+        return True
                 
     except Exception as e:
         logger.error(f"Error loading sample data: {e}")
         return False
-        
-    logger.info("Sample data loading completed")
-    return True
 
 async def verify_index():
-    """Verify that the index is working by performing a simple search."""
+    """Verify that the index is working by performing a simple search using direct REST API."""
     logger.info("Verifying Azure Search index functionality...")
     
+    if not settings.AZURE_SEARCH_ENDPOINT or not settings.AZURE_SEARCH_KEY:
+        logger.error("AZURE_SEARCH_ENDPOINT and AZURE_SEARCH_KEY must be set.")
+        return False
+    
     try:
-        # Import these at runtime to avoid circular imports
-        from azure.search.documents.aio import SearchClient
-        from azure.core.credentials import AzureKeyCredential
-        
-        # Initialize search client
-        search_client = SearchClient(
-            endpoint=settings.AZURE_SEARCH_ENDPOINT,
-            index_name=settings.AZURE_SEARCH_INDEX_NAME,
-            credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
-        )
+        async with aiohttp.ClientSession() as session:
+            # Set up headers
+            headers = {
+                "Content-Type": "application/json",
+                "api-key": settings.AZURE_SEARCH_KEY
+            }
             
-        # Perform a simple search
-        results = await search_client.search(
-            search_text="introduction", 
-            select=["id", "title", "subject"],
-            top=5
-        )
-        
-        # Check if we got any results
-        count = 0
-        async for result in results:
-            count += 1
-            logger.info(f"Found document: {result['title']}")
+            # Perform a simple search
+            search_url = f"{settings.AZURE_SEARCH_ENDPOINT}/indexes/{settings.AZURE_SEARCH_INDEX_NAME}/docs/search?api-version={API_VERSION}"
+            search_body = {
+                "search": "introduction",
+                "select": "id,title,subject",
+                "top": 5
+            }
             
-        # Close the client
-        await search_client.close()
-        
-        if count > 0:
-            logger.info(f"Index verification successful. Found {count} results.")
-            return True
-        else:
-            logger.warning("Index verification returned no results")
-            return False
+            async with session.post(search_url, headers=headers, json=search_body) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    value = result.get("value", [])
+                    count = len(value)
+                    
+                    for item in value:
+                        logger.info(f"Found document: {item.get('title')}")
+                    
+                    if count > 0:
+                        logger.info(f"Index verification successful. Found {count} results.")
+                        return True
+                    else:
+                        logger.warning("Index verification returned no results")
+                        return False
+                else:
+                    error_text = await response.text()
+                    logger.error(f"Search failed: {response.status} - {error_text}")
+                    return False
             
     except Exception as e:
         logger.error(f"Error verifying index: {e}")
@@ -228,12 +245,16 @@ async def deploy_search_indexes(load_data: bool = True, verify: bool = True):
     
     # Load sample data if requested
     if load_data:
+        # Allow some time for index to be ready
+        await asyncio.sleep(5)
         sample_success = await load_sample_data()
         if not sample_success:
             logger.warning("Sample data loading had issues, but continuing with deployment")
     
     # Verify index if requested
     if verify:
+        # Allow time for indexing to complete
+        await asyncio.sleep(5)
         verify_success = await verify_index()
         if not verify_success:
             logger.warning("Index verification had issues, deployment may not be fully functional")

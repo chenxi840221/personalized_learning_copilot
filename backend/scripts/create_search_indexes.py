@@ -2,25 +2,19 @@
 """Create Azure AI Search indexes for the Personalized Learning Co‑pilot.
 
 This script creates the necessary search indexes for LangChain integration
-with Azure AI Search. It has been simplified to avoid direct vector management
-since LangChain handles vectors and embeddings for us.
+with Azure AI Search. It has been updated to work with the installed SDK version.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
 import os
+import json
+import aiohttp
 from typing import List, Dict, Any, Optional
 
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.indexes.aio import SearchIndexClient
-from azure.search.documents.indexes.models import (
-    SearchFieldDataType,
-    SearchIndex,
-    SearchableField,
-    SimpleField,
-    SearchField,
-)
 from dotenv import load_dotenv
 
 ###############################################################################
@@ -37,155 +31,150 @@ AZURE_SEARCH_KEY = os.getenv("AZURE_SEARCH_KEY")
 CONTENT_INDEX_NAME = os.getenv("AZURE_SEARCH_INDEX_NAME", "educational-content")
 USERS_INDEX_NAME = os.getenv("AZURE_SEARCH_USERS_INDEX", "user-profiles")
 PLANS_INDEX_NAME = os.getenv("AZURE_SEARCH_PLANS_INDEX", "learning-plans")
+API_VERSION = "2023-07-01-Preview"  # Use the preview API for vector search
 
 ###############################################################################
 # Helpers                                                                     #
 ###############################################################################
 
-async def _create_index(client: SearchIndexClient, index_name: str, fields: List, vector_config: bool = True):
-    """Create an index, deleting it first if it already exists."""
-    # Check if index exists
-    existing = [idx.name async for idx in client.list_indexes()]
-    if index_name in existing:
-        logger.info("Index '%s' exists – deleting", index_name)
-        await client.delete_index(index_name)
-
-    # Create index - Try to detect vector search capabilities if required
-    index_config = {
+async def _create_index_with_rest(index_name: str, fields: List, vector_config: bool = True):
+    """Create an index using direct REST API call."""
+    if not AZURE_SEARCH_ENDPOINT or not AZURE_SEARCH_KEY:
+        logger.error("AZURE_SEARCH_ENDPOINT and AZURE_SEARCH_KEY must be set.")
+        return False
+    
+    # Build the index definition
+    index_def = {
         "name": index_name,
-        "fields": fields,
+        "fields": fields
     }
     
-    # Add vector search configurations if requested and supported
-    # We'll try to check the SDK version and add what's supported
+    # Add vector search configuration if requested
     if vector_config:
-        try:
-            # Try to check what vector capabilities are available
-            from azure.search.documents.indexes.models import VectorSearch
-            
-            # Basic vector config - adjust parameters based on your needs
-            vector_config = {
-                "algorithms": [
-                    {
-                        "name": "hnsw-config",
-                        "kind": "hnsw",
-                        "parameters": {
-                            "m": 4,
-                            "efConstruction": 400,
-                            "efSearch": 500,
-                            "metric": "cosine"
-                        }
+        index_def["vectorSearch"] = {
+            "algorithms": [
+                {
+                    "name": "hnsw-config",
+                    "kind": "hnsw",
+                    "parameters": {
+                        "m": 4,
+                        "efConstruction": 400,
+                        "efSearch": 500,
+                        "metric": "cosine"
                     }
-                ],
-                "profiles": [
-                    {
-                        "name": "myHnswProfile",
-                        "algorithm_configuration_name": "hnsw-config",
-                        "vectorizer": "none"  # We'll handle our own vectorization
-                    }
-                ]
+                }
+            ],
+            "profiles": [
+                {
+                    "name": "default-profile",
+                    "algorithm": "hnsw-config"
+                }
+            ]
+        }
+    
+    # Check if index exists and delete if it does
+    try:
+        # Set up aiohttp session
+        async with aiohttp.ClientSession() as session:
+            # Check if index exists
+            list_url = f"{AZURE_SEARCH_ENDPOINT}/indexes?api-version={API_VERSION}"
+            headers = {
+                "Content-Type": "application/json",
+                "api-key": AZURE_SEARCH_KEY
             }
             
-            # Add to index config
-            index_config["vector_search"] = vector_config
-            logger.info("Added vector search config to index")
+            async with session.get(list_url, headers=headers) as response:
+                if response.status == 200:
+                    indexes = await response.json()
+                    existing_indexes = [idx["name"] for idx in indexes.get("value", [])]
+                    
+                    if index_name in existing_indexes:
+                        logger.info(f"Index '{index_name}' exists – deleting")
+                        delete_url = f"{AZURE_SEARCH_ENDPOINT}/indexes/{index_name}?api-version={API_VERSION}"
+                        async with session.delete(delete_url, headers=headers) as delete_response:
+                            if delete_response.status == 204:
+                                logger.info(f"Successfully deleted index '{index_name}'")
+                            else:
+                                error_text = await delete_response.text()
+                                logger.error(f"Failed to delete index: {delete_response.status} - {error_text}")
+                                return False
             
-        except ImportError:
-            # VectorSearch not available in this SDK version
-            logger.warning("VectorSearch not available in this SDK version - proceeding without vector config")
+            # Create the index
+            create_url = f"{AZURE_SEARCH_ENDPOINT}/indexes?api-version={API_VERSION}"
+            async with session.post(create_url, headers=headers, json=index_def) as response:
+                if response.status == 201:
+                    logger.info(f"✅ Created index: {index_name}")
+                    return True
+                else:
+                    error_text = await response.text()
+                    logger.error(f"Failed to create index: {response.status} - {error_text}")
+                    return False
     
-    # Create index
-    index = SearchIndex(**index_config)
-    await client.create_index(index)
-    logger.info("✅ Created index: %s", index_name)
+    except Exception as e:
+        logger.error(f"Error in REST API call: {e}")
+        return False
 
 ###############################################################################
-# Field definitions - updated for compatibility                               #
+# Field definitions                                                           #
 ###############################################################################
-
-# Function to create vector-capable field if possible
-def create_vector_field(name: str, dimensions: int = 1536) -> SearchField:
-    """Create a vector field if supported, otherwise regular field."""
-    try:
-        # Try to add vector search dimensions parameter
-        return SearchField(
-            name=name, 
-            type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
-            dimensions=dimensions  # This works with some SDK versions
-        )
-    except Exception:
-        try:
-            # Try vector search dimensions parameter
-            return SearchField(
-                name=name, 
-                type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
-                vector_search_dimensions=dimensions  # This works with other SDK versions
-            )
-        except Exception:
-            # Fall back to regular field without vector capabilities
-            logger.warning(f"Could not create vector field for {name} - using standard field")
-            return SearchField(
-                name=name, 
-                type=SearchFieldDataType.Collection(SearchFieldDataType.Single)
-            )
 
 CONTENT_FIELDS = [
-    SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
-    SearchableField(name="title", type=SearchFieldDataType.String, filterable=True),
-    SearchableField(name="description", type=SearchFieldDataType.String),
-    SimpleField(name="content_type", type=SearchFieldDataType.String, filterable=True, facetable=True),
-    SimpleField(name="subject", type=SearchFieldDataType.String, filterable=True, facetable=True),
-    SimpleField(name="topics", type=SearchFieldDataType.Collection(SearchFieldDataType.String), filterable=True, facetable=True),
-    SimpleField(name="url", type=SearchFieldDataType.String),
-    SimpleField(name="source", type=SearchFieldDataType.String, filterable=True),
-    SimpleField(name="difficulty_level", type=SearchFieldDataType.String, filterable=True, facetable=True),
-    SimpleField(name="grade_level", type=SearchFieldDataType.Collection(SearchFieldDataType.Int32), filterable=True, facetable=True),
-    SimpleField(name="duration_minutes", type=SearchFieldDataType.Int32, filterable=True, facetable=True),
-    SimpleField(name="keywords", type=SearchFieldDataType.Collection(SearchFieldDataType.String), filterable=True, facetable=True),
-    SimpleField(name="created_at", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
-    SimpleField(name="updated_at", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
+    {"name": "id", "type": "Edm.String", "key": True, "filterable": True},
+    {"name": "title", "type": "Edm.String", "searchable": True, "filterable": True},
+    {"name": "description", "type": "Edm.String", "searchable": True},
+    {"name": "content_type", "type": "Edm.String", "filterable": True, "facetable": True},
+    {"name": "subject", "type": "Edm.String", "filterable": True, "facetable": True},
+    {"name": "topics", "type": "Collection(Edm.String)", "filterable": True, "facetable": True},
+    {"name": "url", "type": "Edm.String"},
+    {"name": "source", "type": "Edm.String", "filterable": True},
+    {"name": "difficulty_level", "type": "Edm.String", "filterable": True, "facetable": True},
+    {"name": "grade_level", "type": "Collection(Edm.Int32)", "filterable": True, "facetable": True},
+    {"name": "duration_minutes", "type": "Edm.Int32", "filterable": True, "facetable": True},
+    {"name": "keywords", "type": "Collection(Edm.String)", "filterable": True, "facetable": True},
+    {"name": "created_at", "type": "Edm.DateTimeOffset", "filterable": True, "sortable": True},
+    {"name": "updated_at", "type": "Edm.DateTimeOffset", "filterable": True, "sortable": True},
     # Flattened metadata
-    SearchableField(name="metadata_content_text", type=SearchFieldDataType.String),
-    SearchableField(name="metadata_transcription", type=SearchFieldDataType.String),
-    SimpleField(name="metadata_thumbnail_url", type=SearchFieldDataType.String),
+    {"name": "metadata_content_text", "type": "Edm.String", "searchable": True},
+    {"name": "metadata_transcription", "type": "Edm.String", "searchable": True},
+    {"name": "metadata_thumbnail_url", "type": "Edm.String"},
     # This is the main field that will be used for text content
-    SearchableField(name="page_content", type=SearchFieldDataType.String),
+    {"name": "page_content", "type": "Edm.String", "searchable": True},
     # Vector field for embeddings
-    create_vector_field(name="embedding", dimensions=1536)
+    {"name": "embedding", "type": "Collection(Edm.Single)", "searchable": True, "dimensions": 1536, "vectorSearchConfiguration": "default-profile"}
 ]
 
 USER_FIELDS = [
-    SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
-    SimpleField(name="username", type=SearchFieldDataType.String, filterable=True),
-    SearchableField(name="full_name", type=SearchFieldDataType.String),
-    SimpleField(name="email", type=SearchFieldDataType.String, filterable=True),
-    SimpleField(name="grade_level", type=SearchFieldDataType.Int32, filterable=True, facetable=True),
-    SimpleField(name="learning_style", type=SearchFieldDataType.String, filterable=True, facetable=True),
-    SimpleField(name="subjects_of_interest", type=SearchFieldDataType.Collection(SearchFieldDataType.String), filterable=True, facetable=True),
-    SimpleField(name="created_at", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
-    SimpleField(name="updated_at", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
+    {"name": "id", "type": "Edm.String", "key": True, "filterable": True},
+    {"name": "username", "type": "Edm.String", "filterable": True},
+    {"name": "full_name", "type": "Edm.String", "searchable": True},
+    {"name": "email", "type": "Edm.String", "filterable": True},
+    {"name": "grade_level", "type": "Edm.Int32", "filterable": True, "facetable": True},
+    {"name": "learning_style", "type": "Edm.String", "filterable": True, "facetable": True},
+    {"name": "subjects_of_interest", "type": "Collection(Edm.String)", "filterable": True, "facetable": True},
+    {"name": "created_at", "type": "Edm.DateTimeOffset", "filterable": True, "sortable": True},
+    {"name": "updated_at", "type": "Edm.DateTimeOffset", "filterable": True, "sortable": True},
     # Vector field for embeddings
-    create_vector_field(name="embedding", dimensions=1536)
+    {"name": "embedding", "type": "Collection(Edm.Single)", "searchable": True, "dimensions": 1536, "vectorSearchConfiguration": "default-profile"}
 ]
 
 PLAN_FIELDS = [
-    SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
-    SimpleField(name="student_id", type=SearchFieldDataType.String, filterable=True),
-    SearchableField(name="title", type=SearchFieldDataType.String),
-    SearchableField(name="description", type=SearchFieldDataType.String),
-    SimpleField(name="subject", type=SearchFieldDataType.String, filterable=True, facetable=True),
-    SimpleField(name="topics", type=SearchFieldDataType.Collection(SearchFieldDataType.String), filterable=True, facetable=True),
+    {"name": "id", "type": "Edm.String", "key": True, "filterable": True},
+    {"name": "student_id", "type": "Edm.String", "filterable": True},
+    {"name": "title", "type": "Edm.String", "searchable": True},
+    {"name": "description", "type": "Edm.String", "searchable": True},
+    {"name": "subject", "type": "Edm.String", "filterable": True, "facetable": True},
+    {"name": "topics", "type": "Collection(Edm.String)", "filterable": True, "facetable": True},
     # Activities complex collection
-    SimpleField(name="status", type=SearchFieldDataType.String, filterable=True, facetable=True),
-    SimpleField(name="progress_percentage", type=SearchFieldDataType.Double, filterable=True, sortable=True),
-    SimpleField(name="created_at", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
-    SimpleField(name="updated_at", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
-    SimpleField(name="start_date", type=SearchFieldDataType.DateTimeOffset, filterable=True),
-    SimpleField(name="end_date", type=SearchFieldDataType.DateTimeOffset, filterable=True),
+    {"name": "status", "type": "Edm.String", "filterable": True, "facetable": True},
+    {"name": "progress_percentage", "type": "Edm.Double", "filterable": True, "sortable": True},
+    {"name": "created_at", "type": "Edm.DateTimeOffset", "filterable": True, "sortable": True},
+    {"name": "updated_at", "type": "Edm.DateTimeOffset", "filterable": True, "sortable": True},
+    {"name": "start_date", "type": "Edm.DateTimeOffset", "filterable": True},
+    {"name": "end_date", "type": "Edm.DateTimeOffset", "filterable": True},
     # LangChain can work with page_content field 
-    SearchableField(name="page_content", type=SearchFieldDataType.String),
+    {"name": "page_content", "type": "Edm.String", "searchable": True},
     # Vector field for embeddings
-    create_vector_field(name="embedding", dimensions=1536)
+    {"name": "embedding", "type": "Collection(Edm.Single)", "searchable": True, "dimensions": 1536, "vectorSearchConfiguration": "default-profile"}
 ]
 
 ###############################################################################
@@ -199,20 +188,17 @@ async def main() -> bool:
         return False
 
     try:
-        # Initialize the search client
-        client = SearchIndexClient(endpoint=AZURE_SEARCH_ENDPOINT, credential=AzureKeyCredential(AZURE_SEARCH_KEY))
+        # Create the indexes using direct REST API
+        success1 = await _create_index_with_rest(CONTENT_INDEX_NAME, CONTENT_FIELDS)
+        success2 = await _create_index_with_rest(USERS_INDEX_NAME, USER_FIELDS)
+        success3 = await _create_index_with_rest(PLANS_INDEX_NAME, PLAN_FIELDS)
         
-        # Create the indexes
-        await _create_index(client, CONTENT_INDEX_NAME, CONTENT_FIELDS)
-        await _create_index(client, USERS_INDEX_NAME, USER_FIELDS)
-        await _create_index(client, PLANS_INDEX_NAME, PLAN_FIELDS)
-        
-        # Close the client
-        await client.close()
-        
-        logger.info("🎉 All indexes created successfully")
-        logger.info("Vector search is configured to the extent supported by your SDK version")
-        return True
+        if success1 and success2 and success3:
+            logger.info("🎉 All indexes created successfully")
+            return True
+        else:
+            logger.error("Failed to create all indexes")
+            return False
         
     except Exception as e:
         logger.error(f"Error creating indexes: {e}")
