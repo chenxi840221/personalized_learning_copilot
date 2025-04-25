@@ -8,19 +8,32 @@ import json
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple
 
-# Ensure proper imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Fix imports by adjusting the path to include the backend directory
+current_dir = os.path.dirname(os.path.abspath(__file__))
+backend_dir = os.path.dirname(current_dir)
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
 
-# LangChain imports
-from langchain.document_loaders import WebBaseLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings import AzureOpenAIEmbeddings
-from langchain.vectorstores import AzureSearch
+# Now try imports with the adjusted path
+try:
+    from utils.vector_store import get_vector_store
+    from config.settings import Settings
+    from rag.openai_adapter import get_openai_adapter
+    from scrapers.edu_resource_indexer import run_indexer
+    from scrapers.content_extractor import run_extractor
+except ImportError:
+    # If that fails, try with absolute imports
+    from backend.utils.vector_store import get_vector_store
+    from backend.config.settings import Settings
+    from backend.rag.openai_adapter import get_openai_adapter
+    from backend.scrapers.edu_resource_indexer import run_indexer
+    from backend.scrapers.content_extractor import run_extractor
 
-# Project imports
-from config.settings import Settings
-from utils.vector_store import get_vector_store
-from rag.openai_adapter import get_openai_adapter
+# Now for LangChain imports - always use the community imports
+from langchain_community.document_loaders import WebBaseLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.embeddings import AzureOpenAIEmbeddings
+from langchain_community.vectorstores import AzureSearch
 
 # Setup logging
 logging.basicConfig(
@@ -37,9 +50,12 @@ logger = logging.getLogger(__name__)
 # Initialize settings
 settings = Settings()
 
+
 # Import the two steps
-from edu_resource_indexer import run_indexer
-from content_extractor import run_extractor
+from scrapers.edu_resource_indexer import run_indexer
+from scrapers.content_extractor import run_extractor
+
+# ... rest of the code remains the same
 
 class EnhancedScraperManager:
     """Enhanced scraper with Azure OpenAI and Azure Search integration."""
