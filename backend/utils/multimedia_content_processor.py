@@ -1,5 +1,6 @@
-import asyncio
+# backend/utils/multimedia_content_processor.py
 import logging
+import asyncio
 from typing import List, Dict, Any, Optional, Tuple
 import os
 import uuid
@@ -100,6 +101,9 @@ class MultimediaContentProcessor:
         
         content_type = content_info.get('content_type', '')
         
+        # Format dates properly for Azure Search
+        current_time = datetime.utcnow().isoformat(timespec='seconds') + 'Z'
+        
         # Initialize the content item with basic info
         content_item = {
             "id": str(uuid.uuid4()),
@@ -114,8 +118,8 @@ class MultimediaContentProcessor:
             "grade_level": content_info.get('grade_level', []),
             "duration_minutes": content_info.get('duration_minutes', 0),
             "keywords": content_info.get('keywords', []),
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
+            "created_at": current_time,  # Properly formatted for Azure Search
+            "updated_at": current_time,  # Properly formatted for Azure Search
             "metadata": {}
         }
         
@@ -407,7 +411,22 @@ class MultimediaContentProcessor:
                 model=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
                 text=text
             )
-            return embedding
+            
+            # Ensure embedding is in the correct format for Azure Search
+            # If it's a list, return it directly
+            if isinstance(embedding, list):
+                return embedding
+            
+            # If it's a numpy array, convert to list
+            if hasattr(embedding, 'tolist'):
+                return embedding.tolist()
+                
+            # If it's a dictionary (OpenAI response format), extract the embedding
+            if isinstance(embedding, dict) and 'data' in embedding and len(embedding['data']) > 0:
+                return embedding['data'][0]['embedding']
+                
+            # Default case - empty vector with appropriate dimensions
+            return [0.0] * 1536  # Default dimension for text-embedding-ada-002
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")
             # Fall back to empty embedding vector with appropriate dimensions
@@ -439,6 +458,21 @@ class MultimediaContentProcessor:
             
             for i in range(0, len(content_items), batch_size):
                 batch = content_items[i:i+batch_size]
+                
+                # Format all dates in the batch to ISO 8601 with Z suffix
+                for item in batch:
+                    for date_field in ["created_at", "updated_at"]:
+                        if date_field in item and item[date_field]:
+                            # Ensure proper format for Azure Search
+                            try:
+                                if isinstance(item[date_field], str):
+                                    dt = datetime.fromisoformat(item[date_field].replace('Z', ''))
+                                    item[date_field] = dt.isoformat(timespec='seconds') + 'Z'
+                                elif isinstance(item[date_field], datetime):
+                                    item[date_field] = item[date_field].isoformat(timespec='seconds') + 'Z'
+                            except (ValueError, TypeError):
+                                # If conversion fails, set to current time
+                                item[date_field] = datetime.utcnow().isoformat(timespec='seconds') + 'Z'
                 
                 try:
                     # Upload batch to Azure Search

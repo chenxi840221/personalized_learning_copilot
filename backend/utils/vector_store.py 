@@ -1,3 +1,4 @@
+# backend/utils/vector_store.py
 import logging
 from typing import List, Dict, Any, Optional
 import asyncio
@@ -64,6 +65,20 @@ class ContentVectorStore:
                 text_for_embedding = self._prepare_text_for_embedding(content_item)
                 content_item["embedding"] = await self._generate_embedding(text_for_embedding)
             
+            # Ensure dates are in the correct format for Azure Search
+            for date_field in ["created_at", "updated_at", "published_at"]:
+                if date_field in content_item and content_item[date_field]:
+                    try:
+                        # Standardize date format to ISO 8601 with Z suffix
+                        if isinstance(content_item[date_field], str):
+                            dt = datetime.fromisoformat(content_item[date_field].replace('Z', ''))
+                            content_item[date_field] = dt.isoformat(timespec='seconds') + 'Z'
+                        elif isinstance(content_item[date_field], datetime):
+                            content_item[date_field] = content_item[date_field].isoformat(timespec='seconds') + 'Z'
+                    except (ValueError, TypeError):
+                        # If parsing fails, set to current time
+                        content_item[date_field] = datetime.utcnow().isoformat(timespec='seconds') + 'Z'
+            
             # Upload to search index
             result = await self.search_client.upload_documents(documents=[content_item])
             
@@ -102,6 +117,20 @@ class ContentVectorStore:
                         item["embedding"] = await self._generate_embedding(text_for_embedding)
                         # Add a small delay to avoid overwhelming the API
                         await asyncio.sleep(0.1)
+                    
+                    # Ensure dates are in the correct format
+                    for date_field in ["created_at", "updated_at", "published_at"]:
+                        if date_field in item and item[date_field]:
+                            try:
+                                # Standardize date format
+                                if isinstance(item[date_field], str):
+                                    dt = datetime.fromisoformat(item[date_field].replace('Z', ''))
+                                    item[date_field] = dt.isoformat(timespec='seconds') + 'Z'
+                                elif isinstance(item[date_field], datetime):
+                                    item[date_field] = item[date_field].isoformat(timespec='seconds') + 'Z'
+                            except (ValueError, TypeError):
+                                # If parsing fails, set to current time
+                                item[date_field] = datetime.utcnow().isoformat(timespec='seconds') + 'Z'
                 
                 # Upload batch
                 result = await self.search_client.upload_documents(documents=batch)
@@ -150,6 +179,23 @@ class ContentVectorStore:
             
             # Update fields
             doc_dict.update(updated_fields)
+            
+            # Ensure dates are properly formatted
+            for date_field in ["created_at", "updated_at", "published_at"]:
+                if date_field in doc_dict and doc_dict[date_field]:
+                    try:
+                        # Standardize date format
+                        if isinstance(doc_dict[date_field], str):
+                            dt = datetime.fromisoformat(doc_dict[date_field].replace('Z', ''))
+                            doc_dict[date_field] = dt.isoformat(timespec='seconds') + 'Z'
+                        elif isinstance(doc_dict[date_field], datetime):
+                            doc_dict[date_field] = doc_dict[date_field].isoformat(timespec='seconds') + 'Z'
+                    except (ValueError, TypeError):
+                        # If parsing fails, set to current time
+                        doc_dict[date_field] = datetime.utcnow().isoformat(timespec='seconds') + 'Z'
+            
+            # Update "updated_at" to current time
+            doc_dict["updated_at"] = datetime.utcnow().isoformat(timespec='seconds') + 'Z'
             
             # Check if we need to update the embedding
             need_embedding_update = False
@@ -338,7 +384,21 @@ class ContentVectorStore:
                 text=text
             )
             
-            return embedding
+            # Ensure embedding is in the correct format for Azure Search
+            # If it's a list, return it directly
+            if isinstance(embedding, list):
+                return embedding
+            
+            # If it's a numpy array, convert to list
+            if hasattr(embedding, 'tolist'):
+                return embedding.tolist()
+                
+            # If it's a dictionary (OpenAI response format), extract the embedding
+            if isinstance(embedding, dict) and 'data' in embedding and len(embedding['data']) > 0:
+                return embedding['data'][0]['embedding']
+                
+            # Default case - empty vector with appropriate dimensions
+            return [0.0] * 1536  # Default dimension for text-embedding-ada-002
             
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")

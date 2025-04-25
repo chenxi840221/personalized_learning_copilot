@@ -175,6 +175,9 @@ class EducationContentExtractor:
         await self.save_screenshot(f"resource_{safe_title}")
         await self.save_html(f"resource_{safe_title}")
         
+        # Format dates properly for Azure Search - ISO format with Z suffix
+        current_time = datetime.utcnow().isoformat(timespec='seconds') + 'Z'
+        
         # Extract basic metadata
         metadata = {
             "title": resource_title,
@@ -182,7 +185,9 @@ class EducationContentExtractor:
             "subject": subject_name,
             "age_group": age_group,  # Include age group in metadata
             "source": "ABC Education",
-            "id": str(uuid.uuid4())
+            "id": str(uuid.uuid4()),
+            "created_at": current_time,
+            "updated_at": current_time
         }
         
         # Extract description
@@ -264,7 +269,117 @@ class EducationContentExtractor:
         logger.info(f"Extracted content details for: {resource_title[:30]}{'...' if len(resource_title) > 30 else ''}")
         return metadata
     
-    # [The rest of the methods remain the same, but we'll update the _determine_difficulty_and_grade method to use age_group]
+    async def _extract_description(self) -> Optional[str]:
+        """Extract description from the current page."""
+        description_selectors = [
+            "meta[name='description']",
+            ".description",
+            ".summary",
+            ".content-block-article__summary",
+            "p.intro",
+            ".intro p",
+            "article p:first-of-type"
+        ]
+        
+        for selector in description_selectors:
+            if selector.startswith("meta"):
+                # Handle meta tags
+                meta = await self.page.query_selector(selector)
+                if meta:
+                    content = await meta.get_attribute("content")
+                    if content and content.strip():
+                        return content.strip()
+            else:
+                # Handle regular elements
+                elem = await self.page.query_selector(selector)
+                if elem:
+                    text = await elem.text_content()
+                    if text and text.strip():
+                        return text.strip()
+        
+        return None
+    
+    async def _determine_content_type(self) -> ContentType:
+        """Determine the content type of the current page."""
+        url = self.page.url
+        
+        # Check URL for indicators
+        if any(video_term in url for video_term in ['/video/', '/watch/', '.mp4', '/iview/']):
+            return ContentType.VIDEO
+        elif any(audio_term in url for audio_term in ['/audio/', '/podcast/', '.mp3', '/radio/']):
+            return ContentType.AUDIO
+        elif any(quiz_term in url for quiz_term in ['/quiz/', '/test/', '/assessment/']):
+            return ContentType.QUIZ
+        elif any(worksheet_term in url for worksheet_term in ['/worksheet/', '/exercise/', '/printable/']):
+            return ContentType.WORKSHEET
+        elif any(interactive_term in url for interactive_term in ['/interactive/', '/game/', '/simulation/']):
+            return ContentType.INTERACTIVE
+        elif any(lesson_term in url for lesson_term in ['/lesson/', '/class/', '/course/']):
+            return ContentType.LESSON
+        elif any(activity_term in url for activity_term in ['/activity/', '/project/', '/lab/']):
+            return ContentType.ACTIVITY
+        
+        # Check for specific elements in the page
+        has_video = await self.page.query_selector("video, .video-player, iframe[src*='youtube'], iframe[src*='vimeo']")
+        if has_video:
+            return ContentType.VIDEO
+            
+        has_audio = await self.page.query_selector("audio, .audio-player")
+        if has_audio:
+            return ContentType.AUDIO
+            
+        has_quiz = await self.page.query_selector(".quiz, .assessment, form[data-quiz]")
+        if has_quiz:
+            return ContentType.QUIZ
+            
+        has_interactive = await self.page.query_selector("iframe[src*='interactive'], canvas, .interactive, [data-component-name='Interactive']")
+        if has_interactive:
+            return ContentType.INTERACTIVE
+            
+        # Default to article if no specific indicators found
+        return ContentType.ARTICLE
+    
+    async def _extract_topics(self, subject_name: str) -> List[str]:
+        """Extract topics from the current page."""
+        topics = []
+        
+        # Look for topic tags
+        topic_selectors = [
+            ".tag",
+            ".topic",
+            ".category",
+            ".subject",
+            "[data-testid='tag']",
+            "[data-testid='topic']",
+            "meta[name='keywords']"
+        ]
+        
+        for selector in topic_selectors:
+            if selector.startswith("meta"):
+                # Handle meta tags
+                meta = await self.page.query_selector(selector)
+                if meta:
+                    content = await meta.get_attribute("content")
+                    if content:
+                        # Split by commas
+                        keywords = [k.strip() for k in content.split(",")]
+                        topics.extend([k for k in keywords if k])
+            else:
+                # Handle regular elements
+                elems = await self.page.query_selector_all(selector)
+                for elem in elems:
+                    text = await elem.text_content()
+                    if text and text.strip():
+                        topics.append(text.strip())
+        
+        # Clean up and remove duplicates
+        unique_topics = list(set(topics))
+        
+        # Always include the main subject as a topic
+        if subject_name not in unique_topics:
+            unique_topics.append(subject_name)
+        
+        return unique_topics
     
     def _determine_difficulty_and_grade(self, title: str, description: str, subject: str, age_group: str = "All Years") -> Tuple[DifficultyLevel, List[int]]:
         """
@@ -388,118 +503,6 @@ class EducationContentExtractor:
                         extracted_grades = [3, 4, 5, 6]
         
         return difficulty, extracted_grades
-    
-    async def _extract_description(self) -> Optional[str]:
-        """Extract description from the current page."""
-        description_selectors = [
-            "meta[name='description']",
-            ".description",
-            ".summary",
-            ".content-block-article__summary",
-            "p.intro",
-            ".intro p",
-            "article p:first-of-type"
-        ]
-        
-        for selector in description_selectors:
-            if selector.startswith("meta"):
-                # Handle meta tags
-                meta = await self.page.query_selector(selector)
-                if meta:
-                    content = await meta.get_attribute("content")
-                    if content and content.strip():
-                        return content.strip()
-            else:
-                # Handle regular elements
-                elem = await self.page.query_selector(selector)
-                if elem:
-                    text = await elem.text_content()
-                    if text and text.strip():
-                        return text.strip()
-        
-        return None
-    
-    async def _determine_content_type(self) -> ContentType:
-        """Determine the content type of the current page."""
-        url = self.page.url
-        
-        # Check URL for indicators
-        if any(video_term in url for video_term in ['/video/', '/watch/', '.mp4', '/iview/']):
-            return ContentType.VIDEO
-        elif any(audio_term in url for audio_term in ['/audio/', '/podcast/', '.mp3', '/radio/']):
-            return ContentType.AUDIO
-        elif any(quiz_term in url for quiz_term in ['/quiz/', '/test/', '/assessment/']):
-            return ContentType.QUIZ
-        elif any(worksheet_term in url for worksheet_term in ['/worksheet/', '/exercise/', '/printable/']):
-            return ContentType.WORKSHEET
-        elif any(interactive_term in url for interactive_term in ['/interactive/', '/game/', '/simulation/']):
-            return ContentType.INTERACTIVE
-        elif any(lesson_term in url for lesson_term in ['/lesson/', '/class/', '/course/']):
-            return ContentType.LESSON
-        elif any(activity_term in url for activity_term in ['/activity/', '/project/', '/lab/']):
-            return ContentType.ACTIVITY
-        
-        # Check for specific elements in the page
-        has_video = await self.page.query_selector("video, .video-player, iframe[src*='youtube'], iframe[src*='vimeo']")
-        if has_video:
-            return ContentType.VIDEO
-            
-        has_audio = await self.page.query_selector("audio, .audio-player")
-        if has_audio:
-            return ContentType.AUDIO
-            
-        has_quiz = await self.page.query_selector(".quiz, .assessment, form[data-quiz]")
-        if has_quiz:
-            return ContentType.QUIZ
-            
-        has_interactive = await self.page.query_selector("iframe[src*='interactive'], canvas, .interactive, [data-component-name='Interactive']")
-        if has_interactive:
-            return ContentType.INTERACTIVE
-            
-        # Default to article if no specific indicators found
-        return ContentType.ARTICLE
-    
-    async def _extract_topics(self, subject_name: str) -> List[str]:
-        """Extract topics from the current page."""
-        topics = []
-        
-        # Look for topic tags
-        topic_selectors = [
-            ".tag",
-            ".topic",
-            ".category",
-            ".subject",
-            "[data-testid='tag']",
-            "[data-testid='topic']",
-            "meta[name='keywords']"
-        ]
-        
-        for selector in topic_selectors:
-            if selector.startswith("meta"):
-                # Handle meta tags
-                meta = await self.page.query_selector(selector)
-                if meta:
-                    content = await meta.get_attribute("content")
-                    if content:
-                        # Split by commas
-                        keywords = [k.strip() for k in content.split(",")]
-                        topics.extend([k for k in keywords if k])
-            else:
-                # Handle regular elements
-                elems = await self.page.query_selector_all(selector)
-                for elem in elems:
-                    text = await elem.text_content()
-                    if text and text.strip():
-                        topics.append(text.strip())
-        
-        # Clean up and remove duplicates
-        unique_topics = list(set(topics))
-        
-        # Always include the main subject as a topic
-        if subject_name not in unique_topics:
-            unique_topics.append(subject_name)
-        
-        return unique_topics
     
     async def _extract_duration(self) -> Optional[int]:
         """Extract duration from the current page."""
@@ -1035,6 +1038,7 @@ class EducationContentExtractor:
             results["errors"] += 1
         
         return results
+
 
 async def run_extractor(
     index_path: str, 
