@@ -30,19 +30,14 @@ azure-cognitiveservices-speech==1.32.1  # For speech-to-text processing
 msrest==0.7.1
 
 # OpenAI with Azure
-openai==1.10.0  # Updated from 0.28.0 to be compatible with langchain-openai
+openai==1.10.0  # Specifically using 1.10.0 version
 
-# LangChain Integration - Using compatible versions
-langchain-core==0.1.33  # Updated to satisfy all dependencies 
+# LangChain Integration
 langchain==0.1.12
-langchain-openai==0.0.8
-langchain-community==0.0.29
-# Note: Azure functionality is included in langchain-community package
-faiss-cpu==1.7.4  # For vector similarity search
+langchain-core==0.1.33
+langchain-openai==0.0.8  # Add specific langchain-openai package
+langchain-community==0.0.29  # Contains Azure functionality
+langchain-text-splitters==0.0.1  # Text splitting utilities
 
 # Testing
 pytest==7.3.1
-pytest-asyncio==0.21.0
-
-# Media Processing
-numpy==1.24.3  # For numerical operations

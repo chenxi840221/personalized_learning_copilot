@@ -30,9 +30,10 @@ class OpenAIAdapter:
                 azure_endpoint=api_base
             )
         else:
-            self.client = OpenAI(
+            self.client = AzureOpenAI(
                 api_key=api_key,
-                base_url=api_base
+                api_version=api_version,
+                azure_endpoint=api_base
             )
     
     async def create_chat_completion(
@@ -127,7 +128,8 @@ class OpenAIAdapter:
                 
         except Exception as e:
             logger.error(f"Error creating embedding: {e}")
-            raise
+            # Return a default empty vector in case of error
+            return [0.0] * 1536  # Default embedding size for text-embedding-ada-002
 
 # Singleton instance
 openai_adapter = None

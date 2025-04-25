@@ -2,8 +2,6 @@
 import logging
 from typing import List, Dict, Any, Optional
 import asyncio
-import numpy as np
-import os
 from datetime import datetime
 
 from azure.core.credentials import AzureKeyCredential
@@ -28,18 +26,35 @@ class ContentVectorStore:
         """Initialize the vector store."""
         self.search_client = None
         self.openai_client = None
+        self.embedding_dimension = 1536  # Default dimension for text-embedding-ada-002
     
     async def initialize(self):
         """Initialize the search client and OpenAI client."""
-        # Initialize search client
-        self.search_client = SearchClient(
-            endpoint=settings.AZURE_SEARCH_ENDPOINT,
-            index_name=settings.AZURE_SEARCH_INDEX_NAME,
-            credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
-        )
-        
-        # Initialize OpenAI client for generating embeddings
-        self.openai_client = await get_openai_adapter()
+        try:
+            # Initialize search client
+            self.search_client = SearchClient(
+                endpoint=settings.AZURE_SEARCH_ENDPOINT,
+                index_name=settings.AZURE_SEARCH_INDEX_NAME,
+                credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
+            )
+            
+            # Check index schema to determine embedding dimensions
+            try:
+                schema = await self.search_client.get_index_client().get_index(settings.AZURE_SEARCH_INDEX_NAME)
+                for field in schema.fields:
+                    if field.name == "embedding" and hasattr(field, "vector_search_dimensions"):
+                        self.embedding_dimension = field.vector_search_dimensions
+                        logger.info(f"Using embedding dimension from schema: {self.embedding_dimension}")
+            except Exception as schema_error:
+                logger.warning(f"Could not determine embedding dimension from schema: {schema_error}")
+            
+            # Initialize OpenAI client for generating embeddings
+            self.openai_client = await get_openai_adapter()
+            
+            logger.info("Vector store initialized successfully")
+        except Exception as e:
+            logger.error(f"Error initializing vector store: {e}")
+            raise
     
     async def close(self):
         """Close the search client."""
@@ -78,6 +93,17 @@ class ContentVectorStore:
                     except (ValueError, TypeError):
                         # If parsing fails, set to current time
                         content_item[date_field] = datetime.utcnow().isoformat(timespec='seconds') + 'Z'
+            
+            # Extract metadata fields to match index schema
+            if "metadata" in content_item:
+                metadata = content_item["metadata"]
+                # Map flattened metadata fields
+                if "content_text" in metadata:
+                    content_item["metadata_content_text"] = metadata["content_text"]
+                if "transcription" in metadata:
+                    content_item["metadata_transcription"] = metadata["transcription"]
+                if "thumbnail_url" in metadata:
+                    content_item["metadata_thumbnail_url"] = metadata["thumbnail_url"]
             
             # Upload to search index
             result = await self.search_client.upload_documents(documents=[content_item])
@@ -131,6 +157,17 @@ class ContentVectorStore:
                             except (ValueError, TypeError):
                                 # If parsing fails, set to current time
                                 item[date_field] = datetime.utcnow().isoformat(timespec='seconds') + 'Z'
+                    
+                    # Extract metadata fields to match index schema
+                    if "metadata" in item:
+                        metadata = item["metadata"]
+                        # Map flattened metadata fields
+                        if "content_text" in metadata:
+                            item["metadata_content_text"] = metadata["content_text"]
+                        if "transcription" in metadata:
+                            item["metadata_transcription"] = metadata["transcription"]
+                        if "thumbnail_url" in metadata:
+                            item["metadata_thumbnail_url"] = metadata["thumbnail_url"]
                 
                 # Upload batch
                 result = await self.search_client.upload_documents(documents=batch)
@@ -214,6 +251,17 @@ class ContentVectorStore:
             if need_embedding_update:
                 text_for_embedding = self._prepare_text_for_embedding(doc_dict)
                 doc_dict["embedding"] = await self._generate_embedding(text_for_embedding)
+            
+            # Extract metadata fields to match index schema
+            if "metadata" in doc_dict:
+                metadata = doc_dict["metadata"]
+                # Map flattened metadata fields
+                if "content_text" in metadata:
+                    doc_dict["metadata_content_text"] = metadata["content_text"]
+                if "transcription" in metadata:
+                    doc_dict["metadata_transcription"] = metadata["transcription"]
+                if "thumbnail_url" in metadata:
+                    doc_dict["metadata_thumbnail_url"] = metadata["thumbnail_url"]
             
             # Upload the updated document
             result = await self.search_client.upload_documents(documents=[doc_dict])
@@ -384,29 +432,18 @@ class ContentVectorStore:
                 text=text
             )
             
-            # Ensure embedding is a list of float values, not a nested array
-            if isinstance(embedding, list):
-                # Check if this is a nested list or contains lists
-                if embedding and isinstance(embedding[0], list):
-                    # Flatten nested list - take the first inner list
-                    return embedding[0]
-                return embedding
-            
-            # If it's a numpy array, convert to list
-            if hasattr(embedding, 'tolist'):
-                return embedding.tolist()
+            # Ensure we're returning a list of floats
+            if not embedding or not isinstance(embedding, list):
+                logger.warning(f"Received unexpected embedding format: {type(embedding)}")
+                # Return empty embedding with correct dimension
+                return [0.0] * self.embedding_dimension
                 
-            # If it's a dictionary (OpenAI response format), extract the embedding
-            if isinstance(embedding, dict) and 'data' in embedding and len(embedding['data']) > 0:
-                return embedding['data'][0]['embedding']
+            return embedding
                 
-            # Default case - empty vector with appropriate dimensions
-            return [0.0] * 1536  # Default dimension for text-embedding-ada-002
-            
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")
             # Fall back to empty embedding vector with appropriate dimensions
-            return [0.0] * 1536  # Default dimension for text-embedding-ada-002
+            return [0.0] * self.embedding_dimension
     
     def _prepare_text_for_embedding(self, content_item: Dict[str, Any]) -> str:
         """
@@ -442,6 +479,12 @@ class ContentVectorStore:
         metadata = content_item.get('metadata', {})
         content_text = metadata.get('content_text', '')
         transcription = metadata.get('transcription', '')
+        
+        # Also check flattened metadata fields
+        if not content_text and 'metadata_content_text' in content_item:
+            content_text = content_item['metadata_content_text']
+        if not transcription and 'metadata_transcription' in content_item:
+            transcription = content_item['metadata_transcription']
         
         if content_text:
             # Add truncated content text if it's long

@@ -12,12 +12,13 @@ from typing import List, Dict, Any, Optional
 # LangChain imports
 from langchain.chat_models import AzureChatOpenAI
 from langchain.embeddings import AzureOpenAIEmbeddings
-from langchain.vectorstores.azure_search import AzureSearch
+from langchain.vectorstores import AzureSearch
 from langchain.retrievers import AzureAISearchRetriever
 from langchain.chains import RetrievalQA, ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from langchain.prompts import ChatPromptTemplate, PromptTemplate
 from langchain.schema import StrOutputParser
+from langchain.schema.runnable import RunnablePassthrough
 
 # Azure imports
 from azure.core.credentials import AzureKeyCredential
@@ -239,7 +240,7 @@ class AzureLangChainIntegration:
                          for i, doc in enumerate(documents)]
             
             # Add documents to the vector store
-            await self.vector_store.aadd_texts(texts=texts, metadatas=metadatas)
+            await self.vector_store.add_texts(texts=texts, metadatas=metadatas)
             
             logger.info(f"Successfully indexed {len(documents)} documents")
             return True
@@ -268,15 +269,15 @@ class AzureLangChainIntegration:
         if not self.initialized:
             await self.initialize()
             
-        if not self.search_client:
-            raise ValueError("Search client not initialized, cannot search documents")
+        if not self.vector_store:
+            raise ValueError("Vector store not initialized, cannot search documents")
             
         try:
             # Generate embedding for query
             query_embedding = await self.embeddings.aembed_query(query)
             
             # Perform vector search
-            search_results = await self.vector_store.asimilarity_search_with_score_by_vector(
+            search_results = await self._similarity_search_with_vector(
                 embedding=query_embedding,
                 k=top_k,
                 filter=filter
@@ -297,6 +298,47 @@ class AzureLangChainIntegration:
             
         except Exception as e:
             logger.error(f"Error searching documents: {e}")
+            return []
+    
+    async def _similarity_search_with_vector(
+        self, 
+        embedding: List[float], 
+        k: int = 5, 
+        filter: Optional[str] = None
+    ) -> List[tuple]:
+        """
+        Perform similarity search using a vector embedding.
+        
+        Args:
+            embedding: Vector embedding
+            k: Number of results to return
+            filter: Optional filter expression
+            
+        Returns:
+            List of (document, score) tuples
+        """
+        try:
+            if hasattr(self.vector_store, "similarity_search_with_score_by_vector"):
+                # Use synchronous method with await
+                result = await asyncio.to_thread(
+                    self.vector_store.similarity_search_with_score_by_vector,
+                    embedding,
+                    k=k,
+                    filter=filter
+                )
+                return result
+            else:
+                # Fallback to standard method
+                docs = await asyncio.to_thread(
+                    self.vector_store.similarity_search_by_vector,
+                    embedding,
+                    k=k,
+                    filter=filter
+                )
+                return [(doc, 1.0) for doc in docs]  # Default score of 1.0
+                
+        except Exception as e:
+            logger.error(f"Error in similarity search: {e}")
             return []
     
     async def generate_learning_plan_with_rag(

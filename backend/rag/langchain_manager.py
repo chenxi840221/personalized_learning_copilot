@@ -14,10 +14,9 @@ from langchain.embeddings import AzureOpenAIEmbeddings
 from langchain.schema import HumanMessage, SystemMessage
 from langchain.chains import ConversationalRetrievalChain, LLMChain
 from langchain.memory import ConversationBufferMemory
-from langchain.retrievers import AzureAISearchRetriever
+from langchain.vectorstores import AzureSearch
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.callbacks.manager import CallbackManager
-from langchain.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.document_loaders import TextLoader
 
@@ -71,14 +70,18 @@ class LangChainManager:
                 return_messages=True
             )
             
-            # Setup Azure AI Search retriever if settings are available
+            # Setup Azure AI Search vector store if settings are available
             if settings.AZURE_SEARCH_ENDPOINT and settings.AZURE_SEARCH_KEY:
-                self.retriever = AzureAISearchRetriever(
-                    service_name=settings.AZURE_SEARCH_ENDPOINT.replace("https://", "").replace(".search.windows.net", ""),
+                self.vector_store = AzureSearch(
+                    azure_search_endpoint=settings.AZURE_SEARCH_ENDPOINT,
+                    azure_search_key=settings.AZURE_SEARCH_KEY,
                     index_name=settings.AZURE_SEARCH_INDEX_NAME,
-                    api_key=settings.AZURE_SEARCH_KEY,
-                    content_key="content_text",
                     embedding_function=self.embeddings.embed_query
+                )
+                
+                # Create retriever
+                self.retriever = self.vector_store.as_retriever(
+                    search_kwargs={"k": 5}
                 )
                 
                 # Initialize the RAG conversation chain
@@ -226,24 +229,27 @@ class LangChainManager:
         metadatas: Optional[List[Dict[str, Any]]] = None
     ) -> Any:
         """
-        Create an in-memory vector store from texts.
+        Create an Azure Search vector store from texts.
         
         Args:
             texts: List of text content
             metadatas: Optional metadata for each text
             
         Returns:
-            FAISS vector store
+            Vector store
         """
         if not self.embeddings:
             self.initialize()
             
         try:
-            # Create vector store
-            self.vector_store = FAISS.from_texts(
+            # Create vector store with Azure Search
+            self.vector_store = AzureSearch.from_texts(
                 texts=texts,
                 embedding=self.embeddings,
-                metadatas=metadatas
+                metadatas=metadatas,
+                azure_search_endpoint=settings.AZURE_SEARCH_ENDPOINT,
+                azure_search_key=settings.AZURE_SEARCH_KEY,
+                index_name=settings.AZURE_SEARCH_INDEX_NAME
             )
             
             return self.vector_store
@@ -262,7 +268,7 @@ class LangChainManager:
             chunk_overlap: Overlap between chunks
             
         Returns:
-            FAISS vector store
+            Vector store
         """
         if not self.embeddings:
             self.initialize()
@@ -281,7 +287,13 @@ class LangChainManager:
             texts = text_splitter.split_documents(documents)
             
             # Create vector store
-            self.vector_store = FAISS.from_documents(texts, self.embeddings)
+            self.vector_store = AzureSearch.from_documents(
+                documents=texts,
+                embedding=self.embeddings,
+                azure_search_endpoint=settings.AZURE_SEARCH_ENDPOINT,
+                azure_search_key=settings.AZURE_SEARCH_KEY,
+                index_name=settings.AZURE_SEARCH_INDEX_NAME
+            )
             
             return self.vector_store
             

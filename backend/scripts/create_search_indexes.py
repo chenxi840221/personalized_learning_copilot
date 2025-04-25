@@ -105,7 +105,7 @@ CONTENT_FIELDS = [
     SearchableField(name="metadata_transcription", type=SearchFieldDataType.String, analyzer_name="en.microsoft"),
     SimpleField(name="metadata_thumbnail_url", type=SearchFieldDataType.String),
     # Vector embedding
-    SearchableField(
+    SimpleField(
         name="embedding",
         type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
         searchable=True,
@@ -124,7 +124,7 @@ USER_FIELDS = [
     SimpleField(name="subjects_of_interest", type=SearchFieldDataType.Collection(SearchFieldDataType.String), filterable=True, facetable=True),
     SimpleField(name="created_at", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
     SimpleField(name="updated_at", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
-    SearchableField(
+    SimpleField(
         name="embedding",
         type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
         searchable=True,
@@ -147,7 +147,7 @@ PLAN_FIELDS = [
     SimpleField(name="updated_at", type=SearchFieldDataType.DateTimeOffset, filterable=True, sortable=True),
     SimpleField(name="start_date", type=SearchFieldDataType.DateTimeOffset, filterable=True),
     SimpleField(name="end_date", type=SearchFieldDataType.DateTimeOffset, filterable=True),
-    SearchableField(
+    SimpleField(
         name="embedding",
         type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
         searchable=True,
