@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 AZURE_SEARCH_ENDPOINT = os.getenv("AZURE_SEARCH_ENDPOINT")
 AZURE_SEARCH_KEY = os.getenv("AZURE_SEARCH_KEY")
 TEST_INDEX_NAME = "test-vector-index"
-API_VERSION = "2023-07-01-Preview"  # Use the preview API for vector search
+API_VERSION = "2021-04-30-Preview"  # Try an older API version
 
 async def test_connection():
     """Test the connection to Azure Search using direct REST API."""
@@ -76,7 +76,7 @@ async def test_connection():
         return False
 
 async def create_test_index():
-    """Create a test index with vector search support using direct REST API."""
+    """Create a test index with standard search support."""
     if not AZURE_SEARCH_ENDPOINT or not AZURE_SEARCH_KEY:
         logger.error("AZURE_SEARCH_ENDPOINT and AZURE_SEARCH_KEY must be set.")
         return False
@@ -107,7 +107,7 @@ async def create_test_index():
                                 logger.error(f"Failed to delete index: {delete_response.status} - {error_text}")
                                 return False
             
-            # Define the index using raw JSON
+            # Define the index using raw JSON without vector search
             index_def = {
                 "name": TEST_INDEX_NAME,
                 "fields": [
@@ -120,41 +120,21 @@ async def create_test_index():
                     {
                         "name": "title",
                         "type": "Edm.String",
-                        "filterable": True
+                        "filterable": True,
+                        "searchable": True
                     },
                     {
                         "name": "content",
                         "type": "Edm.String",
                         "searchable": True
                     },
+                    # Use a standard string array instead of vector
                     {
                         "name": "embedding",
                         "type": "Collection(Edm.Single)",
-                        "searchable": True,
-                        "dimensions": 4,
-                        "vectorSearchConfiguration": "test-profile"
+                        "searchable": False
                     }
-                ],
-                "vectorSearch": {
-                    "algorithms": [
-                        {
-                            "name": "test-config",
-                            "kind": "hnsw",
-                            "parameters": {
-                                "m": 4,
-                                "efConstruction": 100,
-                                "efSearch": 100,
-                                "metric": "cosine"
-                            }
-                        }
-                    ],
-                    "profiles": [
-                        {
-                            "name": "test-profile",
-                            "algorithm": "test-config"
-                        }
-                    ]
-                }
+                ]
             }
             
             # Create the index
@@ -207,8 +187,8 @@ async def add_test_document():
                 if response.status == 200:
                     result = await response.json()
                     if result.get("value", []):
-                        status = result["value"][0].get("status", False)
-                        if status:
+                        status = result["value"][0].get("status")
+                        if status == "succeeded":
                             logger.info(f"Successfully added test document with ID: {test_doc['id']}")
                             return True
                         else:

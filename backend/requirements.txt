@@ -33,7 +33,7 @@ openai==1.10.0  # Specifically using 1.10.0 version
 # LangChain Integration - Compatible set of versions
 langchain==0.1.20
 langchain-core==0.1.53
-langchain-openai
+langchain-openai==0.0.2
 langchain-community==0.0.38
 langchain-text-splitters==0.0.2
 tiktoken==0.5.2  # For token counting

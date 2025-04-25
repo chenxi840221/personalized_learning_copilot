@@ -49,25 +49,19 @@ async def _create_index_with_rest(index_name: str, fields: List, vector_config: 
         "fields": fields
     }
     
-    # Add vector search configuration if requested
+    # Add vector search configuration if requested - UPDATED FORMAT
     if vector_config:
         index_def["vectorSearch"] = {
-            "algorithms": [
+            "profiles": [
                 {
-                    "name": "hnsw-config",
-                    "kind": "hnsw",
+                    "name": "default-profile",
+                    "algorithm": "hnsw",
                     "parameters": {
                         "m": 4,
                         "efConstruction": 400,
                         "efSearch": 500,
                         "metric": "cosine"
                     }
-                }
-            ],
-            "profiles": [
-                {
-                    "name": "default-profile",
-                    "algorithm": "hnsw-config"
                 }
             ]
         }
@@ -139,8 +133,8 @@ CONTENT_FIELDS = [
     {"name": "metadata_thumbnail_url", "type": "Edm.String"},
     # This is the main field that will be used for text content
     {"name": "page_content", "type": "Edm.String", "searchable": True},
-    # Vector field for embeddings
-    {"name": "embedding", "type": "Collection(Edm.Single)", "searchable": True, "dimensions": 1536, "vectorSearchConfiguration": "default-profile"}
+    # Vector field for embeddings - UPDATED FIELD CONFIGURATION
+    {"name": "embedding", "type": "Collection(Edm.Single)", "searchable": True, "dimensions": 1536, "vectorSearchProfile": "default-profile"}
 ]
 
 USER_FIELDS = [
@@ -153,8 +147,8 @@ USER_FIELDS = [
     {"name": "subjects_of_interest", "type": "Collection(Edm.String)", "filterable": True, "facetable": True},
     {"name": "created_at", "type": "Edm.DateTimeOffset", "filterable": True, "sortable": True},
     {"name": "updated_at", "type": "Edm.DateTimeOffset", "filterable": True, "sortable": True},
-    # Vector field for embeddings
-    {"name": "embedding", "type": "Collection(Edm.Single)", "searchable": True, "dimensions": 1536, "vectorSearchConfiguration": "default-profile"}
+    # Vector field for embeddings - UPDATED FIELD CONFIGURATION
+    {"name": "embedding", "type": "Collection(Edm.Single)", "searchable": True, "dimensions": 1536, "vectorSearchProfile": "default-profile"}
 ]
 
 PLAN_FIELDS = [
@@ -173,8 +167,8 @@ PLAN_FIELDS = [
     {"name": "end_date", "type": "Edm.DateTimeOffset", "filterable": True},
     # LangChain can work with page_content field 
     {"name": "page_content", "type": "Edm.String", "searchable": True},
-    # Vector field for embeddings
-    {"name": "embedding", "type": "Collection(Edm.Single)", "searchable": True, "dimensions": 1536, "vectorSearchConfiguration": "default-profile"}
+    # Vector field for embeddings - UPDATED FIELD CONFIGURATION
+    {"name": "embedding", "type": "Collection(Edm.Single)", "searchable": True, "dimensions": 1536, "vectorSearchProfile": "default-profile"}
 ]
 
 ###############################################################################
