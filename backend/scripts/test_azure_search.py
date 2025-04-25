@@ -17,6 +17,7 @@ import uuid
 import json
 import aiohttp
 from typing import List, Dict, Any
+import numpy as np
 
 # Add the project root to the path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -40,7 +41,7 @@ logger = logging.getLogger(__name__)
 AZURE_SEARCH_ENDPOINT = os.getenv("AZURE_SEARCH_ENDPOINT")
 AZURE_SEARCH_KEY = os.getenv("AZURE_SEARCH_KEY")
 TEST_INDEX_NAME = "test-vector-index"
-API_VERSION = "2021-04-30-Preview"  # Try an older API version
+API_VERSION = "2024-03-01-Preview"  # Updated to use the preview API that supports vector search
 
 async def test_connection():
     """Test the connection to Azure Search using direct REST API."""
@@ -76,7 +77,7 @@ async def test_connection():
         return False
 
 async def create_test_index():
-    """Create a test index with standard search support."""
+    """Create a test index with vector search support."""
     if not AZURE_SEARCH_ENDPOINT or not AZURE_SEARCH_KEY:
         logger.error("AZURE_SEARCH_ENDPOINT and AZURE_SEARCH_KEY must be set.")
         return False
@@ -107,7 +108,7 @@ async def create_test_index():
                                 logger.error(f"Failed to delete index: {delete_response.status} - {error_text}")
                                 return False
             
-            # Define the index using raw JSON without vector search
+            # Define the index with vector search capability
             index_def = {
                 "name": TEST_INDEX_NAME,
                 "fields": [
@@ -128,14 +129,34 @@ async def create_test_index():
                         "type": "Edm.String",
                         "searchable": True
                     },
-                    # Use a standard string array instead of vector
                     {
                         "name": "embedding",
                         "type": "Collection(Edm.Single)",
-                        "searchable": False
+                        "searchable": True,
+                        "dimensions": 4,
+                        "vectorSearchProfile": "default-profile"
                     }
-                ]
+                ],
+                "vectorSearch": {
+                    "profiles": [
+                        {
+                            "name": "default-profile",
+                            "algorithm": "my-hnsw"
+                        }
+                    ],
+                    "algorithms": [
+                        {
+                            "name": "my-hnsw",
+                            "kind": "hnsw"
+                        }
+                    ]
+                }
             }
+
+
+
+
+              
             
             # Create the index
             create_url = f"{AZURE_SEARCH_ENDPOINT}/indexes?api-version={API_VERSION}"
@@ -164,13 +185,14 @@ async def add_test_document():
         
         # Set up aiohttp session
         async with aiohttp.ClientSession() as session:
-            # Create a test document
             test_doc = {
+                "@search.action": "upload",
                 "id": str(uuid.uuid4()),
                 "title": "Test Document",
                 "content": "This is a test document for vector search.",
-                "embedding": [0.1, 0.2, 0.3, 0.4]  # 4-dimensional vector for testing
+                "embedding": [float(x) for x in [0.1, 0.2, 0.3, 0.4]]
             }
+
             
             # Upload the document
             docs_url = f"{AZURE_SEARCH_ENDPOINT}/indexes/{TEST_INDEX_NAME}/docs/index?api-version={API_VERSION}"
