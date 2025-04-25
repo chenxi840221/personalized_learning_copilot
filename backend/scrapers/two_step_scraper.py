@@ -8,32 +8,27 @@ import json
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple
 
-# Fix imports by adjusting the path to include the backend directory
+# Fix import paths by adding the backend directory to sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 backend_dir = os.path.dirname(current_dir)
-if backend_dir not in sys.path:
-    sys.path.insert(0, backend_dir)
+project_root = os.path.dirname(backend_dir)
+sys.path.insert(0, project_root)
 
-# Now try imports with the adjusted path
-try:
-    from utils.vector_store import get_vector_store
-    from config.settings import Settings
-    from rag.openai_adapter import get_openai_adapter
-    from scrapers.edu_resource_indexer import run_indexer
-    from scrapers.content_extractor import run_extractor
-except ImportError:
-    # If that fails, try with absolute imports
-    from backend.utils.vector_store import get_vector_store
-    from backend.config.settings import Settings
-    from backend.rag.openai_adapter import get_openai_adapter
-    from backend.scrapers.edu_resource_indexer import run_indexer
-    from backend.scrapers.content_extractor import run_extractor
+# Use absolute imports from the project root
+from backend.utils.vector_store import get_vector_store
+from backend.config.settings import Settings
+from backend.rag.openai_adapter import get_openai_adapter
+from backend.scrapers.edu_resource_indexer import run_indexer
+from backend.scrapers.content_extractor import run_extractor
 
 # Now for LangChain imports - always use the community imports
-from langchain_community.document_loaders import WebBaseLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import AzureOpenAIEmbeddings
-from langchain_community.vectorstores import AzureSearch
+try:
+    from langchain_community.document_loaders import WebBaseLoader
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
+    from langchain_community.embeddings import AzureOpenAIEmbeddings
+    from langchain_community.vectorstores import AzureSearch
+except ImportError:
+    print("Warning: LangChain imports failed. Make sure to install required packages.")
 
 # Setup logging
 logging.basicConfig(
@@ -49,13 +44,6 @@ logger = logging.getLogger(__name__)
 
 # Initialize settings
 settings = Settings()
-
-
-# Import the two steps
-from scrapers.edu_resource_indexer import run_indexer
-from scrapers.content_extractor import run_extractor
-
-# ... rest of the code remains the same
 
 class EnhancedScraperManager:
     """Enhanced scraper with Azure OpenAI and Azure Search integration."""
@@ -139,6 +127,9 @@ class EnhancedScraperManager:
                 content_info["metadata"] = {}
             content_info["metadata"]["content_text"] = full_text[:10000]  # Limit size
             
+            # Also add flattened metadata fields for Azure Search
+            content_info["metadata_content_text"] = full_text[:10000]
+            
             # Determine content type, difficulty level, etc. using extracted text
             content_type, difficulty, grade_levels = await self.extract_content_properties(
                 content_info.get("title", ""), 
@@ -171,10 +162,6 @@ class EnhancedScraperManager:
                 content_info["created_at"] = current_time
             if "updated_at" not in content_info:
                 content_info["updated_at"] = current_time
-            
-            # Also add flattened metadata fields for Azure Search
-            if "content_text" in content_info["metadata"]:
-                content_info["metadata_content_text"] = content_info["metadata"]["content_text"]
             
             # Add to Azure Search if available
             if self.vector_store:
@@ -423,8 +410,8 @@ async def run_two_step_scraper(
         "step_2_results": None
     }
     
-    # Always ensure the output directory exists
-    output_dir = os.path.join(os.getcwd(), "education_resources")
+    # Get the absolute path to the output directory in the project root
+    output_dir = os.path.join(project_root, "education_resources")
     os.makedirs(output_dir, exist_ok=True)
     
     # Define index path
@@ -561,7 +548,7 @@ def main():
         else:
             print(f"Step 2 (Extraction): Completed with issues.")
     
-    print(f"\nOutput files saved to: {os.path.abspath('education_resources')}")
+    print(f"\nOutput files saved to: {os.path.abspath(os.path.join(project_root, 'education_resources'))}")
 
 if __name__ == "__main__":
     main()
