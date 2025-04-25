@@ -1,7 +1,7 @@
 # backend/rag/openai_adapter.py
 import logging
 from typing import List, Dict, Any, Optional
-import openai
+from openai import OpenAI, AzureOpenAI
 from config.settings import Settings
 
 # Initialize settings
@@ -12,16 +12,28 @@ logger = logging.getLogger(__name__)
 
 class OpenAIAdapter:
     """
-    Adapter class for Azure OpenAI API using the standard openai package.
+    Adapter class for Azure OpenAI API using the v1.x OpenAI package.
     Supports Azure Cognitive Services Multi-Service Resource configuration.
     """
     def __init__(self):
         """Initialize the OpenAI client with Azure configuration."""
         # Configure OpenAI with Azure details
-        openai.api_type = "azure"
-        openai.api_version = settings.AZURE_OPENAI_API_VERSION
-        openai.api_base = settings.get_openai_endpoint()
-        openai.api_key = settings.get_openai_key()
+        api_key = settings.get_openai_key()
+        api_base = settings.get_openai_endpoint()
+        api_version = settings.AZURE_OPENAI_API_VERSION
+
+        # Initialize the appropriate client based on the API type
+        if hasattr(settings, 'OPENAI_API_TYPE') and settings.OPENAI_API_TYPE == "azure":
+            self.client = AzureOpenAI(
+                api_key=api_key,
+                api_version=api_version,
+                azure_endpoint=api_base
+            )
+        else:
+            self.client = OpenAI(
+                api_key=api_key,
+                base_url=api_base
+            )
     
     async def create_chat_completion(
         self,
@@ -45,7 +57,7 @@ class OpenAIAdapter:
         try:
             # Set up the parameters
             params = {
-                "engine": model,  # Use the deployment name
+                "model": model,  # Use the deployment name
                 "messages": messages,
                 "temperature": temperature
             }
@@ -55,12 +67,36 @@ class OpenAIAdapter:
                 params["max_tokens"] = max_tokens
                 
             # Add response_format if specified (for newer API versions)
-            if response_format is not None and "2023-07-01-preview" in settings.AZURE_OPENAI_API_VERSION:
+            if response_format is not None:
                 params["response_format"] = response_format
                 
             # Make the API call
-            response = await openai.ChatCompletion.acreate(**params)
-            return response
+            response = self.client.chat.completions.create(**params)
+            
+            # Convert response to dictionary format for backward compatibility
+            # This allows existing code to continue working without major changes
+            response_dict = {
+                "choices": [
+                    {
+                        "index": i,
+                        "message": {
+                            "role": choice.message.role,
+                            "content": choice.message.content
+                        },
+                        "finish_reason": choice.finish_reason
+                    }
+                    for i, choice in enumerate(response.choices)
+                ],
+                "created": response.created,
+                "model": response.model,
+                "usage": {
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens
+                }
+            }
+            
+            return response_dict
             
         except Exception as e:
             logger.error(f"Error creating chat completion: {e}")
@@ -81,19 +117,13 @@ class OpenAIAdapter:
         """
         try:
             # Make the API call
-            response = await openai.Embedding.acreate(
-                engine=model,  # Use the deployment name 
+            response = self.client.embeddings.create(
+                model=model,  # Use the deployment name 
                 input=text
             )
             
             # Extract the embedding and return as a flat list
-            if "data" in response and len(response["data"]) > 0:
-                # Return a flat list of embeddings
-                embedding = response["data"][0]["embedding"]
-                return embedding
-            else:
-                logger.error("No embedding data returned from OpenAI API")
-                return [0.0] * 1536  # Default dimension for empty embedding
+            return response.data[0].embedding
                 
         except Exception as e:
             logger.error(f"Error creating embedding: {e}")
