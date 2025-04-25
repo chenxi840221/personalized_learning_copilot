@@ -200,27 +200,32 @@ async def add_test_document():
                 "Content-Type": "application/json",
                 "api-key": AZURE_SEARCH_KEY
             }
-            
+
             payload = {
                 "value": [test_doc]
             }
-            
+
             async with session.post(docs_url, headers=headers, json=payload) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    if result.get("value", []):
-                        status = result["value"][0].get("status")
-                        if status == "succeeded":
-                            logger.info(f"Successfully added test document with ID: {test_doc['id']}")
-                            return True
-                        else:
-                            error_message = result["value"][0].get("errorMessage", "Unknown error")
-                            logger.error(f"Failed to add test document: {error_message}")
-                            return False
+                response_text = await response.text()
+                try:
+                    result = json.loads(response_text)
+                except json.JSONDecodeError:
+                    result = {}
+
+                if response.status == 200 and "value" in result:
+                    doc_result = result["value"][0]
+                    if doc_result.get("status", False):
+
+                        logger.info(f"✅ Successfully added test document with ID: {test_doc['id']}")
+                        return True
+                    else:
+                        logger.error(f"❌ Failed to add test document – full result: {json.dumps(doc_result, indent=2)}")
+                        return False
+
                 else:
-                    error_text = await response.text()
-                    logger.error(f"Failed to add test document: {response.status} - {error_text}")
+                    logger.error(f"❌ Upload failed - Status {response.status} - Body: {response_text}")
                     return False
+
         
     except Exception as e:
         logger.error(f"Error adding test document: {e}")
