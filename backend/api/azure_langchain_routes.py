@@ -35,6 +35,18 @@ async def create_learning_plan(
         A personalized learning plan
     """
     try:
+        # Ensure we have a valid user
+        if not current_user:
+            logger.error("Authentication failed: No current user")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Log the request for debugging
+        logger.info(f"Creating learning plan for user ID: {current_user.get('id')} and subject: {subject}")
+        
         # Convert user dict to User model
         user = User(**current_user)
         
@@ -93,8 +105,10 @@ async def create_learning_plan(
         # For now, just return the plan
         return learning_plan.dict() if hasattr(learning_plan, "dict") else learning_plan
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error creating AI learning plan: {e}")
+        logger.error(f"Error creating AI learning plan: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating learning plan: {str(e)}"
@@ -186,64 +200,46 @@ async def search_content(
             detail=f"Error searching content: {str(e)}"
         )
 
-@router.post("/index")
-async def index_content(
-    content_ids: List[str] = Body(..., embed=True),
+@router.get("/personalized-recommendations")
+async def personalized_recommendations(
+    subject: Optional[str] = Query(None),
+    limit: int = Query(10),
     current_user: Dict = Depends(get_current_user)
 ):
     """
-    Index specific content items for AI search and retrieval.
+    Get personalized content recommendations using AI.
     
     Args:
-        content_ids: List of content IDs to index
+        subject: Optional subject filter
+        limit: Maximum number of results
         current_user: Current authenticated user
         
     Returns:
-        Status of the indexing operation
+        List of personalized recommendations
     """
     try:
-        # Check if user has permission (admin only)
-        if "admin" not in current_user.get("roles", []):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only admin users can index content"
-            )
+        # Convert user dict to User model
+        user = User(**current_user)
         
-        # Get vector store
-        vector_store = await get_vector_store()
+        # Get recommendation service - import here to avoid circular imports
+        from services.recommendation_service import get_recommendation_service
+        recommendation_service = await get_recommendation_service()
         
-        # Get content items
-        contents = []
-        for content_id in content_ids:
-            content = await vector_store.get_content(content_id)
-            if content:
-                from models.content import Content, ContentType, DifficultyLevel
-                
-                # Convert string enums to proper enum values
-                content["content_type"] = ContentType(content["content_type"])
-                content["difficulty_level"] = DifficultyLevel(content["difficulty_level"])
-                contents.append(Content(**content))
+        # Get recommendations
+        results = await recommendation_service.get_personalized_recommendations(
+            user=user,
+            subject=subject,
+            limit=limit
+        )
         
-        # Get Azure LangChain service
-        langchain_service = await get_azure_langchain_service()
-        
-        # Index content
-        success = await langchain_service.index_educational_content(contents)
-        
-        return {
-            "success": success,
-            "indexed_count": len(contents),
-            "requested_count": len(content_ids)
-        }
-        
-    except HTTPException:
-        raise
+        # Return as dictionaries for JSON serialization
+        return [item.dict() for item in results]
         
     except Exception as e:
-        logger.error(f"Error indexing content: {e}")
+        logger.error(f"Error getting personalized recommendations: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error indexing content: {str(e)}"
+            detail=f"Error getting recommendations: {str(e)}"
         )
 
 # Export router

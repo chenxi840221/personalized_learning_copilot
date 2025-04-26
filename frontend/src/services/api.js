@@ -1,4 +1,4 @@
-// Update the API base URL in your frontend/src/services/api.js file
+// frontend/src/services/api.js
 import axios from 'axios';
 
 // Create axios instance with base URL
@@ -16,6 +16,8 @@ apiClient.interceptors.request.use(
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      console.warn('No authentication token found. Request may fail if authentication is required.');
     }
     
     // Log requests for debugging
@@ -35,14 +37,29 @@ apiClient.interceptors.response.use(
   (response) => {
     // Log successful responses for debugging
     console.log(`API Response (${response.status}):`, response.data);
-    return response;
+    return response.data; // Return data directly for easier usage
   },
-  (error) => {
+  async (error) => {
+    // Enhanced error handling with token refresh attempts
+    const originalRequest = error.config;
+    
     // Handle 401 Unauthorized errors (token expired, etc)
-    if (error.response && error.response.status === 401) {
-      // Clear the token and redirect to login
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+      // Mark this request as retried to prevent infinite loops
+      originalRequest._retry = true;
+      
+      try {
+        // Try to refresh token or re-login
+        // For now, we'll just handle token expiry by redirecting to login
+        console.warn('Authentication failed. Redirecting to login page.');
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+        return Promise.reject(error);
+      } catch (refreshError) {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
     }
     
     // Create a more detailed error object
@@ -101,7 +118,7 @@ export const api = {
   get: async (url, params = {}) => {
     try {
       const response = await apiClient.get(url, { params });
-      return handleEmptyResponse(response.data);
+      return response; // Already returns data via interceptor
     } catch (error) {
       // Try again once with a delay for transient errors
       if (error.status === 503 || error.status === 429 || error.status === 504) {
@@ -109,7 +126,7 @@ export const api = {
         await new Promise(resolve => setTimeout(resolve, 1000));
         try {
           const retryResponse = await apiClient.get(url, { params });
-          return handleEmptyResponse(retryResponse.data);
+          return retryResponse;
         } catch (retryError) {
           handleApiError(retryError);
         }
@@ -122,8 +139,18 @@ export const api = {
   post: async (url, data = {}) => {
     try {
       const response = await apiClient.post(url, data);
-      return handleEmptyResponse(response.data, {});
+      return response;
     } catch (error) {
+      if (error.status === 401) {
+        console.error('Authentication failed when calling ' + url);
+        // Check if token exists
+        const token = localStorage.getItem('token');
+        if (!token) {
+          console.error('No token found in localStorage');
+        } else {
+          console.log('Token exists but may be invalid or expired');
+        }
+      }
       handleApiError(error);
     }
   },
@@ -131,7 +158,7 @@ export const api = {
   put: async (url, data = {}) => {
     try {
       const response = await apiClient.put(url, data);
-      return handleEmptyResponse(response.data, {});
+      return response;
     } catch (error) {
       handleApiError(error);
     }
@@ -140,7 +167,7 @@ export const api = {
   delete: async (url) => {
     try {
       const response = await apiClient.delete(url);
-      return handleEmptyResponse(response.data, {});
+      return response;
     } catch (error) {
       handleApiError(error);
     }

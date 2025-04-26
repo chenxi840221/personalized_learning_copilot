@@ -1,4 +1,4 @@
-// services/content.js
+// frontend/src/services/content.js
 import { api } from './api';
 
 // Get all content with optional filters
@@ -12,9 +12,6 @@ export const getContent = async (subject = null, contentType = null) => {
     // Make API request
     const response = await api.get('/content/', params);
     
-    // Log the response for debugging
-    console.log('Content API response:', response);
-    
     // Ensure the response is in the expected format
     if (!Array.isArray(response)) {
       console.error('Invalid response format from content API:', response);
@@ -24,7 +21,7 @@ export const getContent = async (subject = null, contentType = null) => {
     return response;
   } catch (error) {
     console.error('Failed to fetch content:', error);
-    throw error;
+    return []; // Return empty array instead of throwing to prevent UI breaks
   }
 };
 
@@ -38,9 +35,6 @@ export const getRecommendations = async (subject = null) => {
     // Make API request
     const response = await api.get('/content/recommendations/', params);
     
-    // Log the response for debugging
-    console.log('Recommendations API response:', response);
-    
     // Ensure the response is in the expected format
     if (!Array.isArray(response)) {
       console.error('Invalid response format from recommendations API:', response);
@@ -50,14 +44,20 @@ export const getRecommendations = async (subject = null) => {
     return response;
   } catch (error) {
     console.error('Failed to fetch recommendations:', error);
-    // Return empty array instead of throwing to avoid breaking the UI
-    return [];
+    return []; // Return empty array instead of throwing
   }
 };
 
 // Use the new personalized recommendations if available
 export const getPersonalizedRecommendations = async (subject = null, limit = 10) => {
   try {
+    // Check for auth token - personalized recommendations require authentication
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.warn('No auth token available, falling back to standard recommendations');
+      return await getRecommendations(subject);
+    }
+    
     // Build query parameters
     const params = {
       limit: limit
@@ -82,10 +82,14 @@ export const getPersonalizedRecommendations = async (subject = null, limit = 10)
 // Get learning plans for current user
 export const getLearningPlans = async () => {
   try {
-    const response = await api.get('/learning-plans/');
+    // Check for auth token - learning plans require authentication
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.warn('No auth token available for fetching learning plans');
+      return [];
+    }
     
-    // Log the response for debugging
-    console.log('Learning plans API response:', response);
+    const response = await api.get('/learning-plans/');
     
     // Ensure the response is in the expected format
     if (!Array.isArray(response)) {
@@ -96,26 +100,43 @@ export const getLearningPlans = async () => {
     return response;
   } catch (error) {
     console.error('Failed to fetch learning plans:', error);
-    throw error;
+    return []; // Return empty array to avoid UI breaks
   }
 };
 
 // Create a new learning plan
 export const createLearningPlan = async (subject) => {
   try {
-    // Check if AI-generated learning plan endpoint is available
+    // Verify authentication is available
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.error('Authentication required to create learning plans');
+      throw new Error('Please log in to create learning plans');
+    }
+    
+    // First try AI-generated learning plan endpoint
     try {
-      const response = await api.post('/ai/learning-plan/', { subject });
-      console.log('Created AI learning plan:', response);
+      console.log('Attempting to create AI learning plan for subject:', subject);
+      const response = await api.post('/ai/learning-plan', { subject });
+      console.log('Successfully created AI learning plan:', response);
       return response;
     } catch (err) {
-      console.log('AI learning plan not available, using standard endpoint');
+      console.warn('AI learning plan creation failed, error:', err);
+      console.log('Falling back to standard learning plan endpoint');
+      
       // Fall back to regular endpoint
-      return await api.post('/learning-plans/', { subject });
+      try {
+        const response = await api.post('/learning-plans/', { subject });
+        console.log('Successfully created standard learning plan:', response);
+        return response;
+      } catch (fallbackErr) {
+        console.error('Standard learning plan creation also failed:', fallbackErr);
+        throw fallbackErr;
+      }
     }
   } catch (error) {
     console.error('Failed to create learning plan:', error);
-    throw error;
+    throw error; // Re-throw to allow UI to handle the error
   }
 };
 

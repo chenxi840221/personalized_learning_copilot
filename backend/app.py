@@ -164,17 +164,25 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 @app.post("/token")
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     """Login to get access token."""
+    # Enhanced logging for debugging authentication
+    logger.info(f"Login attempt for user: {form_data.username}")
+    
     user = mock_users.get(form_data.username)
     if not user or not verify_password(form_data.password, user.get("hashed_password", "")):
+        logger.warning(f"Failed login attempt for user: {form_data.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
+    # Generate token with extended expiry for testing
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user["username"]}, expires_delta=access_token_expires
     )
+    
+    logger.info(f"Successful login for user: {form_data.username}")
     return {"access_token": access_token, "token_type": "bearer"}
 
 # User routes
@@ -459,12 +467,20 @@ async def update_activity_status(
     }
 
 # Include LangChain endpoints
-from api.langchain_endpoints import langchain_router
-app.include_router(langchain_router)
+try:
+    from api.langchain_endpoints import langchain_router
+    app.include_router(langchain_router)
+    logger.info("LangChain router included")
+except ImportError as e:
+    logger.warning(f"LangChain endpoints not available: {e}")
 
 # Include Azure LangChain endpoints
-from api.azure_langchain_routes import azure_langchain_router
-app.include_router(azure_langchain_router)
+try:
+    from api.azure_langchain_routes import azure_langchain_router
+    app.include_router(azure_langchain_router)
+    logger.info("Azure LangChain router included")
+except ImportError as e:
+    logger.warning(f"Azure LangChain endpoints not available: {e}")
 
 # Main entrypoint
 if __name__ == "__main__":

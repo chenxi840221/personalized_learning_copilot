@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
@@ -7,9 +7,32 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loginSuccess, setLoginSuccess] = useState(false);
   
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
+  
+  // Check if user is already logged in
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      // If we already have a token, check if we should redirect
+      if (user) {
+        navigate('/dashboard');
+      }
+    }
+  }, [user, navigate]);
+  
+  // Handle successful login
+  useEffect(() => {
+    if (loginSuccess) {
+      // Short delay to ensure everything is set before redirect
+      const timer = setTimeout(() => {
+        navigate('/dashboard');
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [loginSuccess, navigate]);
   
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,13 +51,28 @@ const Login = () => {
     
     try {
       // Attempt to login
+      console.log(`Attempting to login with username: ${username}`);
       await login(username, password);
       
-      // Redirect to dashboard on success
-      navigate('/dashboard');
+      // If we get here, login was successful
+      console.log('Login successful');
+      setLoginSuccess(true);
+      
+      // Redirect will happen in useEffect
     } catch (err) {
       // Display error message
-      setError(err.message || 'Failed to login. Please check your credentials.');
+      console.error('Login failed:', err);
+      
+      let errorMessage = 'Failed to login. Please check your credentials.';
+      
+      // Extract more specific error message if available
+      if (err.message) {
+        errorMessage = err.message;
+      } else if (err.response?.data?.detail) {
+        errorMessage = err.response.data.detail;
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -53,6 +91,12 @@ const Login = () => {
           </div>
         )}
         
+        {loginSuccess && (
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+            Login successful! Redirecting to dashboard...
+          </div>
+        )}
+        
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
             <label htmlFor="username" className="block text-gray-700 text-sm font-bold mb-2">
@@ -65,7 +109,7 @@ const Login = () => {
               placeholder="Enter your username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              disabled={isLoading}
+              disabled={isLoading || loginSuccess}
               required
             />
           </div>
@@ -81,7 +125,7 @@ const Login = () => {
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              disabled={isLoading}
+              disabled={isLoading || loginSuccess}
               required
             />
           </div>
@@ -89,9 +133,9 @@ const Login = () => {
           <button
             type="submit"
             className="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50"
-            disabled={isLoading}
+            disabled={isLoading || loginSuccess}
           >
-            {isLoading ? 'Logging in...' : 'Login'}
+            {isLoading ? 'Logging in...' : loginSuccess ? 'Logged In' : 'Login'}
           </button>
         </form>
         
