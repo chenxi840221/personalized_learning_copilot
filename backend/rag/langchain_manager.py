@@ -9,6 +9,9 @@ import logging
 from typing import List, Dict, Any, Optional, Union
 import os
 import sys
+import json
+import uuid
+from datetime import datetime
 
 # Fix import paths for relative imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -27,6 +30,7 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from backend.config.settings import Settings
+import aiohttp
 
 # Initialize settings
 settings = Settings()
@@ -48,6 +52,9 @@ class LangChainManager:
         self.retriever = None
         self.conversation_chain = None
         self.conversation_memory = None
+        self.azure_search_endpoint = settings.AZURE_SEARCH_ENDPOINT
+        self.azure_search_key = settings.AZURE_SEARCH_KEY
+        self.azure_search_index = settings.AZURE_SEARCH_INDEX_NAME
     
     def initialize(self):
         """Initialize LangChain components."""
@@ -77,19 +84,14 @@ class LangChainManager:
             )
             
             # Setup Azure AI Search vector store if settings are available
-            if settings.AZURE_SEARCH_ENDPOINT and settings.AZURE_SEARCH_KEY:
+            if self.azure_search_endpoint and self.azure_search_key:
                 self.vector_store = AzureSearch(
-                    azure_search_endpoint=settings.AZURE_SEARCH_ENDPOINT,
-                    azure_search_key=settings.AZURE_SEARCH_KEY,
-                    index_name=settings.AZURE_SEARCH_INDEX_NAME,
+                    azure_search_endpoint=self.azure_search_endpoint,
+                    azure_search_key=self.azure_search_key,
+                    index_name=self.azure_search_index,
                     embedding_function=self.embeddings.embed_query,
-                    vector_field_name="embedding",  # Explicitly set vector field name
-                    text_field_name="page_content",  # Use page_content instead of "content"
-                    fields_mapping={
-                        "content": "page_content",  # Map legacy 'content' field to 'page_content'
-                        "content_text": "metadata_content_text",  # Map text content to metadata
-                        "transcription": "metadata_transcription"  # Map transcriptions to metadata
-                    }
+                    vector_field_name="embedding",
+                    text_field_name="page_content"
                 )
                 
                 # Create retriever
@@ -118,14 +120,6 @@ class LangChainManager:
     ) -> str:
         """
         Generate text completion using Azure OpenAI.
-        
-        Args:
-            prompt: User prompt
-            system_message: System message to set the context
-            temperature: Temperature for generation (0-1)
-            
-        Returns:
-            Generated text
         """
         if not self.llm:
             self.initialize()
@@ -148,12 +142,6 @@ class LangChainManager:
     async def generate_embedding(self, text: str) -> List[float]:
         """
         Generate embedding for text using LangChain's embedding model.
-        
-        Args:
-            text: Text to embed
-            
-        Returns:
-            List of embedding values
         """
         if not self.embeddings:
             self.initialize()
@@ -168,106 +156,100 @@ class LangChainManager:
             # Return an empty embedding of the correct dimension
             return [0.0] * 1536  # Default dimension for text-embedding-ada-002
     
-    async def generate_rag_response(
-        self,
-        query: str,
-        chat_history: Optional[List[Dict[str, str]]] = None
-    ) -> Dict[str, Any]:
-        """
-        Generate a response using Retrieval-Augmented Generation (RAG).
-        
-        Args:
-            query: User query
-            chat_history: Optional chat history
-            
-        Returns:
-            Dictionary with response and source documents
-        """
-        if not self.conversation_chain:
-            self.initialize()
-            if not self.conversation_chain:
-                # Fall back to regular completion if RAG is not available
-                response = await self.generate_completion(query)
-                return {
-                    "answer": response,
-                    "source_documents": []
-                }
-                
-        try:
-            # Format chat history if provided
-            formatted_history = []
-            if chat_history:
-                for message in chat_history:
-                    if message.get("role") == "user":
-                        formatted_history.append((message.get("content", ""), ""))
-                    elif message.get("role") == "assistant":
-                        if formatted_history:
-                            formatted_history[-1] = (formatted_history[-1][0], message.get("content", ""))
-                        else:
-                            formatted_history.append(("", message.get("content", "")))
-            
-            # Generate RAG response
-            response = await self.conversation_chain.ainvoke({
-                "question": query,
-                "chat_history": formatted_history
-            })
-            
-            # Extract source documents
-            source_documents = response.get("source_documents", [])
-            
-            return {
-                "answer": response.get("answer", ""),
-                "source_documents": source_documents
-            }
-            
-        except Exception as e:
-            logger.error(f"Error generating RAG response: {e}")
-            # Fall back to regular completion
-            response = await self.generate_completion(query)
-            return {
-                "answer": response,
-                "source_documents": []
-            }
-    
     async def add_documents(self, texts: List[str], metadatas: Optional[List[Dict[str, Any]]] = None) -> bool:
         """
-        Add documents to the vector store.
-        
-        Args:
-            texts: List of text content
-            metadatas: Optional metadata for each text
-            
-        Returns:
-            Success status
+        Add documents to the vector store, using a minimal approach with only essential fields.
         """
-        if not self.vector_store:
-            self.initialize()
-            if not self.vector_store:
-                logger.error("Vector store not initialized")
-                return False
-            
+        if not self.azure_search_endpoint or not self.azure_search_key:
+            logger.error("Azure Search settings not available")
+            return False
+        
         try:
-            # Create Document objects
+            # Create minimal documents with only essential fields
             documents = []
+            
             for i, text in enumerate(texts):
-                metadata = {}
-                if metadatas and i < len(metadatas):
-                    metadata = metadatas[i].copy()  # Make a copy to avoid modifying the original
+                # Create a unique ID
+                doc_id = str(uuid.uuid4())
                 
-                # Make sure we're not using 'content' field (use page_content instead)
-                # This field will be recognized by LangChain and mapped to the correct field in Azure Search
-                doc = Document(page_content=text, metadata=metadata)
+                # Get embedding
+                embedding = await self.generate_embedding(text)
+                
+                # Create a minimal document with just the essential fields
+                doc = {
+                    "@search.action": "upload",
+                    "id": doc_id,
+                    "page_content": text,
+                    "embedding": embedding,
+                    "title": f"Document {i+1}",
+                    "subject": "General",
+                    "content_type": "article",
+                    "created_at": datetime.utcnow().isoformat() + "Z",
+                    "updated_at": datetime.utcnow().isoformat() + "Z"
+                }
+                
+                # Add only a subset of metadata fields that are known to be in the schema
+                if metadatas and i < len(metadatas):
+                    metadata = metadatas[i]
+                    
+                    # Add safe fields
+                    for field in ["title", "description", "subject", "content_type", "difficulty_level", "url"]:
+                        if field in metadata and metadata[field] is not None:
+                            doc[field] = metadata[field]
+                    
+                    # Handle topics and keywords as arrays
+                    for array_field in ["topics", "keywords"]:
+                        if array_field in metadata and metadata[array_field] is not None:
+                            if isinstance(metadata[array_field], list):
+                                doc[array_field] = metadata[array_field]
+                            elif isinstance(metadata[array_field], str):
+                                doc[array_field] = [metadata[array_field]]
+                    
+                    # Handle grade_level as array of integers
+                    if "grade_level" in metadata and metadata["grade_level"] is not None:
+                        if isinstance(metadata["grade_level"], list):
+                            doc["grade_level"] = [int(g) for g in metadata["grade_level"] if isinstance(g, (int, str)) and str(g).isdigit()]
+                        elif isinstance(metadata["grade_level"], (int, str)) and str(metadata["grade_level"]).isdigit():
+                            doc["grade_level"] = [int(metadata["grade_level"])]
+                    
+                    # Handle duration_minutes as integer
+                    if "duration_minutes" in metadata and metadata["duration_minutes"] is not None:
+                        try:
+                            doc["duration_minutes"] = int(metadata["duration_minutes"])
+                        except (ValueError, TypeError):
+                            pass
+                
                 documents.append(doc)
             
-            # Add documents to vector store with the correct field mapping
-            # Explicitly specify the text_field to ensure we're using the right field name
-            self.vector_store.add_documents(
-                documents,
-                vector_field_name="embedding",
-                text_field_name="page_content"  # Make sure this matches your Azure Search schema
-            )
-            return True
-            
+            # Index documents using the Azure Search REST API
+            async with aiohttp.ClientSession() as session:
+                # Format URL for batch upload
+                url = f"{self.azure_search_endpoint}/indexes/{self.azure_search_index}/docs/index?api-version=2023-11-01"
+                
+                # Set headers
+                headers = {
+                    "Content-Type": "application/json",
+                    "api-key": self.azure_search_key
+                }
+                
+                # Prepare payload
+                payload = {"value": documents}
+                
+                # Log sample document (exclude embedding for readability)
+                if documents:
+                    sample_doc = {k: ("..." if k == "embedding" else v) for k, v in documents[0].items()}
+                    logger.info(f"Indexing document sample: {json.dumps(sample_doc, default=str)}")
+                
+                # Make the request
+                async with session.post(url, headers=headers, json=payload) as response:
+                    if response.status == 200 or response.status == 201:
+                        logger.info(f"Successfully indexed {len(documents)} documents")
+                        return True
+                    else:
+                        response_text = await response.text()
+                        logger.error(f"Error indexing documents: {response.status} - {response_text}")
+                        return False
+        
         except Exception as e:
             logger.error(f"Error adding documents to vector store: {e}")
             return False
@@ -275,14 +257,6 @@ class LangChainManager:
     async def search_documents(self, query: str, filter: Optional[str] = None, k: int = 5) -> List[Document]:
         """
         Search for documents using a query string.
-        
-        Args:
-            query: Query string
-            filter: Optional filter expression
-            k: Number of results to return
-            
-        Returns:
-            List of matching documents
         """
         if not self.vector_store:
             self.initialize()
@@ -291,36 +265,84 @@ class LangChainManager:
                 return []
             
         try:
-            # Search for documents
+            # Generate embedding for the query
+            embedding = await self.generate_embedding(query)
+            
+            # Search using REST API if the query is empty (filter-only search)
+            if not query and filter:
+                return await self._search_by_filter(filter, k)
+            
+            # Search for documents with vector similarity
             search_kwargs = {"k": k}
             if filter:
                 search_kwargs["filter"] = filter
                 
-            documents = self.vector_store.similarity_search(query, **search_kwargs)
+            # Use the existing vector store for search
+            documents = self.vector_store.similarity_search_by_vector(
+                embedding, 
+                **search_kwargs
+            )
+            
             return documents
             
         except Exception as e:
             logger.error(f"Error searching documents: {e}")
             return []
     
+    async def _search_by_filter(self, filter: str, k: int = 5) -> List[Document]:
+        """
+        Perform a search using only a filter expression.
+        """
+        try:
+            async with aiohttp.ClientSession() as session:
+                # Format URL for search
+                url = f"{self.azure_search_endpoint}/indexes/{self.azure_search_index}/docs/search?api-version=2023-11-01"
+                
+                # Set headers
+                headers = {
+                    "Content-Type": "application/json",
+                    "api-key": self.azure_search_key
+                }
+                
+                # Prepare payload
+                payload = {
+                    "filter": filter,
+                    "top": k,
+                    "select": "id,page_content,title,description,subject,content_type,difficulty_level,grade_level,url"
+                }
+                
+                # Make the request
+                async with session.post(url, headers=headers, json=payload) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        documents = []
+                        
+                        # Convert results to Document objects
+                        for item in result.get("value", []):
+                            # Extract page_content
+                            page_content = item.pop("page_content", "")
+                            
+                            # Use remaining fields as metadata
+                            metadata = {k: v for k, v in item.items() if k != "@search.score"}
+                            
+                            # Create Document object
+                            doc = Document(page_content=page_content, metadata=metadata)
+                            documents.append(doc)
+                        
+                        return documents
+                    else:
+                        response_text = await response.text()
+                        logger.error(f"Error in filter search: {response.status} - {response_text}")
+                        return []
+                        
+        except Exception as e:
+            logger.error(f"Error in filter search: {e}")
+            return []
+    
     async def process_document(self, document_path: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> bool:
         """
         Process a document and add it to the vector store.
-        
-        Args:
-            document_path: Path to the document
-            chunk_size: Size of text chunks for splitting
-            chunk_overlap: Overlap between chunks
-            
-        Returns:
-            Success status
         """
-        if not self.vector_store:
-            self.initialize()
-            if not self.vector_store:
-                logger.error("Vector store not initialized")
-                return False
-            
         try:
             from langchain_community.document_loaders import TextLoader
             
@@ -336,10 +358,12 @@ class LangChainManager:
             
             chunks = text_splitter.split_documents(documents)
             
-            # Add to vector store
-            self.vector_store.add_documents(documents=chunks)
+            # Extract texts and metadata
+            texts = [doc.page_content for doc in chunks]
+            metadatas = [doc.metadata for doc in chunks]
             
-            return True
+            # Add to vector store using our custom method
+            return await self.add_documents(texts, metadatas)
             
         except Exception as e:
             logger.error(f"Error processing document: {e}")
@@ -353,14 +377,6 @@ class LangChainManager:
     ) -> Dict[str, Any]:
         """
         Generate a personalized learning plan using LangChain.
-        
-        Args:
-            student_profile: Student information
-            subject: Subject for the learning plan
-            available_content: Available content resources
-            
-        Returns:
-            Personalized learning plan
         """
         if not self.llm:
             self.initialize()
