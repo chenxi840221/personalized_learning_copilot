@@ -41,12 +41,6 @@ const ContentRecommendation = ({ content }) => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
           </svg>
         );
-      case 'article':
-        return (
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-          </svg>
-        );
       default:
         return (
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -58,8 +52,7 @@ const ContentRecommendation = ({ content }) => {
 
   // Get difficulty color
   const getDifficultyColor = () => {
-    const difficulty = content.difficulty_level || 'intermediate';
-    switch (difficulty) {
+    switch (content.difficulty_level) {
       case 'beginner':
         return 'bg-green-100 text-green-800 border-green-200';
       case 'intermediate':
@@ -68,38 +61,6 @@ const ContentRecommendation = ({ content }) => {
         return 'bg-red-100 text-red-800 border-red-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  // Get grade level display
-  const getGradeLevel = () => {
-    if (!content.grade_level || content.grade_level.length === 0) {
-      return "All grades";
-    }
-    
-    // Sort the grade levels
-    const grades = [...content.grade_level].sort((a, b) => a - b);
-    
-    // Format as range or list
-    if (grades.length === 1) {
-      return `Grade ${grades[0]}`;
-    } else if (grades.length === 2) {
-      return `Grades ${grades[0]} & ${grades[1]}`;
-    } else {
-      // Check if it's a continuous range
-      let isRange = true;
-      for (let i = 1; i < grades.length; i++) {
-        if (grades[i] !== grades[i-1] + 1) {
-          isRange = false;
-          break;
-        }
-      }
-      
-      if (isRange) {
-        return `Grades ${grades[0]}-${grades[grades.length - 1]}`;
-      } else {
-        return `Grades ${grades.join(', ')}`;
-      }
     }
   };
 
@@ -112,30 +73,11 @@ const ContentRecommendation = ({ content }) => {
     return `${hours}h ${mins > 0 ? `${mins}m` : ''}`;
   };
 
-  // Check if the content has required properties before rendering
-  if (!content || !content.title) {
-    return (
-      <div className="block bg-white border border-gray-200 rounded-lg p-4 h-full">
-        <p className="text-gray-500">Content not available</p>
-      </div>
-    );
-  }
-
-  // Handle URL appropriately
-  const contentUrl = content.url || '#';
-  const openContent = (e) => {
-    if (contentUrl === '#') {
-      e.preventDefault();
-      alert('Content URL not available');
-    }
-  };
-
   return (
     <a 
-      href={contentUrl} 
+      href={content.url} 
       target="_blank" 
       rel="noopener noreferrer"
-      onClick={openContent}
       className="block bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow duration-200 h-full"
     >
       <div className="p-4 flex flex-col h-full">
@@ -161,51 +103,22 @@ const ContentRecommendation = ({ content }) => {
           {content.description}
         </p>
         
-        {/* Topics */}
-        {content.topics && content.topics.length > 0 && (
-          <div className="mb-3">
-            <div className="flex flex-wrap gap-1">
-              {content.topics.slice(0, 3).map((topic, index) => (
-                <span 
-                  key={index} 
-                  className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full"
-                >
-                  {topic}
-                </span>
-              ))}
-              {content.topics.length > 3 && (
-                <span className="text-xs text-gray-500">+{content.topics.length - 3} more</span>
-              )}
-            </div>
-          </div>
-        )}
-        
         {/* Metadata */}
         <div className="flex items-center justify-between mt-auto flex-wrap gap-2 pt-2">
           {/* Difficulty */}
           <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${getDifficultyColor()}`}>
-            {content.difficulty_level || 'intermediate'}
+            {content.difficulty_level}
           </span>
           
-          <div className="flex gap-3">
-            {/* Grade Level */}
+          {/* Duration */}
+          {content.duration_minutes && (
             <span className="text-xs text-gray-500 flex items-center">
               <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              {getGradeLevel()}
+              {formatDuration(content.duration_minutes)}
             </span>
-            
-            {/* Duration */}
-            {content.duration_minutes && (
-              <span className="text-xs text-gray-500 flex items-center">
-                <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {formatDuration(content.duration_minutes)}
-              </span>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </a>

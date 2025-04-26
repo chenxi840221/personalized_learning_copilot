@@ -14,25 +14,29 @@ import DashboardPage from './pages/DashboardPage';
 import ContentPage from './pages/ContentPage';
 import ProfilePage from './pages/ProfilePage';
 
-// Enhanced Protected Route Component
-import ProtectedRoute from './components/ProtectedRoute';
-
-// Debug Components (Only in development)
-import AuthDebugger from './components/AuthDebugger';
-
-function App() {
-  const { authInitialized } = useAuth();
+// Protected Route Component
+const ProtectedRoute = ({ children }) => {
+  const { user, loading } = useAuth();
   
-  // Show loading spinner until authentication is initialized
-  if (!authInitialized) {
+  // If auth is still loading, show loading indicator
+  if (loading) {
     return (
-      <div className="App min-h-screen bg-gray-50 flex justify-center items-center">
+      <div className="flex justify-center items-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-        <p className="ml-3 text-gray-600">Loading application...</p>
       </div>
     );
   }
   
+  // If user is not authenticated, redirect to login
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  // If authenticated, render the children
+  return children;
+};
+
+function App() {
   return (
     <div className="App min-h-screen bg-gray-50">
       <Navigation />
@@ -61,11 +65,6 @@ function App() {
               <ProfilePage />
             </ProtectedRoute>
           } />
-          
-          {/* Debug Routes - Only visible in development */}
-          {process.env.NODE_ENV === 'development' && (
-            <Route path="/debug/auth" element={<AuthDebugger />} />
-          )}
           
           {/* Fallback Route */}
           <Route path="*" element={<Navigate to="/" replace />} />
