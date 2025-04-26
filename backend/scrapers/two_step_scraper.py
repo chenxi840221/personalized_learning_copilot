@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # backend/scrapers/two_step_scraper.py
 import asyncio
 import argparse
@@ -12,7 +13,7 @@ from typing import Dict, Any, Optional, List, Tuple
 current_dir = os.path.dirname(os.path.abspath(__file__))
 backend_dir = os.path.dirname(current_dir)
 project_root = os.path.dirname(backend_dir)
-sys.path.insert(0, project_root)
+sys.path.insert(0, backend_dir)
 
 # Use absolute imports from the project root
 from backend.utils.vector_store import get_vector_store

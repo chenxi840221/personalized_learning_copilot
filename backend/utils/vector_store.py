@@ -7,9 +7,17 @@ by delegating the actual work to LangChain.
 import logging
 from typing import List, Dict, Any, Optional
 import asyncio
+import os
+import sys
 
-from config.settings import Settings
-from rag.langchain_manager import get_langchain_manager
+# Fix import paths by adding the backend directory to sys.path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+backend_dir = os.path.dirname(current_dir)
+project_root = os.path.dirname(backend_dir)
+sys.path.insert(0, backend_dir)
+
+from backend.config.settings import Settings
+from backend.rag.langchain_manager import get_langchain_manager
 
 # Initialize settings
 settings = Settings()

@@ -8,6 +8,13 @@ with Azure OpenAI integration and handles all vector operations.
 import logging
 from typing import List, Dict, Any, Optional, Union
 import os
+import sys
+
+# Fix import paths by adding the backend directory to sys.path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+backend_dir = os.path.dirname(current_dir)
+project_root = os.path.dirname(backend_dir)
+sys.path.insert(0, backend_dir)
 
 from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 from langchain_community.vectorstores import AzureSearch
@@ -19,7 +26,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from config.settings import Settings
+from backend.config.settings import Settings
 
 # Initialize settings
 settings = Settings()
