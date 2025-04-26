@@ -4,7 +4,7 @@ import axios from 'axios';
 // Create axios instance with base URL
 export const apiClient = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
-  timeout: 10000,
+  timeout: 15000, // Increased timeout for slow API responses
   headers: {
     'Content-Type': 'application/json'
   }
@@ -17,9 +17,15 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Log requests for debugging
+    console.log(`API Request: ${config.method.toUpperCase()} ${config.url}`, 
+      config.params || config.data || {});
+      
     return config;
   },
   (error) => {
+    console.error('API Request Error:', error);
     return Promise.reject(error);
   }
 );
@@ -27,6 +33,8 @@ apiClient.interceptors.request.use(
 // Add response interceptor to handle common errors
 apiClient.interceptors.response.use(
   (response) => {
+    // Log successful responses for debugging
+    console.log(`API Response (${response.status}):`, response.data);
     return response;
   },
   (error) => {
@@ -47,6 +55,16 @@ apiClient.interceptors.response.use(
     enhancedError.statusText = error.response?.statusText;
     enhancedError.data = error.response?.data;
     enhancedError.originalError = error;
+    
+    // Log detailed error for debugging
+    console.error('API Error:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
     
     return Promise.reject(enhancedError);
   }
@@ -69,21 +87,42 @@ const handleApiError = (error) => {
   throw new Error(message);
 };
 
+// Helper to handle empty responses gracefully
+const handleEmptyResponse = (data, defaultValue = []) => {
+  if (data === null || data === undefined) {
+    console.warn('API returned null or undefined data');
+    return defaultValue;
+  }
+  return data;
+};
+
 // Generic API methods with enhanced error handling
 export const api = {
   get: async (url, params = {}) => {
     try {
       const response = await apiClient.get(url, { params });
-      return response.data;
+      return handleEmptyResponse(response.data);
     } catch (error) {
-      handleApiError(error);
+      // Try again once with a delay for transient errors
+      if (error.status === 503 || error.status === 429 || error.status === 504) {
+        console.log(`Retrying ${url} after transient error...`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        try {
+          const retryResponse = await apiClient.get(url, { params });
+          return handleEmptyResponse(retryResponse.data);
+        } catch (retryError) {
+          handleApiError(retryError);
+        }
+      } else {
+        handleApiError(error);
+      }
     }
   },
   
   post: async (url, data = {}) => {
     try {
       const response = await apiClient.post(url, data);
-      return response.data;
+      return handleEmptyResponse(response.data, {});
     } catch (error) {
       handleApiError(error);
     }
@@ -92,7 +131,7 @@ export const api = {
   put: async (url, data = {}) => {
     try {
       const response = await apiClient.put(url, data);
-      return response.data;
+      return handleEmptyResponse(response.data, {});
     } catch (error) {
       handleApiError(error);
     }
@@ -101,7 +140,7 @@ export const api = {
   delete: async (url) => {
     try {
       const response = await apiClient.delete(url);
-      return response.data;
+      return handleEmptyResponse(response.data, {});
     } catch (error) {
       handleApiError(error);
     }

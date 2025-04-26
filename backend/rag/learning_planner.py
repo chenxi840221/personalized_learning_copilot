@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 class LearningPlanner:
     """
     Generate personalized learning plans and paths for students.
+    Enhanced to better utilize the educational-content Azure AI Search index.
     """
     def __init__(self):
         # Initialize when needed
@@ -41,20 +42,65 @@ class LearningPlanner:
         Returns:
             A LearningPlan object
         """
-        # Format content for prompt
+        # Format content for prompt with enhanced metadata
         content_descriptions = ""
-        for i, content in enumerate(relevant_content):
-            content_descriptions += f"""
-            Content {i+1}:
-            - ID: {content.id}
-            - Title: {content.title}
-            - Type: {content.content_type}
-            - Difficulty: {content.difficulty_level}
-            - Description: {content.description}
-            - URL: {content.url}
-            """
+        # Group content by topics to better organize learning progression
+        content_by_topic = {}
+        all_topics = set()
+        
+        # First pass: collect topics
+        for content in relevant_content:
+            for topic in content.topics:
+                all_topics.add(topic)
+                if topic not in content_by_topic:
+                    content_by_topic[topic] = []
+                content_by_topic[topic].append(content)
+                
+        # If no topics are available, group by difficulty level
+        if not all_topics:
+            content_by_difficulty = {
+                "beginner": [],
+                "intermediate": [],
+                "advanced": []
+            }
             
-        # Create prompt for learning plan generation
+            for content in relevant_content:
+                difficulty = content.difficulty_level.value
+                content_by_difficulty[difficulty].append(content)
+            
+            # Format content grouped by difficulty level
+            for difficulty, items in content_by_difficulty.items():
+                if items:
+                    content_descriptions += f"\n### {difficulty.upper()} LEVEL RESOURCES:\n"
+                    for i, content in enumerate(items):
+                        content_descriptions += f"""
+                        Content {i+1}:
+                        - ID: {content.id}
+                        - Title: {content.title}
+                        - Type: {content.content_type.value}
+                        - Difficulty: {content.difficulty_level.value}
+                        - Description: {content.description}
+                        - URL: {content.url}
+                        - Duration: {content.duration_minutes or 'Unknown'} minutes
+                        """
+        else:
+            # Format content grouped by topic
+            for topic in all_topics:
+                if topic in content_by_topic and content_by_topic[topic]:
+                    content_descriptions += f"\n### TOPIC: {topic}\n"
+                    for i, content in enumerate(content_by_topic[topic]):
+                        content_descriptions += f"""
+                        Content {i+1}:
+                        - ID: {content.id}
+                        - Title: {content.title}
+                        - Type: {content.content_type.value}
+                        - Difficulty: {content.difficulty_level.value}
+                        - Description: {content.description}
+                        - URL: {content.url}
+                        - Duration: {content.duration_minutes or 'Unknown'} minutes
+                        """
+            
+        # Create prompt for learning plan generation with enhanced guidance
         prompt = f"""
         You are an expert educational AI assistant tasked with creating personalized learning plans.
         
@@ -66,13 +112,31 @@ class LearningPlanner:
         
         SUBJECT TO FOCUS ON: {subject}
         
+        LEARNING STYLE DETAILS:
+        {self._get_learning_style_description(student.learning_style.value if student.learning_style else "Mixed")}
+        
         AVAILABLE LEARNING RESOURCES:
         {content_descriptions}
         
         Create a {duration_days}-day learning plan with 4-6 activities that help the student master {subject}.
-        Each activity should be appropriate for the student's grade level and learning style.
-        Include a mix of content types (videos, articles, interactive exercises, etc.).
-        Order the activities in a logical sequence from basic to more advanced concepts.
+        The plan should follow these important guidelines:
+        
+        1. LEARNING PROGRESSION: Activities should follow a logical sequence, starting with foundational concepts and advancing to more complex ones.
+        
+        2. LEARNING STYLE ADAPTATION: Select content types that match the student's learning style:
+           - Visual learners: Prefer videos and visual content
+           - Auditory learners: Prefer audio content like lectures
+           - Reading/Writing learners: Prefer articles and text-based content
+           - Kinesthetic learners: Prefer interactive activities
+           - Mixed learners: Include a variety of content types
+        
+        3. GRADE-APPROPRIATE CONTENT: Ensure all selected content matches the student's grade level ({student.grade_level if student.grade_level else "Unknown"}).
+        
+        4. CONTENT VARIETY: Include a mix of content types for comprehensive learning.
+        
+        5. SUBJECT INTEGRATION: If the student has other interests ({', '.join(student.subjects_of_interest) if student.subjects_of_interest else "None specified"}), try to include activities that connect to these interests when relevant.
+        
+        6. ACTIVITY BALANCE: More complex topics should have longer or multiple activities.
         
         Return the learning plan in the following JSON format:
         ```json
@@ -117,8 +181,8 @@ class LearningPlanner:
             
             # Format activities with proper IDs and status
             for activity in plan_dict.get("activities", []):
+                # Ensure content_id is valid
                 if "content_id" in activity and activity["content_id"]:
-                    # Ensure content_id is valid
                     try:
                         # Check if the content ID exists in our resources
                         content_exists = any(str(content.id) == activity["content_id"] for content in relevant_content)
@@ -186,71 +250,139 @@ class LearningPlanner:
         Returns:
             A structured learning path
         """
-        # Format content for prompt
-        content_descriptions = ""
-        for i, content in enumerate(relevant_content[:15]):  # Limit to 15 items to keep prompt size reasonable
-            content_descriptions += f"""
-            Content {i+1}:
-            - ID: {content.id}
-            - Title: {content.title}
-            - Type: {content.content_type}
-            - Difficulty: {content.difficulty_level}
-            - Description: {content.description}
-            """
-            
-        # Create prompt for learning path generation
+        # Format content for prompt - grouped by difficulty level
+        beginner_content = [c for c in relevant_content if c.difficulty_level.value == "beginner"]
+        intermediate_content = [c for c in relevant_content if c.difficulty_level.value == "intermediate"]
+        advanced_content = [c for c in relevant_content if c.difficulty_level.value == "advanced"]
+        
+        # Format content by progression level
+        content_descriptions = "# AVAILABLE LEARNING RESOURCES\n\n"
+        
+        if beginner_content:
+            content_descriptions += "## BEGINNER LEVEL RESOURCES:\n"
+            for i, content in enumerate(beginner_content[:5]):  # Limit to 5 items per level
+                content_descriptions += f"""
+                Content B{i+1}:
+                - ID: {content.id}
+                - Title: {content.title}
+                - Type: {content.content_type.value}
+                - Topics: {', '.join(content.topics) if content.topics else 'General'}
+                - Description: {content.description}
+                """
+        
+        if intermediate_content:
+            content_descriptions += "\n## INTERMEDIATE LEVEL RESOURCES:\n"
+            for i, content in enumerate(intermediate_content[:5]):
+                content_descriptions += f"""
+                Content I{i+1}:
+                - ID: {content.id}
+                - Title: {content.title}
+                - Type: {content.content_type.value}
+                - Topics: {', '.join(content.topics) if content.topics else 'General'}
+                - Description: {content.description}
+                """
+        
+        if advanced_content:
+            content_descriptions += "\n## ADVANCED LEVEL RESOURCES:\n"
+            for i, content in enumerate(advanced_content[:5]):
+                content_descriptions += f"""
+                Content A{i+1}:
+                - ID: {content.id}
+                - Title: {content.title}
+                - Type: {content.content_type.value}
+                - Topics: {', '.join(content.topics) if content.topics else 'General'}
+                - Description: {content.description}
+                """
+        
+        # Add learning style information
+        learning_style_info = self._get_learning_style_description(
+            student.learning_style.value if student.learning_style else "mixed"
+        )
+        
+        # Create prompt for learning path generation with enhanced guidance
         prompt = f"""
-        Create a comprehensive {duration_weeks}-week learning path for a grade {student.grade_level} student 
+        You are creating a {duration_weeks}-week comprehensive learning path for a grade {student.grade_level} student 
         with {student.learning_style.value if student.learning_style else "mixed"} learning style who wants to master {subject}.
         
-        The student's other interests include: {', '.join(student.subjects_of_interest) if student.subjects_of_interest else 'general learning'}
+        # STUDENT PROFILE:
+        - Name: {student.full_name or student.username}
+        - Grade Level: {student.grade_level if student.grade_level else "Unknown"}
+        - Learning Style: {student.learning_style.value if student.learning_style else "Mixed"}
+        - Subjects of Interest: {', '.join(student.subjects_of_interest) if student.subjects_of_interest else "General learning"}
         
-        Available content:
+        # LEARNING STYLE INFORMATION:
+        {learning_style_info}
+        
         {content_descriptions}
         
-        Create a structured learning path with:
-        1. An overall goal for the entire path
-        2. Weekly goals and themes 
-        3. Daily activities for each week (5 days per week)
-        4. Specific skills the student will develop
-        5. Assessment points to check understanding
+        # LEARNING PATH REQUIREMENTS:
         
-        For each activity, select appropriate content from the available resources when possible.
-        Include a mix of content types to accommodate the student's learning style.
+        Create a structured {duration_weeks}-week learning path with:
         
-        Format the response as a JSON object with weeks, days, activities, and skills properties.
-        For example:
+        1. An overall goal that's achievable and measurable
+        2. Weekly themes that build progressively (easier to harder concepts)
+        3. 3-5 daily activities for each week (Monday through Friday)
+        4. At least one assessment activity per week to check understanding
+        5. Weekend review/practice activities
+        
+        For each activity:
+        - Choose appropriate content from the available resources when possible
+        - For resource-based activities, include the content ID
+        - For custom activities, provide detailed instructions
+        - Set estimated duration in minutes (15-45 minutes per activity)
+        - Include a mix of content types appropriate for the student's learning style
+        - Sequence activities to build on each other within each week
+        
+        # CONTENT SELECTION GUIDELINES:
+        
+        - Week 1: Focus on foundational/beginner content
+        - Middle weeks: Progress to intermediate content 
+        - Final week: Include some advanced content when appropriate
+        - Match content types to the student's learning style when possible
+        - Include diverse activity types (reading, watching, practicing, creating)
+        
+        Format the response as a JSON object with this structure:
+        ```json
         {{
-            "title": "Master Algebra Fundamentals",
-            "description": "A comprehensive learning path to develop strong algebra skills",
-            "overall_goal": "Gain confidence in solving algebraic equations and applying algebraic concepts",
+            "title": "Master [Subject] Fundamentals",
+            "description": "A comprehensive learning path to develop strong [subject] skills",
+            "overall_goal": "Clear statement of learning objectives",
+            "subject": "{subject}",
+            "grade_level": {student.grade_level if student.grade_level else "Unknown"},
             "weeks": [
                 {{
                     "week_number": 1,
-                    "theme": "Introduction to Variables and Expressions",
-                    "goal": "Understand what variables are and how to work with algebraic expressions",
+                    "theme": "Introduction to [Topic]",
+                    "goal": "Specific goal for this week",
                     "days": [
                         {{
-                            "day_number": 1,
+                            "day": "Monday",
                             "activities": [
                                 {{
-                                    "title": "What are Variables?",
-                                    "description": "Learn about variables and their role in algebra",
-                                    "content_id": "123",
-                                    "type": "video",
-                                    "duration_minutes": 20
-                                }},
-                                ...
+                                    "title": "Activity Title",
+                                    "description": "Clear instructions",
+                                    "content_id": "ID or null",
+                                    "type": "video/reading/practice/etc",
+                                    "duration_minutes": 30
+                                }}
                             ]
                         }},
-                        ...
+                        // Tuesday through Friday...
                     ],
-                    "skills": ["Understanding variables", "Simplifying expressions"],
-                    "assessment": "Quiz on basic algebraic expressions"
+                    "weekend_activity": {{
+                        "title": "Weekend Review",
+                        "description": "Review activity description",
+                        "duration_minutes": 45
+                    }},
+                    "skills": ["Skill 1", "Skill 2"],
+                    "assessment": "Description of assessment activity"
                 }},
-                ...
+                // Additional weeks...
             ]
         }}
+        ```
+        
+        Return ONLY the JSON with no additional text.
         """
         
         try:
@@ -272,11 +404,20 @@ class LearningPlanner:
             # Parse response
             learning_path = json.loads(response["choices"][0]["message"]["content"])
             
-            # Add path ID
+            # Add path ID and metadata
             learning_path["id"] = str(uuid.uuid4())
             learning_path["student_id"] = str(student.id)
-            learning_path["subject"] = subject
             learning_path["created_at"] = datetime.utcnow().isoformat()
+            
+            # Validate content IDs
+            for week in learning_path.get("weeks", []):
+                for day in week.get("days", []):
+                    for activity in day.get("activities", []):
+                        if "content_id" in activity and activity["content_id"]:
+                            # Check if content ID exists in our resources
+                            content_exists = any(str(content.id) == activity["content_id"] for content in relevant_content)
+                            if not content_exists:
+                                activity["content_id"] = None
             
             return learning_path
             
@@ -294,6 +435,74 @@ class LearningPlanner:
                 "created_at": datetime.utcnow().isoformat(),
                 "weeks": []
             }
+    
+    def _get_learning_style_description(self, learning_style: str) -> str:
+        """
+        Get a detailed description of a learning style to include in prompts.
+        Args:
+            learning_style: Learning style identifier
+        Returns:
+            Detailed description of the learning style
+        """
+        descriptions = {
+            "visual": """
+                Visual learners learn best through seeing. They prefer:
+                - Videos and demonstrations
+                - Diagrams, charts, and graphs
+                - Visual presentations and infographics
+                - Content with strong visual elements
+                
+                When planning activities for visual learners, prioritize video content, 
+                visual exercises, and content with diagrams and illustrations.
+            """,
+            
+            "auditory": """
+                Auditory learners learn best through hearing. They prefer:
+                - Lectures and audio recordings
+                - Group discussions
+                - Verbal instructions
+                - Content that can be read aloud or discussed
+                
+                When planning activities for auditory learners, prioritize video lectures,
+                audio content, and activities that involve discussion or verbal explanation.
+            """,
+            
+            "reading_writing": """
+                Reading/Writing learners learn best through text. They prefer:
+                - Articles and books
+                - Written instructions and explanations
+                - Note-taking and writing summaries
+                - Text-heavy content
+                
+                When planning activities for reading/writing learners, prioritize articles,
+                text-based content, and activities that involve reading and writing.
+            """,
+            
+            "kinesthetic": """
+                Kinesthetic learners learn best through doing. They prefer:
+                - Hands-on activities and experiments
+                - Interactive simulations and games
+                - Physical movement and manipulation
+                - Practical applications
+                
+                When planning activities for kinesthetic learners, prioritize interactive content,
+                simulations, games, and activities that involve active participation.
+            """,
+            
+            "mixed": """
+                Mixed learning style students benefit from variety. They prefer:
+                - A combination of different content types
+                - Multimodal learning experiences
+                - Content that engages multiple senses
+                - Variety in presentation and activities
+                
+                When planning activities for mixed learning style students, include a variety
+                of content types with a balance of visual, auditory, reading/writing, and kinesthetic elements.
+            """
+        }
+        
+        # Return the description for the specified learning style, or mixed if not found
+        return descriptions.get(learning_style.lower(), descriptions["mixed"])
     
     async def adapt_plan_for_performance(
         self,
@@ -345,7 +554,7 @@ class LearningPlanner:
         
         if needs_easier_content:
             # Filter for easier content
-            easier_content = [c for c in relevant_content if c.difficulty_level == "beginner"]
+            easier_content = [c for c in relevant_content if c.difficulty_level.value == "beginner"]
             if easier_content:
                 # Replace uncompleted activities with easier ones
                 for i, activity in enumerate(learning_plan.activities):
@@ -362,7 +571,7 @@ class LearningPlanner:
                         )
         elif needs_harder_content:
             # Filter for harder content
-            harder_content = [c for c in relevant_content if c.difficulty_level == "advanced"]
+            harder_content = [c for c in relevant_content if c.difficulty_level.value == "advanced"]
             if harder_content:
                 # Add challenging activities to the plan
                 max_order = max([a.order for a in learning_plan.activities]) if learning_plan.activities else 0
