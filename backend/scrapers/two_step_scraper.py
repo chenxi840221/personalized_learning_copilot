@@ -9,13 +9,13 @@ import json
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple
 
-# Fix import paths by adding the backend directory to sys.path
+# Add the project root to the path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
 backend_dir = os.path.dirname(current_dir)
 project_root = os.path.dirname(backend_dir)
-sys.path.insert(0, backend_dir)
+sys.path.insert(0, project_root)  # Add project root first
 
-# Use absolute imports from the project root
+# Now we can properly import from the backend package
 from backend.utils.vector_store import get_vector_store
 from backend.config.settings import Settings
 from backend.rag.openai_adapter import get_openai_adapter
@@ -81,7 +81,13 @@ class EnhancedScraperManager:
                     azure_search_endpoint=settings.AZURE_SEARCH_ENDPOINT,
                     azure_search_key=settings.AZURE_SEARCH_KEY,
                     index_name=settings.AZURE_SEARCH_INDEX_NAME,
-                    embedding_function=self.azure_embeddings.embed_query
+                    embedding_function=self.azure_embeddings.embed_query,
+                    vector_field_name="embedding",
+                    text_field_name="page_content",  # Use page_content instead of content
+                    fields_mapping={
+                        "content": "page_content",  # Map legacy 'content' field to 'page_content'
+                        "content_text": "metadata_content_text"  # Map content text to metadata field
+                    }
                 )
             
             logger.info("Azure OpenAI and Azure Search clients initialized")
@@ -130,6 +136,9 @@ class EnhancedScraperManager:
             
             # Also add flattened metadata fields for Azure Search
             content_info["metadata_content_text"] = full_text[:10000]
+            
+            # Add page_content field for LangChain compatibility
+            content_info["page_content"] = full_text[:10000]
             
             # Determine content type, difficulty level, etc. using extracted text
             content_type, difficulty, grade_levels = await self.extract_content_properties(
@@ -412,7 +421,7 @@ async def run_two_step_scraper(
     }
     
     # Get the absolute path to the output directory in the project root
-    output_dir = os.path.join(project_root, "education_resources")
+    output_dir = os.path.join(os.getcwd(), "education_resources")
     os.makedirs(output_dir, exist_ok=True)
     
     # Define index path
@@ -549,7 +558,7 @@ def main():
         else:
             print(f"Step 2 (Extraction): Completed with issues.")
     
-    print(f"\nOutput files saved to: {os.path.abspath(os.path.join(project_root, 'education_resources'))}")
+    print(f"\nOutput files saved to: {os.path.abspath(os.path.join(os.getcwd(), 'education_resources'))}")
 
 if __name__ == "__main__":
     main()

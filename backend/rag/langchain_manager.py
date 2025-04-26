@@ -10,11 +10,11 @@ from typing import List, Dict, Any, Optional, Union
 import os
 import sys
 
-# Fix import paths by adding the backend directory to sys.path
+# Fix import paths for relative imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
 backend_dir = os.path.dirname(current_dir)
 project_root = os.path.dirname(backend_dir)
-sys.path.insert(0, backend_dir)
+sys.path.insert(0, project_root)  # Add project root to path
 
 from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 from langchain_community.vectorstores import AzureSearch
@@ -85,6 +85,11 @@ class LangChainManager:
                     embedding_function=self.embeddings.embed_query,
                     vector_field_name="embedding",  # Explicitly set vector field name
                     text_field_name="page_content",  # Use page_content instead of "content"
+                    fields_mapping={
+                        "content": "page_content",  # Map legacy 'content' field to 'page_content'
+                        "content_text": "metadata_content_text",  # Map text content to metadata
+                        "transcription": "metadata_transcription"  # Map transcriptions to metadata
+                    }
                 )
                 
                 # Create retriever
@@ -247,14 +252,20 @@ class LangChainManager:
             for i, text in enumerate(texts):
                 metadata = {}
                 if metadatas and i < len(metadatas):
-                    metadata = metadatas[i]
-                    
-                # Create Document object with text in page_content field
+                    metadata = metadatas[i].copy()  # Make a copy to avoid modifying the original
+                
+                # Make sure we're not using 'content' field (use page_content instead)
+                # This field will be recognized by LangChain and mapped to the correct field in Azure Search
                 doc = Document(page_content=text, metadata=metadata)
                 documents.append(doc)
             
-            # Add documents to vector store
-            self.vector_store.add_documents(documents)
+            # Add documents to vector store with the correct field mapping
+            # Explicitly specify the text_field to ensure we're using the right field name
+            self.vector_store.add_documents(
+                documents,
+                vector_field_name="embedding",
+                text_field_name="page_content"  # Make sure this matches your Azure Search schema
+            )
             return True
             
         except Exception as e:

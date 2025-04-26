@@ -4,11 +4,11 @@ from typing import List, Dict, Any, Optional
 import os
 import sys
 
-# Fix import paths by adding the backend directory to sys.path
+# Fix import paths by adding the project root to sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 backend_dir = os.path.dirname(current_dir)
 project_root = os.path.dirname(backend_dir)
-sys.path.insert(0, project_root)
+sys.path.insert(0, project_root)  # Add project root to path
 
 # Now use absolute imports
 from backend.config.settings import Settings

@@ -10,12 +10,13 @@ import asyncio
 import os
 import sys
 
-# Fix import paths by adding the backend directory to sys.path
+# Fix import paths for relative imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
 backend_dir = os.path.dirname(current_dir)
 project_root = os.path.dirname(backend_dir)
-sys.path.insert(0, backend_dir)
+sys.path.insert(0, project_root)  # Add project root to path
 
+# Now import using absolute imports
 from backend.config.settings import Settings
 from backend.rag.langchain_manager import get_langchain_manager
 
@@ -111,11 +112,15 @@ class LangChainVectorStore:
             # Prepare text and metadata
             text = self._prepare_text_from_content(content_item)
             
-            # Remove fields that aren't in Azure Search schema
+            # Remove fields that aren't in Azure Search schema or that could cause conflicts
             metadata = {k: v for k, v in content_item.items() 
                       if k != "page_content" and k != "content" and k != "embedding"}
             
-            # Add to vector store
+            # Ensure we have a page_content field in the metadata if needed
+            if "page_content" not in content_item and text:
+                metadata["metadata_content_text"] = text  # Use flattened metadata field
+            
+            # Add to vector store using the appropriate field names
             return await self.langchain_manager.add_documents([text], [metadata])
             
         except Exception as e:
