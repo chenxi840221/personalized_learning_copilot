@@ -2,7 +2,7 @@
 """Create Azure AI Search indexes for the Personalized Learning Co‑pilot.
 
 This script creates the necessary search indexes for LangChain integration
-with Azure AI Search. It has been updated to work with the installed SDK version.
+with Azure AI Search. It has been updated to work with the 2024-03-01-Preview API.
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ AZURE_SEARCH_KEY = os.getenv("AZURE_SEARCH_KEY")
 CONTENT_INDEX_NAME = os.getenv("AZURE_SEARCH_INDEX_NAME", "educational-content")
 USERS_INDEX_NAME = os.getenv("AZURE_SEARCH_USERS_INDEX", "user-profiles")
 PLANS_INDEX_NAME = os.getenv("AZURE_SEARCH_PLANS_INDEX", "learning-plans")
-API_VERSION = "2023-07-01-Preview"  # Use the preview API for vector search
+API_VERSION = "2024-03-01-Preview"  # Updated to latest preview API
 
 ###############################################################################
 # Helpers                                                                     #
@@ -49,19 +49,19 @@ async def _create_index_with_rest(index_name: str, fields: List, vector_config: 
         "fields": fields
     }
     
-    # Add vector search configuration if requested - UPDATED FORMAT
+    # Add vector search configuration if requested - SIMPLIFIED FORMAT for 2024-03-01-Preview
     if vector_config:
         index_def["vectorSearch"] = {
             "profiles": [
                 {
                     "name": "default-profile",
-                    "algorithm": "hnsw",
-                    "parameters": {
-                        "m": 4,
-                        "efConstruction": 400,
-                        "efSearch": 500,
-                        "metric": "cosine"
-                    }
+                    "algorithm": "default-algorithm"
+                }
+            ],
+            "algorithms": [
+                {
+                    "name": "default-algorithm",
+                    "kind": "hnsw"
                 }
             ]
         }
@@ -102,6 +102,8 @@ async def _create_index_with_rest(index_name: str, fields: List, vector_config: 
                 else:
                     error_text = await response.text()
                     logger.error(f"Failed to create index: {response.status} - {error_text}")
+                    # Log the full request for debugging
+                    logger.info(f"Request payload: {json.dumps(index_def)}")
                     return False
     
     except Exception as e:
