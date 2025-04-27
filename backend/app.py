@@ -1,5 +1,5 @@
 # backend/app.py
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional, Dict, Any
 import logging
@@ -32,6 +32,23 @@ app.add_middleware(
 # Import API routes
 from api.auth_routes import router as auth_router
 from api.learning_plan_routes import router as learning_plan_router
+
+# Create user router for the /users/me endpoint
+from auth.authentication import get_current_user
+user_router = APIRouter(prefix="/users", tags=["users"])
+
+@user_router.get("/me/")
+async def get_current_user_profile(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """
+    Get the current authenticated user's profile.
+    
+    Args:
+        current_user: Current authenticated user
+        
+    Returns:
+        User profile information
+    """
+    return current_user
 
 # Import AI routes if available
 try:
@@ -82,6 +99,7 @@ async def startup_event():
 # Include routers
 app.include_router(auth_router)
 app.include_router(learning_plan_router)
+app.include_router(user_router)  # Include the user router
 
 # Include optional routers if available
 if has_content_endpoints:

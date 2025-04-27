@@ -1,4 +1,4 @@
-// Update your frontend/src/services/auth.js file
+// frontend/src/services/auth.js
 import { api, apiClient } from './api';
 
 // Login function
@@ -9,7 +9,7 @@ export const login = async (username, password) => {
     formData.append('username', username);
     formData.append('password', password);
     
-    const response = await apiClient.post('/token', formData.toString(), {
+    const response = await apiClient.post('/auth/token', formData.toString(), {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
       }
@@ -34,7 +34,7 @@ export const register = async (userData) => {
       userData.learning_style = userData.learning_style.value || userData.learning_style;
     }
     
-    const response = await api.post('/users/', userData);
+    const response = await api.post('/auth/register', userData);
     return response;
   } catch (error) {
     const message = error.response?.data?.detail || 'Failed to register';
