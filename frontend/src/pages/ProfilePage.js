@@ -1,15 +1,20 @@
-import React, { useState } from 'react';
-import { useAuth } from '../hooks/useAuth';
+// frontend/src/pages/ProfilePage.js
+import React, { useState, useEffect } from 'react';
+import { useEntraAuth } from '../hooks/useEntraAuth';
+import { api } from '../services/api';
 
 const ProfilePage = () => {
-  const { user } = useAuth();
+  const { user } = useEntraAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [formData, setFormData] = useState({
-    full_name: user?.full_name || '',
-    email: user?.email || '',
-    grade_level: user?.grade_level || '',
-    subjects_of_interest: user?.subjects_of_interest || [],
-    learning_style: user?.learning_style || ''
+    full_name: '',
+    email: '',
+    grade_level: '',
+    subjects_of_interest: [],
+    learning_style: ''
   });
   
   // Available subjects
@@ -24,18 +29,33 @@ const ProfilePage = () => {
     { value: 'mixed', label: 'Mixed/Multiple' }
   ];
   
+  // Initialize form data when user data changes
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        full_name: user.full_name || '',
+        email: user.email || '',
+        grade_level: user.grade_level || '',
+        subjects_of_interest: user.subjects_of_interest || [],
+        learning_style: user.learning_style || ''
+      });
+    }
+  }, [user]);
+  
   // Toggle edit mode
   const toggleEdit = () => {
     setIsEditing(!isEditing);
+    setSuccessMessage('');
+    setError('');
     
     // Reset form data if canceling edit
-    if (isEditing) {
+    if (isEditing && user) {
       setFormData({
-        full_name: user?.full_name || '',
-        email: user?.email || '',
-        grade_level: user?.grade_level || '',
-        subjects_of_interest: user?.subjects_of_interest || [],
-        learning_style: user?.learning_style || ''
+        full_name: user.full_name || '',
+        email: user.email || '',
+        grade_level: user.grade_level || '',
+        subjects_of_interest: user.subjects_of_interest || [],
+        learning_style: user.learning_style || ''
       });
     }
   };
@@ -63,18 +83,57 @@ const ProfilePage = () => {
   };
   
   // Handle form submission
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Here you would call an API to update the user profile
-    // For this POC, we'll just simulate success and exit edit mode
+    // Clear any previous messages
+    setError('');
+    setSuccessMessage('');
+    setIsSubmitting(true);
     
-    // TODO: Implement actual profile update API call
-    console.log('Updated profile data:', formData);
-    
-    // Exit edit mode
-    setIsEditing(false);
+    try {
+      // Validate grade level
+      if (formData.grade_level) {
+        const gradeLevel = parseInt(formData.grade_level);
+        if (isNaN(gradeLevel) || gradeLevel < 1 || gradeLevel > 12) {
+          setError('Please enter a valid grade level (1-12)');
+          setIsSubmitting(false);
+          return;
+        }
+      }
+      
+      // Prepare data for update
+      const updateData = {
+        full_name: formData.full_name,
+        grade_level: formData.grade_level ? parseInt(formData.grade_level) : null,
+        subjects_of_interest: formData.subjects_of_interest,
+        learning_style: formData.learning_style || null
+      };
+      
+      // Send update to API
+      const updatedProfile = await api.put('/auth/profile', updateData);
+      
+      // Update success
+      setSuccessMessage('Profile updated successfully!');
+      
+      // Exit edit mode
+      setIsEditing(false);
+    } catch (err) {
+      console.error('Error updating profile:', err);
+      setError(err.message || 'Failed to update profile. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+  
+  // Loading state when no user data
+  if (!user) {
+    return (
+      <div className="flex justify-center items-center h-48">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
   
   return (
     <div className="container mx-auto px-4 py-8">
@@ -93,6 +152,20 @@ const ProfilePage = () => {
           </button>
         </div>
         
+        {/* Success Message */}
+        {successMessage && (
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+            {successMessage}
+          </div>
+        )}
+        
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            {error}
+          </div>
+        )}
+        
         {isEditing ? (
           // Edit Mode
           <form onSubmit={handleSubmit}>
@@ -109,6 +182,7 @@ const ProfilePage = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={formData.full_name}
                   onChange={handleChange}
+                  disabled={isSubmitting}
                 />
               </div>
               
@@ -143,6 +217,7 @@ const ProfilePage = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={formData.grade_level}
                   onChange={handleChange}
+                  disabled={isSubmitting}
                 />
               </div>
               
@@ -162,6 +237,7 @@ const ProfilePage = () => {
                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                         checked={formData.subjects_of_interest.includes(subject)}
                         onChange={handleSubjectChange}
+                        disabled={isSubmitting}
                       />
                       <label htmlFor={`subject-${subject}`} className="ml-2 block text-sm text-gray-700">
                         {subject}
@@ -182,6 +258,7 @@ const ProfilePage = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={formData.learning_style}
                   onChange={handleChange}
+                  disabled={isSubmitting}
                 >
                   <option value="">Select your learning style</option>
                   {learningStyles.map(style => (
@@ -196,9 +273,10 @@ const ProfilePage = () => {
               <div className="flex justify-end">
                 <button
                   type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                  disabled={isSubmitting}
                 >
-                  Save Changes
+                  {isSubmitting ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </div>
@@ -211,20 +289,20 @@ const ProfilePage = () => {
               <h2 className="text-lg font-medium text-gray-800 mb-4">Basic Information</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Username</p>
-                  <p className="mt-1">{user?.username}</p>
+                  <p className="text-sm font-medium text-gray-500">Username/Email</p>
+                  <p className="mt-1">{user.username || user.email}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">Full Name</p>
-                  <p className="mt-1">{user?.full_name || 'Not specified'}</p>
+                  <p className="mt-1">{user.full_name || 'Not specified'}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">Email</p>
-                  <p className="mt-1">{user?.email}</p>
+                  <p className="mt-1">{user.email}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">Grade Level</p>
-                  <p className="mt-1">{user?.grade_level || 'Not specified'}</p>
+                  <p className="mt-1">{user.grade_level || 'Not specified'}</p>
                 </div>
               </div>
             </div>
@@ -236,14 +314,14 @@ const ProfilePage = () => {
                 <div>
                   <p className="text-sm font-medium text-gray-500">Learning Style</p>
                   <p className="mt-1 capitalize">
-                    {user?.learning_style 
-                      ? user.learning_style.replace('_', '/') 
+                    {user.learning_style 
+                      ? learningStyles.find(style => style.value === user.learning_style)?.label || user.learning_style
                       : 'Not specified'}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">Subjects of Interest</p>
-                  {user?.subjects_of_interest && user.subjects_of_interest.length > 0 ? (
+                  {user.subjects_of_interest && user.subjects_of_interest.length > 0 ? (
                     <div className="mt-1 flex flex-wrap gap-2">
                       {user.subjects_of_interest.map(subject => (
                         <span 
@@ -273,11 +351,9 @@ const ProfilePage = () => {
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Member Since</p>
+                  <p className="text-sm font-medium text-gray-500">Account Type</p>
                   <p className="mt-1">
-                    {user?.created_at 
-                      ? new Date(user.created_at).toLocaleDateString() 
-                      : 'Unknown'}
+                    Microsoft Account (Entra ID)
                   </p>
                 </div>
               </div>

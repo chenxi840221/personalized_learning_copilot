@@ -1,44 +1,60 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
+// frontend/src/components/Login.js
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useEntraAuth } from '../hooks/useEntraAuth';
 
 const Login = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   
-  const { login } = useAuth();
+  const { user, loading, login, isAuthenticated } = useEntraAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    // Clear any previous errors
-    setError('');
-    
-    // Validate form
-    if (!username.trim() || !password.trim()) {
-      setError('Please enter both username and password');
-      return;
+  // Get redirect URL from location state
+  const from = location.state?.from?.pathname || '/dashboard';
+  
+  // Store the redirect path for after authentication
+  useEffect(() => {
+    if (from && from !== '/login') {
+      sessionStorage.setItem('redirectTo', from);
     }
-    
-    // Set loading state
-    setIsLoading(true);
-    
+  }, [from]);
+  
+  // If already authenticated, redirect to dashboard
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, navigate, from]);
+  
+  // Handle login click
+  const handleLogin = async () => {
     try {
-      // Attempt to login
-      await login(username, password);
+      setIsLoading(true);
+      setError('');
       
-      // Redirect to dashboard on success
-      navigate('/dashboard');
+      // Start Entra ID login flow
+      await login();
+      
+      // Login is handled by MSAL redirect flow
+      // The page will redirect to Microsoft for authentication
     } catch (err) {
-      // Display error message
-      setError(err.message || 'Failed to login. Please check your credentials.');
-    } finally {
+      console.error('Login error:', err);
+      setError(err.message || 'Failed to login. Please try again.');
       setIsLoading(false);
     }
   };
+  
+  // If still checking authentication status, show loading
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[80vh]">
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+        <p className="ml-2 text-gray-600">Checking authentication status...</p>
+      </div>
+    );
+  }
   
   return (
     <div className="flex justify-center items-center min-h-[80vh]">
@@ -53,55 +69,37 @@ const Login = () => {
           </div>
         )}
         
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label htmlFor="username" className="block text-gray-700 text-sm font-bold mb-2">
-              Username
-            </label>
-            <input
-              id="username"
-              type="text"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter your username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+        <div className="space-y-6">
+          <div className="flex flex-col space-y-2">
+            <button
+              onClick={handleLogin}
+              className="w-full bg-[#0078d4] text-white font-bold py-3 px-4 rounded-md hover:bg-[#106ebe] focus:outline-none focus:ring-2 focus:ring-[#0078d4] focus:ring-opacity-50 disabled:opacity-50 flex items-center justify-center"
               disabled={isLoading}
-              required
-            />
+            >
+              {isLoading ? (
+                <>
+                  <span className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></span>
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 15a7 7 0 110-14 7 7 0 010 14z" />
+                  </svg>
+                  Sign in with Microsoft
+                </>
+              )}
+            </button>
           </div>
           
-          <div className="mb-6">
-            <label htmlFor="password" className="block text-gray-700 text-sm font-bold mb-2">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={isLoading}
-              required
-            />
+          <div className="text-center text-sm text-gray-600">
+            <p>
+              This application uses Entra ID (formerly Azure AD) for authentication.
+            </p>
+            <p className="mt-2">
+              You will be redirected to the Microsoft login page.
+            </p>
           </div>
-          
-          <button
-            type="submit"
-            className="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50"
-            disabled={isLoading}
-          >
-            {isLoading ? 'Logging in...' : 'Login'}
-          </button>
-        </form>
-        
-        <div className="mt-4 text-center">
-          <p className="text-gray-600">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-blue-600 hover:underline">
-              Register here
-            </Link>
-          </p>
         </div>
       </div>
     </div>

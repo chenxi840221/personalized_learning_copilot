@@ -1,9 +1,10 @@
+// frontend/src/components/Navigation.js
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
+import { useEntraAuth } from '../hooks/useEntraAuth';
 
 const Navigation = () => {
-  const { user, logout } = useAuth();
+  const { user, loading, logout, isAuthenticated } = useEntraAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -43,7 +44,6 @@ const Navigation = () => {
   // Handle logout
   const handleLogout = () => {
     logout();
-    navigate('/login');
     closeMenu();
   };
   
@@ -81,7 +81,7 @@ const Navigation = () => {
                 Home
               </Link>
               
-              {user && (
+              {isAuthenticated && (
                 <>
                   <Link
                     to="/dashboard"
@@ -113,11 +113,11 @@ const Navigation = () => {
           <div className="flex items-center">
             {/* Authentication Links (Desktop) */}
             <div className="hidden sm:flex sm:items-center">
-              {user ? (
+              {isAuthenticated ? (
                 <div className="ml-3 relative">
                   <div className="flex items-center">
                     <span className="text-sm font-medium text-gray-700 mr-2">
-                      {user.full_name || user.username}
+                      {user?.full_name || user?.name || user?.username || user?.email}
                     </span>
                     
                     <Link to="/profile" className="mr-2">
@@ -146,10 +146,10 @@ const Navigation = () => {
                   </Link>
                   
                   <Link
-                    to="/register"
+                    to="/login"
                     className="px-3 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700"
                   >
-                    Register
+                    Sign Up
                   </Link>
                 </div>
               )}
@@ -210,7 +210,7 @@ const Navigation = () => {
                 Home
               </Link>
               
-              {user && (
+              {isAuthenticated && (
                 <>
                   <Link
                     to="/dashboard"
@@ -253,19 +253,27 @@ const Navigation = () => {
             
             {/* Mobile user section */}
             <div className="mt-8 pt-6 border-t border-gray-200">
-              {user ? (
+              {isAuthenticated ? (
                 <div>
                   <div className="flex items-center px-4 py-2">
                     <div className="flex-shrink-0">
                       <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
                         <span className="text-blue-600 font-semibold text-xl">
-                          {user.full_name ? user.full_name.charAt(0) : user.username.charAt(0)}
+                          {user?.full_name 
+                            ? user.full_name.charAt(0) 
+                            : user?.name 
+                              ? user.name.charAt(0) 
+                              : user?.username 
+                                ? user.username.charAt(0) 
+                                : user?.email.charAt(0)}
                         </span>
                       </div>
                     </div>
                     <div className="ml-4">
-                      <div className="text-base font-medium text-gray-800">{user.full_name || user.username}</div>
-                      <div className="text-sm font-medium text-gray-500">{user.email}</div>
+                      <div className="text-base font-medium text-gray-800">
+                        {user?.full_name || user?.name || user?.username || user?.email}
+                      </div>
+                      <div className="text-sm font-medium text-gray-500">{user?.email}</div>
                     </div>
                   </div>
                   
@@ -292,11 +300,11 @@ const Navigation = () => {
                   </Link>
                   
                   <Link
-                    to="/register"
+                    to="/login"
                     className="w-full flex justify-center items-center px-4 py-3 bg-blue-600 text-white text-base font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     onClick={closeMenu}
                   >
-                    Register
+                    Sign Up
                   </Link>
                 </div>
               )}

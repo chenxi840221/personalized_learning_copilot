@@ -1,38 +1,56 @@
 // frontend/src/components/ProtectedRoute.js
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
+import { useEntraAuth } from '../hooks/useEntraAuth';
+import { InteractionStatus } from '@azure/msal-browser';
 
 /**
  * A wrapper component for routes that require authentication
  * Redirects to login if user is not authenticated
  */
 const ProtectedRoute = ({ children }) => {
-  const { user, loading, isAuthenticated, isTokenValid } = useAuth();
+  const { user, loading, isAuthenticated, isTokenValid, msalInstance } = useEntraAuth();
   const [isChecking, setIsChecking] = useState(true);
   const [isValid, setIsValid] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
-    // Check if we have a valid token first
-    const tokenValid = isTokenValid();
-    
-    // If no valid token, we can immediately redirect
-    if (!tokenValid) {
-      setIsValid(false);
+    const checkAuth = async () => {
+      // If MSAL is in the middle of a redirect, wait for it to complete
+      if (msalInstance && msalInstance.getInteractionStatus() === InteractionStatus.Redirect) {
+        return;
+      }
+      
+      // Check if we have a valid token first
+      const tokenValid = isTokenValid();
+      
+      // If no valid token, we can immediately redirect
+      if (!tokenValid) {
+        setIsValid(false);
+        setIsChecking(false);
+        return;
+      }
+      
+      // If we have a token but auth is still loading, wait for it
+      if (loading) {
+        return;
+      }
+      
+      // Auth loading complete, check if we have a user
+      setIsValid(isAuthenticated);
       setIsChecking(false);
-      return;
-    }
+    };
     
-    // If we have a token but auth is still loading, wait for it
-    if (loading) {
-      return;
+    checkAuth();
+  }, [user, loading, isAuthenticated, isTokenValid, msalInstance]);
+
+  // Store the current location for redirect after login
+  useEffect(() => {
+    if (!isValid && !isChecking && !loading) {
+      // Store the current path for redirect after login
+      sessionStorage.setItem('redirectTo', location.pathname);
     }
-    
-    // Auth loading complete, check if we have a user
-    setIsValid(isAuthenticated);
-    setIsChecking(false);
-  }, [user, loading, isAuthenticated, isTokenValid]);
+  }, [isValid, isChecking, loading, location.pathname]);
 
   // Show loading state while checking
   if (loading || isChecking) {

@@ -1,7 +1,7 @@
 # backend/config/settings.py
 from pydantic import BaseSettings
 import os
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 import logging
 
 # Try to import dotenv, but handle gracefully if not installed
@@ -15,21 +15,24 @@ class Settings(BaseSettings):
     # Application Settings
     APP_NAME: str = "Personalized Learning Co-pilot"
     API_VERSION: str = "v1"
-    DEBUG: bool = True
+    DEBUG: bool = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes")
     
-    # Authentication
+    # Legacy Authentication Settings (for backward compatibility)
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your_secret_key_here")
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
     
-    # Microsoft Entra ID Settings (for authentication)
+    # Entra ID / Microsoft Identity Settings
     TENANT_ID: str = os.getenv("MS_TENANT_ID", "")
     CLIENT_ID: str = os.getenv("MS_CLIENT_ID", "")
     CLIENT_SECRET: str = os.getenv("MS_CLIENT_SECRET", "")
+    REDIRECT_URI: str = os.getenv("MS_REDIRECT_URI", "http://localhost:3000/auth/callback")
     
-    # Azure Cognitive Services Multi-Service Resource
-    AZURE_COGNITIVE_ENDPOINT: str = os.getenv("AZURE_COGNITIVE_ENDPOINT", "")
-    AZURE_COGNITIVE_KEY: str = os.getenv("AZURE_COGNITIVE_KEY", "")
+    # API Scopes
+    API_SCOPE: str = os.getenv("API_SCOPE", "api://{CLIENT_ID}/user_impersonation")
+    
+    # Frontend URL for CORS and redirects
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
     
     # Azure AI Search Settings
     AZURE_SEARCH_ENDPOINT: str = os.getenv("AZURE_SEARCH_ENDPOINT", "")
@@ -41,14 +44,28 @@ class Settings(BaseSettings):
     USERS_INDEX_NAME: str = os.getenv("AZURE_SEARCH_USERS_INDEX", "user-profiles")
     PLANS_INDEX_NAME: str = os.getenv("AZURE_SEARCH_PLANS_INDEX", "learning-plans")
     
-    # Azure OpenAI Settings (May be part of Cognitive Services or separate)
+    # Azure OpenAI Settings 
     AZURE_OPENAI_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT", "")
     AZURE_OPENAI_KEY: str = os.getenv("AZURE_OPENAI_KEY", "")
     AZURE_OPENAI_API_VERSION: str = os.getenv("AZURE_OPENAI_API_VERSION", "2023-05-15")
     AZURE_OPENAI_DEPLOYMENT: str = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4")
     AZURE_OPENAI_EMBEDDING_DEPLOYMENT: str = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-ada-002")
     
-    # For OpenAI adapter compatibility
+    # OpenAI API Settings (used by some components)
+    OPENAI_API_TYPE: str = os.getenv("OPENAI_API_TYPE", "azure")
+    OPENAI_API_BASE: str = os.getenv("OPENAI_API_BASE", AZURE_OPENAI_ENDPOINT)
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", AZURE_OPENAI_KEY)
+    OPENAI_API_VERSION: str = os.getenv("OPENAI_API_VERSION", AZURE_OPENAI_API_VERSION)
+    
+    # Azure AI Services - Form Recognizer
+    FORM_RECOGNIZER_ENDPOINT: str = os.getenv("FORM_RECOGNIZER_ENDPOINT", "")
+    FORM_RECOGNIZER_KEY: str = os.getenv("FORM_RECOGNIZER_KEY", "")
+    
+    # Azure AI Services - Speech Service
+    SPEECH_KEY: str = os.getenv("SPEECH_KEY", "")
+    SPEECH_REGION: str = os.getenv("SPEECH_REGION", "")
+    
+    # Helper methods for OpenAI integration
     def get_openai_endpoint(self) -> str:
         """Get the OpenAI endpoint, using Cognitive Services endpoint if OpenAI-specific is not provided."""
         if self.AZURE_OPENAI_ENDPOINT:
@@ -67,12 +84,13 @@ class Settings(BaseSettings):
             return self.AZURE_OPENAI_KEY
         return self.AZURE_COGNITIVE_KEY
     
-    # CORS Settings - Fix for the parsing error
+    # CORS Settings
     @property
     def CORS_ORIGINS(self) -> List[str]:
         default_origins = [
             "http://localhost:3000",  # React frontend
             "http://localhost:8000",  # FastAPI backend (for development)
+            self.FRONTEND_URL  # Configured frontend URL
         ]
         
         # Get additional origins from environment
@@ -85,14 +103,15 @@ class Settings(BaseSettings):
             except Exception as e:
                 logging.warning(f"Error parsing CORS_ORIGINS: {e}")
         
-        return default_origins
+        # Remove duplicates and empty strings
+        return list(set([origin for origin in default_origins if origin]))
     
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     
     # Content Scraper Settings
-    SCRAPER_RATE_LIMIT: float = 1.0  # seconds between requests
-    USER_AGENT: str = "PersonalizedLearningCopilot/1.0"
+    SCRAPER_RATE_LIMIT: float = float(os.getenv("SCRAPER_RATE_LIMIT", "1.0"))  # seconds between requests
+    USER_AGENT: str = os.getenv("USER_AGENT", "PersonalizedLearningCopilot/1.0")
     
     class Config:
         env_file = ".env"

@@ -1,4 +1,4 @@
-// Update the API base URL in your frontend/src/services/api.js file
+// frontend/src/services/api.js
 import axios from 'axios';
 
 // Create axios instance with base URL
@@ -13,10 +13,8 @@ export const apiClient = axios.create({
 // Add request interceptor to add auth token to requests
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+    // Get token from storage (MSAL will handle this internally)
+    // We don't need to do anything here as EntraAuthContext already sets the token
     return config;
   },
   (error) => {
@@ -32,8 +30,7 @@ apiClient.interceptors.response.use(
   (error) => {
     // Handle 401 Unauthorized errors (token expired, etc)
     if (error.response && error.response.status === 401) {
-      // Clear the token and redirect to login
-      localStorage.removeItem('token');
+      // Redirect to login page if unauthorized
       window.location.href = '/login';
     }
     
