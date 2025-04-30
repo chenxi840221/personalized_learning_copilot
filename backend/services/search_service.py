@@ -6,6 +6,7 @@ from azure.search.documents.aio import SearchClient
 from typing import List, Dict, Any, Optional
 import json
 import logging
+import traceback
 from datetime import datetime
 
 from config.settings import Settings
@@ -36,15 +37,65 @@ class SearchService:
         if not settings.AZURE_SEARCH_ENDPOINT or not settings.AZURE_SEARCH_KEY:
             logger.warning("Azure Search not configured")
             return None
+            
+        logger.info(f"Getting search client for index: {index_name}")
         
         if index_name not in self.search_clients:
-            self.search_clients[index_name] = SearchClient(
-                endpoint=settings.AZURE_SEARCH_ENDPOINT,
-                index_name=index_name,
-                credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
-            )
+            try:
+                self.search_clients[index_name] = SearchClient(
+                    endpoint=settings.AZURE_SEARCH_ENDPOINT,
+                    index_name=index_name,
+                    credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
+                )
+                logger.info(f"Created new search client for index: {index_name}")
+            except Exception as e:
+                logger.error(f"Error creating search client for index {index_name}: {e}")
+                return None
         
         return self.search_clients[index_name]
+        
+    async def check_index_exists(self, index_name: str) -> bool:
+        """
+        Check if an index exists in Azure Search.
+        
+        Args:
+            index_name: Name of the index to check
+            
+        Returns:
+            True if the index exists, False otherwise
+        """
+        if not settings.AZURE_SEARCH_ENDPOINT or not settings.AZURE_SEARCH_KEY:
+            logger.warning("Azure Search not configured")
+            return False
+            
+        import aiohttp
+        import json
+        
+        try:
+            # Use the REST API to check if the index exists
+            headers = {
+                "api-key": settings.AZURE_SEARCH_KEY,
+                "Content-Type": "application/json"
+            }
+            
+            # Use aiohttp for the HTTP request
+            async with aiohttp.ClientSession() as session:
+                url = f"{settings.AZURE_SEARCH_ENDPOINT}/indexes/{index_name}?api-version=2023-07-01-Preview"
+                async with session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        logger.info(f"Index {index_name} exists")
+                        return True
+                    elif response.status == 404:
+                        logger.warning(f"Index {index_name} does not exist")
+                        return False
+                    else:
+                        logger.error(f"Error checking if index {index_name} exists: {response.status}")
+                        text = await response.text()
+                        logger.error(f"Response: {text}")
+                        return False
+        except Exception as e:
+            logger.error(f"Error checking if index {index_name} exists: {e}")
+            return False
     
     async def search_documents(
         self,
@@ -74,6 +125,7 @@ class SearchService:
         try:
             client = await self.get_search_client(index_name)
             if not client:
+                logger.warning(f"No search client available for index {index_name}")
                 return []
             
             # Build search options
@@ -89,19 +141,45 @@ class SearchService:
             
             if order_by:
                 search_options["order_by"] = order_by.split(",")
+                
+            logger.info(f"Searching index {index_name} with query: {query}")
+            logger.info(f"Search options: {search_options}")
             
             # Execute search
-            results = await client.search(query, **search_options)
-            
-            # Convert results to list of dictionaries
-            documents = []
-            async for result in results:
-                documents.append(dict(result))
-            
-            return documents
+            try:
+                results = await client.search(query, **search_options)
+                
+                # Convert results to list of dictionaries
+                documents = []
+                total_count = 0
+                
+                async for result in results:
+                    documents.append(dict(result))
+                    
+                # Try to get total count if available
+                if hasattr(results, 'get_count'):
+                    try:
+                        total_count = await results.get_count()
+                        logger.info(f"Total count from search: {total_count}")
+                    except Exception as count_error:
+                        logger.warning(f"Could not get total count: {count_error}")
+                
+                logger.info(f"Search returned {len(documents)} documents")
+                return documents
+                
+            except Exception as search_error:
+                logger.error(f"Error during search operation: {search_error}")
+                
+                # Check if the index exists
+                exists = await self.check_index_exists(index_name)
+                if not exists:
+                    logger.warning(f"Index {index_name} does not exist. This might be why the search failed.")
+                
+                return []
             
         except Exception as e:
-            logger.error(f"Error searching documents: {e}")
+            logger.error(f"Error in search_documents: {e}")
+            logger.error(traceback.format_exc())
             return []
     
     def _prepare_document_for_indexing(self, document: Dict[str, Any]) -> Dict[str, Any]:
@@ -117,8 +195,16 @@ class SearchService:
         # Create a copy of the document
         cleaned_doc = document.copy()
         
+        # List of fields that are not defined in the search index schema
+        invalid_fields = ['_debug_info', 'metadata']
+        
+        # Remove fields that are not in the schema
+        for field in invalid_fields:
+            if field in cleaned_doc:
+                del cleaned_doc[field]
+        
         # Convert datetime objects to strings in format expected by Azure Search
-        for key, value in document.items():
+        for key, value in list(document.items()):
             if isinstance(value, datetime):
                 # Format as ISO 8601 with Z for UTC timezone
                 cleaned_doc[key] = value.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -131,10 +217,34 @@ class SearchService:
             # Extract just the embedding vector for Azure Search
             cleaned_doc['embedding'] = cleaned_doc['embedding'].get('vector', [])
             
-        # Remove any nested objects that aren't handled in the schema
-        if 'metadata' in cleaned_doc:
-            del cleaned_doc['metadata']
+        # Convert subjects to a format that works with the schema
+        if 'subjects' in cleaned_doc and cleaned_doc['subjects'] is not None:
+            # Make sure subjects field is a list of dicts with the expected keys
+            subjects = cleaned_doc['subjects']
             
+            if isinstance(subjects, list):
+                for i, subj in enumerate(subjects):
+                    # Make sure areas_for_improvement and strengths are lists
+                    for field in ['areas_for_improvement', 'strengths']:
+                        if field in subj and not isinstance(subj[field], list):
+                            if subj[field] is None:
+                                subj[field] = []
+                            elif isinstance(subj[field], str):
+                                subj[field] = [subj[field]]
+                            else:
+                                subj[field] = []
+        
+        # Ensure encrypted_fields is a string
+        if 'encrypted_fields' in cleaned_doc and not isinstance(cleaned_doc['encrypted_fields'], str):
+            try:
+                cleaned_doc['encrypted_fields'] = json.dumps(cleaned_doc['encrypted_fields'])
+            except (TypeError, ValueError):
+                # If it can't be serialized, set it to an empty JSON object
+                cleaned_doc['encrypted_fields'] = '{}'
+                
+        # Log what we're about to index    
+        logger.info(f"Prepared document for indexing: ID={cleaned_doc.get('id')}")
+                
         return cleaned_doc
         
     async def index_document(
@@ -155,21 +265,49 @@ class SearchService:
         try:
             client = await self.get_search_client(index_name)
             if not client:
+                logger.warning(f"No search client available for index {index_name}")
                 return False
                 
             # Prepare the document for indexing
-            prepared_doc = self._prepare_document_for_indexing(document)
-            
-            logger.info(f"Indexing document with ID: {prepared_doc.get('id')}")
+            try:
+                prepared_doc = self._prepare_document_for_indexing(document)
+                logger.info(f"Document prepared for indexing with ID: {prepared_doc.get('id')}")
+            except Exception as prep_err:
+                logger.error(f"Error preparing document for indexing: {prep_err}")
+                logger.error(traceback.format_exc())
+                return False
             
             # Upload the document
-            result = await client.upload_documents(documents=[prepared_doc])
-            
-            # Check if the operation was successful
-            return result[0].succeeded
+            try:
+                result = await client.upload_documents(documents=[prepared_doc])
+                
+                # Check if the operation was successful
+                is_success = result[0].succeeded
+                if is_success:
+                    logger.info(f"Successfully indexed document with ID: {prepared_doc.get('id')}")
+                else:
+                    logger.error(f"Failed to index document: {result[0].error_message}")
+                
+                return is_success
+            except Exception as upload_err:
+                logger.error(f"Error uploading document to search index: {upload_err}")
+                logger.error(traceback.format_exc())
+                
+                # Check if this is a schema mismatch issue
+                error_msg = str(upload_err)
+                if "property" in error_msg and "does not exist" in error_msg:
+                    # Try to extract the problematic field name
+                    import re
+                    field_match = re.search(r"property '([^']+)'", error_msg)
+                    if field_match:
+                        field_name = field_match.group(1)
+                        logger.error(f"Schema mismatch for field: {field_name}")
+                        
+                return False
             
         except Exception as e:
             logger.error(f"Error indexing document: {e}")
+            logger.error(traceback.format_exc())
             return False
     
     async def delete_document(

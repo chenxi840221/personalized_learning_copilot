@@ -103,13 +103,14 @@ async def upload_student_report(
                     except Exception as script_err:
                         logger.error(f"Error running index creation script: {script_err}")
                 
-                # Add debugging info to the processed report
-                processed_report["_debug_info"] = {
+                # Log debugging info but don't add it to the document
+                debug_info = {
                     "id": processed_report.get("id"),
                     "student_id": processed_report.get("student_id"),
                     "upload_time": datetime.utcnow().isoformat(),
                     "report_type": processed_report.get("report_type")
                 }
+                logger.info(f"Debug info for report: {debug_info}")
                 
                 # Log the document being indexed
                 logger.info(f"Indexing document with ID: {processed_report.get('id')}")
