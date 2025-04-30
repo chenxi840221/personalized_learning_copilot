@@ -77,6 +77,44 @@ async def upload_student_report(
         if search_service and settings.REPORTS_INDEX_NAME:
             logger.info(f"Indexing report to {settings.REPORTS_INDEX_NAME}")
             try:
+                # Check if the index exists, create it if it doesn't
+                index_exists = await search_service.check_index_exists(settings.REPORTS_INDEX_NAME)
+                if not index_exists:
+                    logger.warning(f"Index {settings.REPORTS_INDEX_NAME} does not exist. Attempting to create it.")
+                    
+                    # Try to import and run the index creation script
+                    try:
+                        import sys
+                        script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts")
+                        sys.path.append(script_path)
+                        
+                        # Try different import approaches
+                        try:
+                            from update_report_index import update_student_reports_index
+                            success = update_student_reports_index()
+                        except ImportError:
+                            # Try alternative import path
+                            from scripts.update_report_index import update_student_reports_index
+                            success = update_student_reports_index()
+                        if success:
+                            logger.info("Successfully created reports index")
+                        else:
+                            logger.error("Failed to create reports index")
+                    except Exception as script_err:
+                        logger.error(f"Error running index creation script: {script_err}")
+                
+                # Add debugging info to the processed report
+                processed_report["_debug_info"] = {
+                    "id": processed_report.get("id"),
+                    "student_id": processed_report.get("student_id"),
+                    "upload_time": datetime.utcnow().isoformat(),
+                    "report_type": processed_report.get("report_type")
+                }
+                
+                # Log the document being indexed
+                logger.info(f"Indexing document with ID: {processed_report.get('id')}")
+                logger.info(f"Document has {len(processed_report.get('subjects', []))} subjects")
+                
                 success = await search_service.index_document(
                     index_name=settings.REPORTS_INDEX_NAME,
                     document=processed_report
@@ -86,6 +124,7 @@ async def upload_student_report(
                     logger.warning("Report indexing failed but continuing with report processing")
                     index_status = "failed"
                 else:
+                    logger.info(f"Successfully indexed report with ID: {processed_report.get('id')}")
                     index_status = "success"
             except Exception as e:
                 logger.error(f"Error indexing report: {e}")
@@ -155,6 +194,9 @@ async def get_student_reports(
         if not settings.REPORTS_INDEX_NAME:
             logger.warning("Reports index name not configured. Returning empty results.")
             return []
+            
+        logger.info(f"Searching for reports with filter: {filter_expression}")
+        logger.info(f"Search index name: {settings.REPORTS_INDEX_NAME}")
         
         try:
             # Search for reports
@@ -165,30 +207,69 @@ async def get_student_reports(
                 top=limit,
                 skip=skip
             )
+            
+            logger.info(f"Found {len(reports)} reports for user {current_user['id']}")
+            
+            # If no reports found, let's check if the index exists
+            if len(reports) == 0:
+                logger.info("No reports found. Checking if index exists...")
+                index_exists = await search_service.check_index_exists(settings.REPORTS_INDEX_NAME)
+                if not index_exists:
+                    logger.warning(f"Index {settings.REPORTS_INDEX_NAME} does not exist!")
+                    
+            return reports
         except Exception as e:
             logger.error(f"Error searching for reports: {e}")
             return []
         
         # Decrypt PII fields
-        report_processor = await get_report_processor()
-        for report in reports:
-            if "encrypted_fields" in report and report["encrypted_fields"]:
+        if len(reports) > 0:
+            logger.info("Decrypting PII fields for reports")
+            report_processor = await get_report_processor()
+            
+            for report in reports:
                 try:
-                    # Parse encrypted fields from JSON string
-                    encrypted_fields = json.loads(report["encrypted_fields"])
+                    # Debug information
+                    if "encrypted_fields" not in report:
+                        logger.warning(f"Report {report.get('id', 'unknown')} has no encrypted_fields")
+                    elif not report["encrypted_fields"]:
+                        logger.warning(f"Report {report.get('id', 'unknown')} has empty encrypted_fields")
                     
-                    # Decrypt each field
-                    for field, encrypted_value in encrypted_fields.items():
+                    if "encrypted_fields" in report and report["encrypted_fields"]:
                         try:
-                            report[field] = await report_processor.decrypt_pii(encrypted_value)
+                            # Parse encrypted fields from JSON string
+                            if isinstance(report["encrypted_fields"], str):
+                                try:
+                                    encrypted_fields = json.loads(report["encrypted_fields"])
+                                    logger.info(f"Successfully parsed encrypted_fields JSON for report {report.get('id', 'unknown')}")
+                                except json.JSONDecodeError as json_err:
+                                    logger.error(f"Error parsing encrypted_fields as JSON: {json_err}")
+                                    logger.error(f"Value: {report['encrypted_fields']}")
+                                    encrypted_fields = {}
+                            else:
+                                # It's already a dict
+                                encrypted_fields = report["encrypted_fields"]
+                                logger.info(f"Encrypted fields is already a dict for report {report.get('id', 'unknown')}")
+                            
+                            # Log encrypted fields keys
+                            logger.info(f"Encrypted fields keys: {list(encrypted_fields.keys())}")
+                            
+                            # Decrypt each field
+                            for field, encrypted_value in encrypted_fields.items():
+                                try:
+                                    logger.info(f"Decrypting field {field} for report {report.get('id', 'unknown')}")
+                                    report[field] = await report_processor.decrypt_pii(encrypted_value)
+                                    logger.info(f"Successfully decrypted field {field}")
+                                except Exception as e:
+                                    # If decryption fails, leave the field empty
+                                    logger.warning(f"Failed to decrypt field {field}: {e}")
+                                    report[field] = None
                         except Exception as e:
-                            # If decryption fails, leave the field empty
-                            logger.warning(f"Failed to decrypt field {field}: {e}")
-                            report[field] = None
-                except json.JSONDecodeError as e:
-                    logger.warning(f"Failed to parse encrypted fields: {e}")
+                            logger.warning(f"Error processing encrypted fields: {e}")
                 except Exception as e:
-                    logger.warning(f"Error processing encrypted fields: {e}")
+                    logger.error(f"Error processing report: {e}")
+        else:
+            logger.info("No reports to decrypt")
         
         return reports
     
@@ -256,24 +337,49 @@ async def get_student_report(
         report = reports[0]
         
         # Decrypt PII fields
+        logger.info(f"Decrypting PII fields for report {report_id}")
         report_processor = await get_report_processor()
-        if "encrypted_fields" in report and report["encrypted_fields"]:
-            try:
-                # Parse encrypted fields from JSON string
-                encrypted_fields = json.loads(report["encrypted_fields"])
-                
-                # Decrypt each field
-                for field, encrypted_value in encrypted_fields.items():
-                    try:
-                        report[field] = await report_processor.decrypt_pii(encrypted_value)
-                    except Exception as e:
-                        # If decryption fails, leave the field empty
-                        logger.warning(f"Failed to decrypt field {field}: {e}")
-                        report[field] = None
-            except json.JSONDecodeError as e:
-                logger.warning(f"Failed to parse encrypted fields: {e}")
-            except Exception as e:
-                logger.warning(f"Error processing encrypted fields: {e}")
+        
+        try:
+            # Debug information
+            if "encrypted_fields" not in report:
+                logger.warning(f"Report {report_id} has no encrypted_fields")
+            elif not report["encrypted_fields"]:
+                logger.warning(f"Report {report_id} has empty encrypted_fields")
+            
+            if "encrypted_fields" in report and report["encrypted_fields"]:
+                try:
+                    # Parse encrypted fields from JSON string
+                    if isinstance(report["encrypted_fields"], str):
+                        try:
+                            encrypted_fields = json.loads(report["encrypted_fields"])
+                            logger.info(f"Successfully parsed encrypted_fields JSON for report {report_id}")
+                        except json.JSONDecodeError as json_err:
+                            logger.error(f"Error parsing encrypted_fields as JSON: {json_err}")
+                            logger.error(f"Value: {report['encrypted_fields']}")
+                            encrypted_fields = {}
+                    else:
+                        # It's already a dict
+                        encrypted_fields = report["encrypted_fields"]
+                        logger.info(f"Encrypted fields is already a dict for report {report_id}")
+                    
+                    # Log encrypted fields keys
+                    logger.info(f"Encrypted fields keys: {list(encrypted_fields.keys())}")
+                    
+                    # Decrypt each field
+                    for field, encrypted_value in encrypted_fields.items():
+                        try:
+                            logger.info(f"Decrypting field {field} for report {report_id}")
+                            report[field] = await report_processor.decrypt_pii(encrypted_value)
+                            logger.info(f"Successfully decrypted field {field}")
+                        except Exception as e:
+                            # If decryption fails, leave the field empty
+                            logger.warning(f"Failed to decrypt field {field}: {e}")
+                            report[field] = None
+                except Exception as e:
+                    logger.warning(f"Error processing encrypted fields: {e}")
+        except Exception as e:
+            logger.error(f"Error processing report: {e}")
         
         return report
     

@@ -24,8 +24,10 @@ const StudentReport = () => {
     setLoading(true);
     try {
       // No filters needed anymore
+      console.log('Fetching reports...');
       const data = await getReports();
-      setReports(data);
+      console.log('Reports fetched:', data);
+      setReports(data || []); // Ensure we always have an array
       setError('');
     } catch (err) {
       setError('Failed to fetch reports. Please try again.');
@@ -68,7 +70,7 @@ const StudentReport = () => {
       const data = await new Promise((resolve, reject) => {
         apiClient.post('/student-reports/upload', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
-          timeout: 300000, // 5 minutes for large files
+          timeout: 600000, // 10 minutes for large files
           onUploadProgress
         })
         .then(response => resolve(response.data))
@@ -83,7 +85,37 @@ const StudentReport = () => {
       document.getElementById('report-file-input').value = '';
     } catch (err) {
       console.error('Error uploading report:', err);
-      setError('Failed to upload report. The document processing may be taking too long. Please try again with a smaller file or try again later.');
+      
+      // Check if it's a timeout error
+      if (err.message && err.message.includes('timeout')) {
+        setError('Document processing timeout. Please try a smaller file or try again later.');
+      } else if (err.response && err.response.status) {
+        // Server returned an error status
+        const status = err.response.status;
+        let errorMsg = '';
+        
+        switch (status) {
+          case 400:
+            errorMsg = 'Invalid file format. Please check your file and try again.';
+            break;
+          case 401:
+            errorMsg = 'You need to log in again to upload reports.';
+            break;
+          case 413:
+            errorMsg = 'File is too large. Please upload a smaller file.';
+            break;
+          case 500:
+            errorMsg = 'Server error while processing the report. Our team has been notified.';
+            break;
+          default:
+            errorMsg = `Error (${status}): Failed to upload report. Please try again later.`;
+        }
+        
+        setError(errorMsg);
+      } else {
+        // Generic error
+        setError('Failed to upload report. The document processing may be taking too long. Please try again with a smaller file or try again later.');
+      }
     } finally {
       setUploading(false);
       setUploadProgress(0);
