@@ -7,7 +7,7 @@ import os
 import shutil
 
 from models.student_report import StudentReport, ReportType
-from auth.authentication import get_current_user
+from auth.entra_auth import get_current_user
 from utils.report_processor import get_report_processor
 from config.settings import Settings
 from services.search_service import get_search_service
