@@ -1,7 +1,7 @@
 // frontend/src/components/StudentReport.js
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { uploadReport, getReports, getReport, deleteReport } from '../services/api';
+import { uploadReport, getReports, getReport, deleteReport, apiClient } from '../services/api';
 
 const StudentReport = () => {
   const { user } = useAuth();
@@ -10,6 +10,8 @@ const StudentReport = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [reportType, setReportType] = useState('primary');
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState('');
   const [filterSchoolYear, setFilterSchoolYear] = useState('');
   const [filterTerm, setFilterTerm] = useState('');
@@ -56,26 +58,46 @@ const StudentReport = () => {
       return;
     }
 
-    setLoading(true);
+    // Track uploading state separately from general loading
+    setUploading(true);
+    setUploadProgress(0);
+    setError('');
+    
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('report_type', reportType);
 
-      const data = await uploadReport(formData);
+      // Create a custom uploader with progress tracking
+      const onUploadProgress = (progressEvent) => {
+        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        setUploadProgress(percentCompleted);
+        console.log(`Upload progress: ${percentCompleted}%`);
+      };
+
+      // Custom implementation to handle progress
+      const data = await new Promise((resolve, reject) => {
+        apiClient.post('/student-reports/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 300000, // 5 minutes for large files
+          onUploadProgress
+        })
+        .then(response => resolve(response.data))
+        .catch(error => reject(error));
+      });
       
       // Add the new report to the list and reset form
       setReports([data, ...reports]);
       setSelectedFile(null);
-      setError('');
       
       // Reset the file input
       document.getElementById('report-file-input').value = '';
     } catch (err) {
-      setError('Failed to upload report. Please try again.');
       console.error('Error uploading report:', err);
+      setError('Failed to upload report. The document processing may be taking too long. Please try again with a smaller file or try again later.');
     } finally {
-      setLoading(false);
+      setUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -175,11 +197,27 @@ const StudentReport = () => {
           
           <button
             onClick={handleUpload}
-            disabled={loading}
+            disabled={uploading || !selectedFile}
             className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
           >
-            {loading ? 'Uploading...' : 'Upload Report'}
+            {uploading ? 'Processing...' : 'Upload Report'}
           </button>
+          
+          {uploading && (
+            <div className="mt-2">
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div 
+                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-in-out" 
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+              <p className="text-sm text-gray-500 mt-1">
+                {uploadProgress < 100 ? 
+                  `Uploading: ${uploadProgress}%` : 
+                  'Processing document... This may take up to 2 minutes.'}
+              </p>
+            </div>
+          )}
           
           {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
         </div>

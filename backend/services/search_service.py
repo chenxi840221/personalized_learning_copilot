@@ -6,6 +6,7 @@ from azure.search.documents.aio import SearchClient
 from typing import List, Dict, Any, Optional
 import json
 import logging
+from datetime import datetime
 
 from config.settings import Settings
 from rag.openai_adapter import get_openai_adapter
@@ -103,6 +104,39 @@ class SearchService:
             logger.error(f"Error searching documents: {e}")
             return []
     
+    def _prepare_document_for_indexing(self, document: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Prepare a document for indexing in Azure AI Search.
+        
+        Args:
+            document: The document to prepare
+            
+        Returns:
+            Prepared document
+        """
+        # Create a copy of the document
+        cleaned_doc = document.copy()
+        
+        # Convert datetime objects to strings in format expected by Azure Search
+        for key, value in document.items():
+            if isinstance(value, datetime):
+                # Format as ISO 8601 with Z for UTC timezone
+                cleaned_doc[key] = value.strftime("%Y-%m-%dT%H:%M:%SZ")
+                
+        # Make sure embedding is a simple list with no metadata
+        if 'embedding' in cleaned_doc and isinstance(cleaned_doc['embedding'], list):
+            # Keep the embedding vector as is
+            pass
+        elif 'embedding' in cleaned_doc and hasattr(cleaned_doc['embedding'], 'metadata'):
+            # Extract just the embedding vector for Azure Search
+            cleaned_doc['embedding'] = cleaned_doc['embedding'].get('vector', [])
+            
+        # Remove any nested objects that aren't handled in the schema
+        if 'metadata' in cleaned_doc:
+            del cleaned_doc['metadata']
+            
+        return cleaned_doc
+        
     async def index_document(
         self,
         index_name: str,
@@ -122,9 +156,14 @@ class SearchService:
             client = await self.get_search_client(index_name)
             if not client:
                 return False
+                
+            # Prepare the document for indexing
+            prepared_doc = self._prepare_document_for_indexing(document)
+            
+            logger.info(f"Indexing document with ID: {prepared_doc.get('id')}")
             
             # Upload the document
-            result = await client.upload_documents(documents=[document])
+            result = await client.upload_documents(documents=[prepared_doc])
             
             # Check if the operation was successful
             return result[0].succeeded
@@ -190,29 +229,46 @@ class AzureSearchService:
         
     async def initialize(self):
         """Initialize Azure AI Search clients."""
-        # Content index
-        self.content_index_client = SearchClient(
-            endpoint=settings.AZURE_SEARCH_ENDPOINT,
-            index_name=settings.CONTENT_INDEX_NAME,
-            credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
-        )
-        
-        # Users index
-        self.users_index_client = SearchClient(
-            endpoint=settings.AZURE_SEARCH_ENDPOINT,
-            index_name=settings.USERS_INDEX_NAME,
-            credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
-        )
-        
-        # Learning plans index
-        self.plans_index_client = SearchClient(
-            endpoint=settings.AZURE_SEARCH_ENDPOINT,
-            index_name=settings.PLANS_INDEX_NAME,
-            credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
-        )
-        
-        # Initialize OpenAI adapter for embeddings
-        self.openai_adapter = await get_openai_adapter()
+        try:
+            # Validate Azure Search configurations
+            if not (settings.AZURE_SEARCH_ENDPOINT and settings.AZURE_SEARCH_KEY):
+                logger.warning("Azure Search not configured. Search functionality will be disabled.")
+                return False
+            
+            # Content index
+            if settings.CONTENT_INDEX_NAME:
+                self.content_index_client = SearchClient(
+                    endpoint=settings.AZURE_SEARCH_ENDPOINT,
+                    index_name=settings.CONTENT_INDEX_NAME,
+                    credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
+                )
+                logger.info(f"Initialized content index client for {settings.CONTENT_INDEX_NAME}")
+            
+            # Users index
+            if settings.USERS_INDEX_NAME:
+                self.users_index_client = SearchClient(
+                    endpoint=settings.AZURE_SEARCH_ENDPOINT,
+                    index_name=settings.USERS_INDEX_NAME,
+                    credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
+                )
+                logger.info(f"Initialized users index client for {settings.USERS_INDEX_NAME}")
+            
+            # Learning plans index
+            if settings.PLANS_INDEX_NAME:
+                self.plans_index_client = SearchClient(
+                    endpoint=settings.AZURE_SEARCH_ENDPOINT,
+                    index_name=settings.PLANS_INDEX_NAME,
+                    credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
+                )
+                logger.info(f"Initialized plans index client for {settings.PLANS_INDEX_NAME}")
+            
+            # Initialize OpenAI adapter for embeddings
+            self.openai_adapter = await get_openai_adapter()
+            
+            return True
+        except Exception as e:
+            logger.error(f"Error initializing Azure Search: {e}")
+            return False
         
     async def close(self):
         """Close Azure AI Search clients."""
@@ -226,56 +282,78 @@ class AzureSearchService:
     # User data methods
     async def get_user(self, user_id: str):
         """Get user from Azure AI Search."""
+        if not self.users_index_client:
+            logger.warning("Users index client not initialized. Cannot get user.")
+            return None
+            
         try:
             user = await self.users_index_client.get_document(key=user_id)
             return user
         except Exception as e:
-            print(f"Error getting user: {e}")
+            logger.error(f"Error getting user: {e}")
             return None
             
     async def create_user(self, user_data: Dict[str, Any]):
         """Create user in Azure AI Search."""
-        try:
-            # Generate embedding for user profile
-            profile_text = f"User {user_data['username']} is in grade {user_data.get('grade_level')} with interests in {', '.join(user_data.get('subjects_of_interest', []))}. Learning style: {user_data.get('learning_style')}"
-            embedding = await self.openai_adapter.create_embedding(
-                model=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
-                text=profile_text
-            )
+        if not self.users_index_client:
+            logger.warning("Users index client not initialized. Cannot create user.")
+            return user_data  # Return the data anyway so the app can continue
             
-            # Add embedding to user data
-            user_data["embedding"] = embedding
+        try:
+            # Generate embedding for user profile if OpenAI is available
+            if self.openai_adapter and settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT:
+                try:
+                    profile_text = f"User {user_data['username']} is in grade {user_data.get('grade_level')} with interests in {', '.join(user_data.get('subjects_of_interest', []))}. Learning style: {user_data.get('learning_style')}"
+                    embedding = await self.openai_adapter.create_embedding(
+                        model=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
+                        text=profile_text
+                    )
+                    # Add embedding to user data
+                    user_data["embedding"] = embedding
+                except Exception as e:
+                    logger.warning(f"Error generating embedding for user: {e}")
             
             # Upload to search index
             result = await self.users_index_client.upload_documents(documents=[user_data])
             return user_data if result[0].succeeded else None
         except Exception as e:
-            print(f"Error creating user: {e}")
-            return None
+            logger.error(f"Error creating user: {e}")
+            return user_data  # Return the data anyway so the app can continue
             
     # Learning plan methods
     async def create_learning_plan(self, plan_data: Dict[str, Any]):
         """Create learning plan in Azure AI Search."""
-        try:
-            # Generate embedding for plan content
-            plan_text = f"{plan_data['title']} {plan_data['description']} for {plan_data['subject']}"
-            embedding = await self.openai_adapter.create_embedding(
-                model=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
-                text=plan_text
-            )
+        if not self.plans_index_client:
+            logger.warning("Plans index client not initialized. Learning plan will not be indexed.")
+            return plan_data  # Return the data anyway so the app can continue
             
-            # Add embedding to plan data
-            plan_data["embedding"] = embedding
+        try:
+            # Generate embedding for plan content if OpenAI is available
+            if self.openai_adapter and settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT:
+                try:
+                    plan_text = f"{plan_data['title']} {plan_data['description']} for {plan_data['subject']}"
+                    embedding = await self.openai_adapter.create_embedding(
+                        model=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
+                        text=plan_text
+                    )
+                    # Add embedding to plan data
+                    plan_data["embedding"] = embedding
+                except Exception as e:
+                    logger.warning(f"Error generating embedding for learning plan: {e}")
             
             # Upload to search index
             result = await self.plans_index_client.upload_documents(documents=[plan_data])
             return plan_data if result[0].succeeded else None
         except Exception as e:
-            print(f"Error creating learning plan: {e}")
-            return None
+            logger.error(f"Error creating learning plan: {e}")
+            return plan_data  # Return the data anyway so the app can continue
             
     async def get_user_learning_plans(self, user_id: str):
         """Get learning plans for a user."""
+        if not self.plans_index_client:
+            logger.warning("Plans index client not initialized. Cannot retrieve learning plans.")
+            return []
+            
         try:
             results = await self.plans_index_client.search(
                 search_text="*",
@@ -290,5 +368,5 @@ class AzureSearchService:
                 
             return plans
         except Exception as e:
-            print(f"Error getting learning plans: {e}")
+            logger.error(f"Error getting learning plans: {e}")
             return []

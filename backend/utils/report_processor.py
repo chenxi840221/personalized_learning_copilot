@@ -41,10 +41,19 @@ class StudentReportProcessor:
         # Cipher will be initialized asynchronously
         self.cipher = None
         
-        # Initialize Azure Blob Storage for document storage
-        self.blob_service_client = BlobServiceClient.from_connection_string(
-            settings.AZURE_STORAGE_CONNECTION_STRING
-        ) if settings.AZURE_STORAGE_CONNECTION_STRING else None
+        # Initialize Azure Blob Storage for document storage (only if connection string is valid)
+        self.blob_service_client = None
+        if settings.AZURE_STORAGE_CONNECTION_STRING and settings.AZURE_STORAGE_CONNECTION_STRING.strip():
+            try:
+                self.blob_service_client = BlobServiceClient.from_connection_string(
+                    settings.AZURE_STORAGE_CONNECTION_STRING
+                )
+                logger.info("Azure Blob Storage client initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Azure Blob Storage client: {e}")
+                logger.warning("Document storage in Azure Blob Storage will be disabled")
+        else:
+            logger.warning("Azure Storage connection string not provided. Document storage will be disabled.")
         
         self.async_blob_client = None
         
@@ -115,13 +124,60 @@ class StudentReportProcessor:
         except Exception as e:
             logger.error(f"Error retrieving secret from Key Vault: {e}")
             return None
+            
+    def _analyze_document_from_url(self, document_url: str):
+        """
+        Analyze a document from a URL using Azure Document Intelligence.
+        
+        Args:
+            document_url: URL of the document to analyze
+            
+        Returns:
+            Document analysis result or None if analysis failed
+        """
+        try:
+            logger.info(f"Starting document analysis from URL: {document_url}")
+            # Begin analysis and wait for result
+            poller = self.document_client.begin_analyze_document_from_url(
+                "prebuilt-document", document_url
+            )
+            return poller.result()
+        except Exception as e:
+            logger.error(f"Error analyzing document from URL: {e}")
+            return None
+            
+    def _analyze_document(self, file_content: bytes):
+        """
+        Analyze a document from file content using Azure Document Intelligence.
+        
+        Args:
+            file_content: Content of the document to analyze
+            
+        Returns:
+            Document analysis result or None if analysis failed
+        """
+        try:
+            logger.info(f"Starting document analysis from file content ({len(file_content)} bytes)")
+            # Begin analysis and wait for result
+            poller = self.document_client.begin_analyze_document(
+                "prebuilt-document", file_content
+            )
+            return poller.result()
+        except Exception as e:
+            logger.error(f"Error analyzing document from content: {e}")
+            return None
     
     async def _get_async_blob_client(self):
         """Get or initialize the async blob client."""
-        if not self.async_blob_client and settings.AZURE_STORAGE_CONNECTION_STRING:
-            self.async_blob_client = AsyncBlobServiceClient.from_connection_string(
-                settings.AZURE_STORAGE_CONNECTION_STRING
-            )
+        if not self.async_blob_client and settings.AZURE_STORAGE_CONNECTION_STRING and settings.AZURE_STORAGE_CONNECTION_STRING.strip():
+            try:
+                self.async_blob_client = AsyncBlobServiceClient.from_connection_string(
+                    settings.AZURE_STORAGE_CONNECTION_STRING
+                )
+                logger.info("Async blob client initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize async blob client: {e}")
+                return None
         return self.async_blob_client
     
     async def ensure_initialized(self):
@@ -169,21 +225,34 @@ class StudentReportProcessor:
             # Determine if the document is local or a URL
             is_url = document_path.startswith(('http://', 'https://'))
             
-            # Start the document analysis
+            logger.info(f"Processing document: {document_path}")
+            
+            # Use a thread pool to run the synchronous Document Intelligence operations
+            # This prevents blocking the event loop
+            loop = asyncio.get_event_loop()
+            
             if is_url:
-                poller = await self.document_client.begin_analyze_document_from_url(
-                    "prebuilt-document", document_path
+                logger.info("Processing document from URL")
+                # Run the sync operation in a thread pool
+                result = await loop.run_in_executor(
+                    None,
+                    lambda: self._analyze_document_from_url(document_path)
                 )
             else:
-                # Read file and analyze
+                logger.info("Processing document from file")
+                # Read file content
                 with open(document_path, "rb") as f:
                     file_content = f.read()
-                poller = await self.document_client.begin_analyze_document(
-                    "prebuilt-document", file_content
+                
+                # Run the sync operation in a thread pool
+                result = await loop.run_in_executor(
+                    None,
+                    lambda: self._analyze_document(file_content)
                 )
                 
-            # Get the result
-            result = await poller.result()
+            if not result:
+                logger.error("Document analysis failed to return results")
+                return None
             
             # Extract basic content
             raw_text = result.content
@@ -194,6 +263,22 @@ class StudentReportProcessor:
             # Extract structured data using LLM
             structured_data = await self._extract_structured_data(raw_text)
             
+            # Parse grade level to integer if possible
+            grade_level = structured_data.get("grade_level")
+            if grade_level and isinstance(grade_level, str):
+                try:
+                    # Extract numbers from grade level if it contains text
+                    import re
+                    numbers = re.findall(r'\d+', grade_level)
+                    if numbers:
+                        grade_level = int(numbers[0])
+                    else:
+                        # Default to a reasonable value if no number found
+                        grade_level = 1
+                except (ValueError, TypeError):
+                    # If conversion fails, use a default value
+                    grade_level = 1
+            
             # Create StudentReport object
             report = StudentReport(
                 student_id=student_id,
@@ -201,7 +286,7 @@ class StudentReportProcessor:
                 school_name=structured_data.get("school_name"),
                 school_year=structured_data.get("school_year"),
                 term=structured_data.get("term"),
-                grade_level=structured_data.get("grade_level"),
+                grade_level=grade_level,
                 teacher_name=structured_data.get("teacher_name"),
                 report_date=structured_data.get("report_date"),
                 general_comments=structured_data.get("general_comments"),
@@ -220,8 +305,8 @@ class StudentReportProcessor:
                     encrypted_fields[field] = await self.encrypt_pii(getattr(report, field))
                     setattr(report, field, None)  # Clear the original field
             
-            # Store encrypted fields
-            report.encrypted_fields = encrypted_fields
+            # Convert encrypted fields to JSON string for storage in Azure Search
+            report.encrypted_fields = json.dumps(encrypted_fields)
             
             # Generate embedding for the report
             if not self.openai_client:
@@ -254,24 +339,43 @@ class StudentReportProcessor:
         Returns:
             URL to the stored document or None if storage failed
         """
-        if not settings.AZURE_STORAGE_CONNECTION_STRING:
+        # Skip storage if Azure Storage is not configured
+        if not self.blob_service_client and not settings.AZURE_STORAGE_CONNECTION_STRING:
             logger.warning("Azure Blob Storage not configured. Document will not be stored.")
-            return None
+            # Return document path as a fallback (for local testing)
+            return f"file://{document_path}" if not document_path.startswith(('http://', 'https://')) else document_path
             
         try:
             # Get blob client
             blob_client = await self._get_async_blob_client()
             if not blob_client:
-                return None
+                logger.warning("Async blob client not available. Using local file path instead.")
+                return f"file://{document_path}" if not document_path.startswith(('http://', 'https://')) else document_path
                 
             # Create the container if it doesn't exist
             container_name = settings.REPORT_CONTAINER_NAME or "student-reports"
             container_client = blob_client.get_container_client(container_name)
             try:
-                await container_client.create_container(exists_ok=True)
-            except:
-                # Container may already exist
-                pass
+                # Check if container exists first
+                exists = False
+                try:
+                    # Try to get container properties to check if it exists
+                    await container_client.get_container_properties()
+                    exists = True
+                except Exception:
+                    # Container doesn't exist
+                    exists = False
+                
+                # Create the container if it doesn't exist
+                if not exists:
+                    await container_client.create_container()
+                    logger.info(f"Container {container_name} created successfully")
+                else:
+                    logger.info(f"Container {container_name} already exists")
+            except Exception as e:
+                logger.warning(f"Error with container: {e}")
+                # Return local path as fallback
+                return f"file://{document_path}" if not document_path.startswith(('http://', 'https://')) else document_path
             
             # Generate a unique blob name
             blob_name = f"{uuid.uuid4()}-{os.path.basename(document_path)}"
@@ -315,7 +419,8 @@ class StudentReportProcessor:
             
         except Exception as e:
             logger.error(f"Error storing document: {e}")
-            return None
+            # Return the local path as a fallback (for testing)
+            return f"file://{document_path}" if not document_path.startswith(('http://', 'https://')) else document_path
     
     async def _extract_structured_data(self, text: str) -> Dict[str, Any]:
         """
@@ -342,18 +447,33 @@ class StudentReportProcessor:
             - grade_level (as a number)
             - teacher_name
             - report_date (in YYYY-MM-DD format)
-            - subjects (list of subjects with name, grade, comments, achievement_level, areas_for_improvement, strengths)
-            - general_comments
-            - attendance (days_present, days_absent, days_late)
+            - subjects (list of subjects with the following structure:
+                - name: string
+                - grade: string
+                - comments: string
+                - achievement_level: string
+                - areas_for_improvement: array of strings (IMPORTANT: must be an array/list, not a single string)
+                - strengths: array of strings (IMPORTANT: must be an array/list, not a single string)
+            )
+            - general_comments: string
+            - attendance (object with:
+                - days_present: number
+                - days_absent: number
+                - days_late: number
+            )
             
-            Format the response as a JSON object.
+            IMPORTANT FORMATTING INSTRUCTIONS:
+            1. Format the response as a valid JSON object
+            2. For arrays like areas_for_improvement and strengths, always use proper JSON array syntax like ["item1", "item2"]
+            3. Do not use single strings where arrays are expected
+            4. For grade_level, convert to a numeric value (e.g., "Fifth Grade" should be 5)
             
             Here is the report text:
             {text[:4000]}  # Truncate to stay within token limits
             """
             
             # Get the completion
-            response = await self.openai_client.chat_completion(
+            response = await self.openai_client.create_chat_completion(
                 messages=[{"role": "user", "content": prompt}],
                 model=settings.AZURE_OPENAI_DEPLOYMENT,
                 response_format={"type": "json_object"}
@@ -390,13 +510,30 @@ class StudentReportProcessor:
         subjects = []
         for subject_data in subjects_data:
             try:
+                # Ensure areas_for_improvement and strengths are lists
+                areas_for_improvement = subject_data.get("areas_for_improvement", [])
+                if isinstance(areas_for_improvement, str):
+                    # If it's a string, convert to a list with a single item
+                    areas_for_improvement = [areas_for_improvement]
+                elif not isinstance(areas_for_improvement, list):
+                    # If it's neither a string nor a list, default to empty list
+                    areas_for_improvement = []
+                
+                strengths = subject_data.get("strengths", [])
+                if isinstance(strengths, str):
+                    # If it's a string, convert to a list with a single item
+                    strengths = [strengths]
+                elif not isinstance(strengths, list):
+                    # If it's neither a string nor a list, default to empty list
+                    strengths = []
+                
                 subject = Subject(
                     name=subject_data.get("name", "Unknown"),
                     grade=subject_data.get("grade"),
                     comments=subject_data.get("comments"),
                     achievement_level=subject_data.get("achievement_level"),
-                    areas_for_improvement=subject_data.get("areas_for_improvement", []),
-                    strengths=subject_data.get("strengths", [])
+                    areas_for_improvement=areas_for_improvement,
+                    strengths=strengths
                 )
                 subjects.append(subject)
             except Exception as e:
@@ -459,6 +596,20 @@ report_processor = None
 async def get_report_processor():
     """Get or create the report processor singleton."""
     global report_processor
-    if report_processor is None:
-        report_processor = StudentReportProcessor()
-    return report_processor
+    logger.info("Getting report processor instance")
+    try:
+        if report_processor is None:
+            logger.info("Creating new StudentReportProcessor instance")
+            report_processor = StudentReportProcessor()
+            logger.info("StudentReportProcessor instance created successfully")
+        else:
+            logger.info("Using existing StudentReportProcessor instance")
+        
+        # Ensure the processor is initialized
+        await report_processor.ensure_initialized()
+        logger.info("Report processor initialized successfully")
+        
+        return report_processor
+    except Exception as e:
+        logger.exception(f"Error creating/initializing report processor: {e}")
+        raise

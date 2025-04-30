@@ -4,7 +4,7 @@ import axios from 'axios';
 // Create axios instance with base URL
 export const apiClient = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
-  timeout: 10000,
+  timeout: 120000, // Increased timeout to 2 minutes since document processing can take time
   headers: {
     'Content-Type': 'application/json'
   }
@@ -110,6 +110,12 @@ export const api = {
       const response = await apiClient.post(url, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
+        },
+        timeout: 180000, // 3 minutes timeout for file uploads (overrides the default timeout)
+        onUploadProgress: (progressEvent) => {
+          // Optional: Log progress
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          console.log(`Upload progress: ${percentCompleted}%`);
         }
       });
       return response.data;
