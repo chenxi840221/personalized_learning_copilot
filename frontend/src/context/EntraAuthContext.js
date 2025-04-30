@@ -159,11 +159,17 @@ export const EntraAuthProvider = ({ children }) => {
         console.error('Error getting user profile from API:', profileError);
         // Fall back to using the token claims
         const account = tokenResponse.account;
+        const idTokenClaims = account.idTokenClaims || {};
+        
+        console.log('Using ID token claims for user info:', idTokenClaims);
+        
         setUser({
           id: account.homeAccountId,
           username: account.username,
-          email: account.username,
+          email: idTokenClaims.email || account.username,
           name: account.name,
+          given_name: idTokenClaims.given_name,
+          family_name: idTokenClaims.family_name,
           accessToken: tokenResponse.accessToken
         });
       }

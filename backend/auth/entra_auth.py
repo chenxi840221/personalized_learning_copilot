@@ -66,9 +66,11 @@ async def validate_token(token: str) -> Dict[str, Any]:
         # Extract user information
         user_info = {
             "id": payload.get("oid"),  # Object ID is the unique identifier for the user
-            "username": payload.get("preferred_username"),
-            "email": payload.get("preferred_username"),
+            "username": payload.get("preferred_username") or payload.get("upn"),
+            "email": payload.get("email") or payload.get("upn") or payload.get("preferred_username"),
             "full_name": payload.get("name"),
+            "given_name": payload.get("given_name"),
+            "family_name": payload.get("family_name"),
             "roles": payload.get("roles", [])
         }
         
@@ -200,6 +202,8 @@ async def create_or_update_user_profile(user_info: Dict[str, Any]) -> bool:
             "username": user_info.get("username", ""),
             "email": user_info.get("email", ""),
             "full_name": user_info.get("full_name", ""),
+            "given_name": user_info.get("given_name", ""),
+            "family_name": user_info.get("family_name", ""),
             "grade_level": user_info.get("grade_level"),
             "subjects_of_interest": user_info.get("subjects_of_interest", []),
             "learning_style": user_info.get("learning_style"),

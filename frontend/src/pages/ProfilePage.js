@@ -32,12 +32,18 @@ const ProfilePage = () => {
   // Initialize form data when user data changes
   useEffect(() => {
     if (user) {
+      const displayName = user.given_name && user.family_name 
+        ? `${user.given_name} ${user.family_name}` 
+        : (user.full_name || '');
+        
       setFormData({
-        full_name: user.full_name || '',
+        full_name: displayName,
         email: user.email || '',
         grade_level: user.grade_level || '',
         subjects_of_interest: user.subjects_of_interest || [],
-        learning_style: user.learning_style || ''
+        learning_style: user.learning_style || '',
+        given_name: user.given_name || '',
+        family_name: user.family_name || ''
       });
     }
   }, [user]);
@@ -50,12 +56,18 @@ const ProfilePage = () => {
     
     // Reset form data if canceling edit
     if (isEditing && user) {
+      const displayName = user.given_name && user.family_name 
+        ? `${user.given_name} ${user.family_name}` 
+        : (user.full_name || '');
+        
       setFormData({
-        full_name: user.full_name || '',
+        full_name: displayName,
         email: user.email || '',
         grade_level: user.grade_level || '',
         subjects_of_interest: user.subjects_of_interest || [],
-        learning_style: user.learning_style || ''
+        learning_style: user.learning_style || '',
+        given_name: user.given_name || '',
+        family_name: user.family_name || ''
       });
     }
   };
@@ -294,7 +306,11 @@ const ProfilePage = () => {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">Full Name</p>
-                  <p className="mt-1">{user.full_name || 'Not specified'}</p>
+                  <p className="mt-1">
+                    {user.given_name && user.family_name 
+                      ? `${user.given_name} ${user.family_name}` 
+                      : (user.full_name || 'Not specified')}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">Email</p>

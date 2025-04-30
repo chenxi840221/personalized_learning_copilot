@@ -16,10 +16,14 @@ const Profile = () => {
     <div className="bg-white rounded-lg shadow-md p-6">
       <div className="flex items-center mb-6">
         <div className="h-20 w-20 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-2xl font-bold mr-4">
-          {user.full_name ? user.full_name.charAt(0) : user.username.charAt(0)}
+          {user.given_name ? user.given_name.charAt(0) : (user.full_name ? user.full_name.charAt(0) : user.username.charAt(0))}
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">{user.full_name || user.username}</h1>
+          <h1 className="text-2xl font-bold text-gray-800">
+            {user.given_name && user.family_name 
+              ? `${user.given_name} ${user.family_name}` 
+              : (user.full_name || user.username)}
+          </h1>
           <p className="text-gray-600">{user.email}</p>
         </div>
       </div>
