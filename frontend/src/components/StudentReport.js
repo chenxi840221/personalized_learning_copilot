@@ -8,14 +8,10 @@ const StudentReport = () => {
   const [reports, setReports] = useState([]);
   const [selectedReport, setSelectedReport] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [reportType, setReportType] = useState('primary');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState('');
-  const [filterSchoolYear, setFilterSchoolYear] = useState('');
-  const [filterTerm, setFilterTerm] = useState('');
-  const [filterReportType, setFilterReportType] = useState('');
 
   // Fetch reports on component mount
   useEffect(() => {
@@ -27,13 +23,8 @@ const StudentReport = () => {
   const fetchReports = async () => {
     setLoading(true);
     try {
-      // Build query parameters
-      let queryParams = new URLSearchParams();
-      if (filterSchoolYear) queryParams.append('school_year', filterSchoolYear);
-      if (filterTerm) queryParams.append('term', filterTerm);
-      if (filterReportType) queryParams.append('report_type', filterReportType);
-
-      const data = await getReports(queryParams);
+      // No filters needed anymore
+      const data = await getReports();
       setReports(data);
       setError('');
     } catch (err) {
@@ -48,9 +39,7 @@ const StudentReport = () => {
     setSelectedFile(event.target.files[0]);
   };
 
-  const handleReportTypeChange = (event) => {
-    setReportType(event.target.value);
-  };
+  // Removed handleReportTypeChange
 
   const handleUpload = async () => {
     if (!selectedFile) {
@@ -66,7 +55,7 @@ const StudentReport = () => {
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
-      formData.append('report_type', reportType);
+      formData.append('report_type', 'primary'); // Default to primary
 
       // Create a custom uploader with progress tracking
       const onUploadProgress = (progressEvent) => {
@@ -139,9 +128,7 @@ const StudentReport = () => {
     }
   };
 
-  const handleFilterChange = () => {
-    fetchReports();
-  };
+  // Removed handleFilterChange
 
   const closeReportDetail = () => {
     setSelectedReport(null);
@@ -179,21 +166,7 @@ const StudentReport = () => {
             />
           </div>
           
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Report Type
-            </label>
-            <select
-              value={reportType}
-              onChange={handleReportTypeChange}
-              className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-            >
-              <option value="primary">Primary School</option>
-              <option value="secondary">Secondary School</option>
-              <option value="special_ed">Special Education</option>
-              <option value="standardized_test">Standardized Test</option>
-            </select>
-          </div>
+          {/* Report type selection removed */}
           
           <button
             onClick={handleUpload}
@@ -223,61 +196,7 @@ const StudentReport = () => {
         </div>
       </div>
       
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <h2 className="text-xl font-semibold mb-4">Filter Reports</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              School Year
-            </label>
-            <input
-              type="text"
-              value={filterSchoolYear}
-              onChange={(e) => setFilterSchoolYear(e.target.value)}
-              placeholder="e.g. 2024-2025"
-              className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Term
-            </label>
-            <input
-              type="text"
-              value={filterTerm}
-              onChange={(e) => setFilterTerm(e.target.value)}
-              placeholder="e.g. Semester 1"
-              className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Report Type
-            </label>
-            <select
-              value={filterReportType}
-              onChange={(e) => setFilterReportType(e.target.value)}
-              className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-            >
-              <option value="">All Types</option>
-              <option value="primary">Primary School</option>
-              <option value="secondary">Secondary School</option>
-              <option value="special_ed">Special Education</option>
-              <option value="standardized_test">Standardized Test</option>
-            </select>
-          </div>
-        </div>
-        
-        <button
-          onClick={handleFilterChange}
-          className="mt-4 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-        >
-          Apply Filters
-        </button>
-      </div>
+      {/* Filters section removed */}
       
       {/* Reports List */}
       <div className="bg-white rounded-lg shadow-md p-6">
