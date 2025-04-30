@@ -211,61 +211,94 @@ const StudentReport = () => {
         )}
         
         {reports.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    School
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Year/Term
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {reports.map((report) => (
-                  <tr key={report.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {report.school_name || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {report.school_year || 'N/A'} 
-                      {report.term ? ` / ${report.term}` : ''}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {report.report_type}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(report.report_date)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => handleViewReport(report.id)}
-                        className="text-blue-600 hover:text-blue-900 mr-3"
-                      >
-                        View
-                      </button>
-                      <button
-                        onClick={() => handleDeleteReport(report.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {reports.map((report) => (
+              <div 
+                key={report.id} 
+                className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow hover:shadow-md transition-shadow duration-300"
+              >
+                {/* Report Header */}
+                <div className="bg-blue-50 border-b border-gray-200 px-4 py-3">
+                  <div className="flex justify-between items-center">
+                    <div className="font-medium text-blue-900 truncate">
+                      {report.school_name || 'School Report'}
+                    </div>
+                    <div className="text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-1 rounded-full">
+                      {formatDate(report.report_date || report.created_at)}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Report Content */}
+                <div className="p-4">
+                  <div className="mb-3 space-y-1">
+                    {report.school_year && (
+                      <div className="text-sm">
+                        <span className="font-medium text-gray-500">School Year:</span>{' '}
+                        <span className="text-gray-900">{report.school_year}</span>
+                      </div>
+                    )}
+                    
+                    {report.term && (
+                      <div className="text-sm">
+                        <span className="font-medium text-gray-500">Term:</span>{' '}
+                        <span className="text-gray-900">{report.term}</span>
+                      </div>
+                    )}
+                    
+                    {report.grade_level && (
+                      <div className="text-sm">
+                        <span className="font-medium text-gray-500">Grade Level:</span>{' '}
+                        <span className="text-gray-900">{report.grade_level}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Subject Highlights */}
+                  {report.subjects && report.subjects.length > 0 && (
+                    <div className="mb-3">
+                      <div className="text-xs font-medium text-gray-500 mb-1">Subjects:</div>
+                      <div className="flex flex-wrap gap-1">
+                        {report.subjects.slice(0, 5).map((subject, idx) => (
+                          <span key={idx} className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded">
+                            {subject.name}
+                          </span>
+                        ))}
+                        {report.subjects.length > 5 && (
+                          <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-500 rounded">
+                            +{report.subjects.length - 5} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Actions */}
+                  <div className="mt-4 flex justify-between">
+                    <button
+                      onClick={() => handleViewReport(report.id)}
+                      className="inline-flex items-center px-3 py-1.5 border border-blue-300 text-sm font-medium rounded text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      View Details
+                    </button>
+                    
+                    <button
+                      onClick={() => handleDeleteReport(report.id)}
+                      className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -358,37 +391,63 @@ const StudentReport = () => {
                       {selectedReport.subjects && selectedReport.subjects.length > 0 && (
                         <div className="mt-4">
                           <h4 className="text-sm font-medium text-gray-500">Subject Performance</h4>
-                          <div className="mt-2 overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                              <thead className="bg-gray-50">
-                                <tr>
-                                  <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Subject
-                                  </th>
-                                  <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Grade
-                                  </th>
-                                  <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Achievement
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody className="bg-white divide-y divide-gray-200">
-                                {selectedReport.subjects.map((subject, index) => (
-                                  <tr key={index} className="hover:bg-gray-50">
-                                    <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
-                                      {subject.name}
-                                    </td>
-                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                                      {subject.grade || 'N/A'}
-                                    </td>
-                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                                      {subject.achievement_level || 'N/A'}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                          <div className="mt-2 space-y-6">
+                            {selectedReport.subjects.map((subject, index) => (
+                              <div key={index} className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                                  <div className="flex justify-between items-center">
+                                    <h3 className="text-md font-medium text-gray-900">{subject.name}</h3>
+                                    <div className="flex items-center space-x-3">
+                                      {subject.grade && (
+                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                          Grade: {subject.grade}
+                                        </span>
+                                      )}
+                                      {subject.achievement_level && (
+                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                          {subject.achievement_level}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="p-4 space-y-4">
+                                  {/* Comments */}
+                                  {subject.comments && (
+                                    <div>
+                                      <h4 className="text-xs font-medium text-gray-500">Comments</h4>
+                                      <p className="mt-1 text-sm text-gray-700">
+                                        {subject.comments}
+                                      </p>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Strengths */}
+                                  {subject.strengths && subject.strengths.length > 0 && (
+                                    <div>
+                                      <h4 className="text-xs font-medium text-gray-500">Strengths</h4>
+                                      <ul className="mt-1 list-disc list-inside text-sm text-gray-700 pl-1">
+                                        {subject.strengths.map((strength, idx) => (
+                                          <li key={idx}>{strength}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Areas for Improvement */}
+                                  {subject.areas_for_improvement && subject.areas_for_improvement.length > 0 && (
+                                    <div>
+                                      <h4 className="text-xs font-medium text-gray-500">Areas for Improvement</h4>
+                                      <ul className="mt-1 list-disc list-inside text-sm text-gray-700 pl-1">
+                                        {subject.areas_for_improvement.map((area, idx) => (
+                                          <li key={idx}>{area}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       )}
