@@ -1,10 +1,14 @@
 // frontend/src/components/StudentReport.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useEntraAuth } from '../hooks/useEntraAuth';
+import { useLocation } from 'react-router-dom';
 import { uploadReport, getReports, getReport, deleteReport, apiClient } from '../services/api';
 
 const StudentReport = () => {
   const { user } = useAuth();
+  const { getAccessToken, isAuthenticated } = useEntraAuth();
+  const location = useLocation();
   const [reports, setReports] = useState([]);
   const [selectedReport, setSelectedReport] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -12,36 +16,351 @@ const StudentReport = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState('');
-
-  // Fetch reports on component mount
-  useEffect(() => {
-    if (user) {
-      fetchReports();
+  const [lastFetchTime, setLastFetchTime] = useState(0);
+  const fetchTimeoutRef = useRef(null);
+  const [tokenRefreshed, setTokenRefreshed] = useState(false);
+  
+  // Forward declaration of fetchReports for use in useCallback
+  const fetchReportsRef = useRef(null);
+  
+  // Create a debounced version of fetchReports to prevent too many API calls
+  const debouncedFetchReports = useCallback(() => {
+    // Clear any existing timeout
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
     }
-  }, [user]);
+    
+    // Get current time
+    const now = Date.now();
+    
+    // Only fetch if it's been at least 2 seconds since the last fetch
+    if (now - lastFetchTime < 2000) {
+      console.log('Throttling fetch request...');
+      // Schedule a fetch after delay
+      fetchTimeoutRef.current = setTimeout(() => {
+        fetchReportsRef.current();
+      }, 2000 - (now - lastFetchTime));
+      return;
+    }
+    
+    // Otherwise fetch immediately
+    fetchReportsRef.current();
+  }, [lastFetchTime]);
 
-  const fetchReports = async () => {
-    setLoading(true);
-    try {
-      // No filters needed anymore
-      console.log('Fetching reports...');
-      const data = await getReports();
-      console.log('Reports fetched:', data);
-      setReports(data || []); // Ensure we always have an array
-      setError('');
-    } catch (err) {
-      setError('Failed to fetch reports. Please try again.');
-      console.error('Error fetching reports:', err);
-    } finally {
+  // This runs when the component mounts
+  useEffect(() => {
+    console.log('📌 StudentReport component mounted');
+    
+    if (user) {
+      // Immediately fetch on mount
+      console.log('🚀 Component mounted with authenticated user, fetching reports');
+      fetchReports();
+      
+      // Set up a more frequent refresh interval (every 10 seconds) while component is mounted
+      const intervalId = setInterval(() => {
+        console.log('⏰ Periodic refresh triggered');
+        if (document.visibilityState === 'visible') {
+          fetchReports();
+        }
+      }, 10000); // 10 seconds
+      
+      // Also set a short timeout to ensure data is loaded after mount
+      const initialDelayId = setTimeout(() => {
+        if (document.visibilityState === 'visible') {
+          console.log('⏱️ Secondary fetch to ensure data is loaded');
+          fetchReports();
+        }
+      }, 1500); // 1.5 second delay for secondary fetch
+      
+      return () => {
+        clearInterval(intervalId);
+        clearTimeout(initialDelayId);
+        console.log('⏰ Cleared refresh timers');
+      };
+    } else {
+      console.log('⚠️ Component mounted without authenticated user, skipping fetch');
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+  
+  // Set up a listener that will refresh the reports whenever this component gains focus or after navigation
+  useEffect(() => {
+    // Create a function to handle route changes in single-page app
+    const handleRouteChange = () => {
+      // We are interested only in routes to the reports page
+      if (window.location.pathname === '/reports') {
+        console.log('📍 Navigation detected to reports page - triggering refresh');
+        // Use multiple timeouts at different intervals for better reliability
+        if (user) {
+          // Immediate fetch
+          fetchReports();
+          
+          // Then again after a short delay to ensure component is fully mounted
+          setTimeout(() => fetchReports(), 500);
+          
+          // And one more time after a longer delay to catch any race conditions
+          setTimeout(() => fetchReports(), 2000);
+        }
+      }
+    };
+    
+    // This function runs when this component receives focus
+    const handleFocus = () => {
+      console.log('💡 Window focus event detected, checking if on reports page');
+      if (window.location.pathname === '/reports' && user) {
+        console.log('🔄 On reports page, refreshing data on focus');
+        fetchReports();
+      }
+    };
+    
+    // Function to handle history changes (forward/back navigation)
+    const handleHistoryChange = () => {
+      if (window.location.pathname === '/reports' && user) {
+        console.log('⏮️ History navigation detected, refreshing reports');
+        fetchReports();
+        // Try again after a short delay
+        setTimeout(() => fetchReports(), 800);
+      }
+    };
+    
+    // Listen for popstate events (browser navigation)
+    window.addEventListener('popstate', handleRouteChange);
+    // Listen for focus events
+    window.addEventListener('focus', handleFocus);
+    // Listen for route changes
+    document.addEventListener('routeChange', handleRouteChange);
+    // Listen for history changes (forward/back buttons)
+    window.addEventListener('popstate', handleHistoryChange);
+    
+    // Call once right now if we're on the reports page
+    if (window.location.pathname === '/reports') {
+      console.log('📍 Currently on reports page - triggering refresh');
+      if (user) {
+        // Multiple fetches at different times for better reliability
+        fetchReports();
+        setTimeout(() => fetchReports(), 200);
+        setTimeout(() => fetchReports(), 1000);
+      }
+    }
+    
+    return () => {
+      window.removeEventListener('popstate', handleRouteChange);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('routeChange', handleRouteChange);
+      window.removeEventListener('popstate', handleHistoryChange);
+      console.log('🔴 StudentReport navigation listeners removed');
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+  
+  // Effect for handling user authentication changes
+  useEffect(() => {
+    // If a user becomes authenticated while the component is mounted
+    if (user) {
+      console.log('👤 User authenticated, fetching reports');
+      fetchReports();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+  
+  // Track location changes to reload data when navigating back to this page
+  useEffect(() => {
+    console.log('📌 Location changed:', location.pathname);
+    if (location.pathname === '/reports' && user) {
+      console.log('🔍 Detected navigation to reports page via location change');
+      fetchReports();
+      
+      // Multiple fetch attempts for reliability
+      const timeoutIds = [
+        setTimeout(() => fetchReports(), 200),
+        setTimeout(() => fetchReports(), 800)
+      ];
+      
+      return () => {
+        timeoutIds.forEach(id => clearTimeout(id));
+      };
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, user]);
+  
+  // Add handling for various events that should trigger a data refresh
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user) {
+        console.log('🔄 Tab became visible, fetching reports...');
+        fetchReports(); // Use direct fetch for visibility change
+      }
+    };
+    
+    const handleFocus = () => {
+      if (user) {
+        console.log('🔄 Window gained focus, fetching reports...');
+        fetchReports(); // Use direct fetch for focus
+      }
+    };
+    
+    const handleNavigation = (event) => {
+      if (user) {
+        console.log('🔄 Navigation to reports triggered refresh');
+        // Small delay to ensure DOM is ready
+        setTimeout(() => {
+          fetchReports();
+        }, 100);
+      }
+    };
+
+    const handleCustomRefresh = () => {
+      if (user) {
+        console.log('🔄 Custom refresh event received, fetching reports...');
+        fetchReports(); // Use direct fetch for explicit refresh
+      }
+    };
+    
+    // Register event listeners
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('popstate', handleNavigation);
+    window.addEventListener('refresh-reports', handleCustomRefresh);
+    
+    // Add a second fetch after a delay to catch any race conditions
+    if (user) {
+      const delayedFetch = setTimeout(() => {
+        console.log('🕒 Delayed fetch to ensure data is loaded');
+        fetchReports();
+      }, 1000);
+      
+      return () => clearTimeout(delayedFetch);
+    }
+    
+    return () => {
+      // Clean up event listeners
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('popstate', handleNavigation);
+      window.removeEventListener('refresh-reports', handleCustomRefresh);
+      
+      // Clear any pending timeouts on unmount
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Function to ensure auth token is set before making API calls
+  const ensureAuth = async () => {
+    if (!isAuthenticated) {
+      console.log('⚠️ Not authenticated, skipping token refresh');
+      return false;
+    }
+    
+    // Check if Authorization header is already set
+    if (!apiClient.defaults.headers.common['Authorization']) {
+      console.log('🔐 Authorization header not set, getting fresh token');
+      try {
+        const token = await getAccessToken();
+        if (token) {
+          console.log('🔑 Setting new Authorization header with fresh token');
+          apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          setTokenRefreshed(true);
+          return true;
+        } else {
+          console.error('❌ Failed to get access token');
+          return false;
+        }
+      } catch (error) {
+        console.error('❌ Error getting access token:', error);
+        return false;
+      }
+    } else {
+      console.log('✅ Authorization header already set');
+      return true;
+    }
   };
+
+  const fetchReports = async () => {
+    console.log('🔄 FETCH REPORTS CALLED - API REQUEST STARTING');
+    
+    // Ensure authentication first
+    if (!await ensureAuth()) {
+      console.error('❌ Authentication check failed, cannot fetch reports');
+      setError('Authentication required. Please log in.');
+      setLoading(false);
+      return;
+    }
+    
+    // Don't set loading state if we already have reports to prevent flickering
+    // Only show loading indicator on initial load, not on refresh
+    const isInitialLoad = reports.length === 0;
+    if (isInitialLoad) {
+      setLoading(true);
+    }
+    
+    // Update the last fetch time
+    setLastFetchTime(Date.now());
+    
+    try {
+      // No filters needed anymore
+      console.log('📡 API Request: GET /student-reports');
+      const data = await getReports();
+      console.log('✅ API Response received. Reports fetched:', data?.length || 0, 'reports');
+      
+      // If we got data, update the reports
+      if (data) {
+        setReports(data);
+        setError('');
+      } else {
+        // If we get null/undefined but no error, set empty array
+        setReports([]);
+        setError('');
+      }
+    } catch (err) {
+      // Special handling for authentication errors
+      if (err?.response?.status === 401) {
+        console.error('🔒 Authentication error (401), trying to refresh token');
+        try {
+          const refreshed = await ensureAuth();
+          if (refreshed) {
+            // Try the request again with the new token
+            console.log('🔄 Retrying fetch with new token');
+            const data = await getReports();
+            if (data) {
+              setReports(data);
+              setError('');
+              return;
+            }
+          }
+        } catch (refreshError) {
+          console.error('Failed to refresh token:', refreshError);
+        }
+      }
+      
+      // On error, keep the existing reports (don't clear them)
+      // Only show error message if this was an initial load
+      if (isInitialLoad) {
+        setError('Failed to fetch reports. Please try again.');
+      } else {
+        // For refresh errors, show a less disruptive error message
+        console.error('Error refreshing reports:', err);
+      }
+    } finally {
+      // Only update loading state if this was the initial load
+      if (isInitialLoad) {
+        setLoading(false);
+      }
+    }
+  };
+  
+  // Set the ref to point to the actual function
+  // This needs to happen after the function is defined
+  useEffect(() => {
+    fetchReportsRef.current = fetchReports;
+  }, [reports.length]); // Re-assign when reports length changes because of the conditional loading state
 
   const handleFileChange = (event) => {
     setSelectedFile(event.target.files[0]);
   };
-
-  // Removed handleReportTypeChange
 
   const handleUpload = async () => {
     if (!selectedFile) {
@@ -160,8 +479,6 @@ const StudentReport = () => {
     }
   };
 
-  // Removed handleFilterChange
-
   const closeReportDetail = () => {
     setSelectedReport(null);
   };
@@ -172,9 +489,27 @@ const StudentReport = () => {
     return new Date(dateString).toLocaleDateString();
   };
 
+  // Restructured for easier debugging
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Student Reports</h1>
+    <div id="reports-container" className="container mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Student Reports</h1>
+        <button 
+          onClick={() => {
+            console.log('Header refresh button clicked');
+            // Clear state and force refresh
+            setReports([]);
+            setLoading(true);
+            fetchReports();
+          }}
+          className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-700 border border-blue-300 rounded hover:bg-blue-200"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Refresh Reports
+        </button>
+      </div>
       
       {/* Upload Form */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
@@ -197,8 +532,6 @@ const StudentReport = () => {
                 hover:file:bg-blue-100"
             />
           </div>
-          
-          {/* Report type selection removed */}
           
           <button
             onClick={handleUpload}
@@ -228,8 +561,6 @@ const StudentReport = () => {
         </div>
       </div>
       
-      {/* Filters section removed */}
-      
       {/* Reports List */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-xl font-semibold mb-4">Your Reports</h2>
@@ -239,12 +570,34 @@ const StudentReport = () => {
         )}
         
         {!loading && reports.length === 0 && (
-          <p className="text-gray-500 text-center py-4">No reports found. Upload your first report above.</p>
+          <div>
+            <p className="text-gray-500 text-center py-4">No reports found. Upload your first report above.</p>
+            <button 
+              onClick={() => fetchReports()} 
+              className="w-full mt-2 py-2 px-4 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+            >
+              Refresh Reports List
+            </button>
+          </div>
         )}
         
         {reports.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {reports.map((report) => (
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <p className="text-gray-700">Found {reports.length} reports</p>
+              <button 
+                onClick={() => {
+                  console.log('Manual refresh button clicked');
+                  fetchReports();
+                }} 
+                className="py-1 px-3 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
+              >
+                Refresh List
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {reports.map((report) => (
               <div 
                 key={report.id} 
                 className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow hover:shadow-md transition-shadow duration-300"
@@ -330,7 +683,8 @@ const StudentReport = () => {
                   </div>
                 </div>
               </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
       </div>
