@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     CONTENT_INDEX_NAME: str = os.getenv("AZURE_SEARCH_CONTENT_INDEX", "educational-content")
     USERS_INDEX_NAME: str = os.getenv("AZURE_SEARCH_USERS_INDEX", "user-profiles")
     PLANS_INDEX_NAME: str = os.getenv("AZURE_SEARCH_PLANS_INDEX", "learning-plans")
+    REPORTS_INDEX_NAME: str = os.getenv("AZURE_SEARCH_REPORTS_INDEX", "student-reports")
     
     # Azure OpenAI Settings 
     AZURE_OPENAI_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT", "")
@@ -64,6 +65,15 @@ class Settings(BaseSettings):
     # Azure AI Services - Speech Service
     SPEECH_KEY: str = os.getenv("SPEECH_KEY", "")
     SPEECH_REGION: str = os.getenv("SPEECH_REGION", "")
+    
+    # Student Report Settings
+    REPORT_CONTAINER_NAME: str = os.getenv("AZURE_STORAGE_REPORT_CONTAINER", "student-reports")
+    AZURE_STORAGE_CONNECTION_STRING: str = os.getenv("AZURE_STORAGE_CONNECTION_STRING", "")
+    ENCRYPTION_KEY: str = os.getenv("ENCRYPTION_KEY", "")
+    
+    # Azure Key Vault for Secrets (Used for encryption keys)
+    AZURE_KEYVAULT_URL: str = os.getenv("AZURE_KEYVAULT_URL", "")
+    AZURE_KEYVAULT_SECRET_NAME: str = os.getenv("AZURE_KEYVAULT_SECRET_NAME", "student-report-encryption-key")
     
     # Helper methods for OpenAI integration
     def get_openai_endpoint(self) -> str:

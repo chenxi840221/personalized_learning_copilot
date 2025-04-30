@@ -15,6 +15,9 @@ import ContentPage from './pages/ContentPage';
 import ProfilePage from './pages/ProfilePage';
 import AuthCallback from './components/AuthCallback';
 
+// Student Report Component
+import StudentReport from './components/StudentReport';
+
 // Protected Route Component
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -46,6 +49,12 @@ function App() {
             <Route path="/profile" element={
               <ProtectedRoute>
                 <ProfilePage />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/reports" element={
+              <ProtectedRoute>
+                <StudentReport />
               </ProtectedRoute>
             } />
             

@@ -102,5 +102,62 @@ export const api = {
     } catch (error) {
       handleApiError(error);
     }
+  },
+  
+  // Form data post (for file uploads)
+  postFormData: async (url, formData) => {
+    try {
+      const response = await apiClient.post(url, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      return response.data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  }
+};
+
+// Get auth token (for use in raw fetch calls)
+export const getToken = () => {
+  // Get token from localStorage or sessionStorage
+  return localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || '';
+};
+
+// Student Reports API
+export const uploadReport = async (formData) => {
+  try {
+    return await api.postFormData('/student-reports/upload', formData);
+  } catch (error) {
+    console.error('Error uploading report:', error);
+    throw error;
+  }
+};
+
+export const getReports = async (queryParams) => {
+  try {
+    return await api.get('/student-reports', queryParams);
+  } catch (error) {
+    console.error('Error fetching reports:', error);
+    throw error;
+  }
+};
+
+export const getReport = async (reportId) => {
+  try {
+    return await api.get(`/student-reports/${reportId}`);
+  } catch (error) {
+    console.error('Error fetching report:', error);
+    throw error;
+  }
+};
+
+export const deleteReport = async (reportId) => {
+  try {
+    return await api.delete(`/student-reports/${reportId}`);
+  } catch (error) {
+    console.error('Error deleting report:', error);
+    throw error;
   }
 };

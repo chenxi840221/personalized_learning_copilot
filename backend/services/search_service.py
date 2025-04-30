@@ -1,15 +1,182 @@
 # services/search_service.py
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.aio import SearchClient
-from azure.search.documents.models import Vector
+# Vector is not available in this version of the SDK
+# from azure.search.documents.models import Vector
 from typing import List, Dict, Any, Optional
 import json
+import logging
 
 from config.settings import Settings
 from rag.openai_adapter import get_openai_adapter
 
 # Initialize settings
 settings = Settings()
+
+# Initialize logger
+logger = logging.getLogger(__name__)
+
+class SearchService:
+    """Service for interacting with Azure AI Search."""
+    
+    def __init__(self):
+        self.search_clients = {}
+    
+    async def get_search_client(self, index_name: str) -> Optional[SearchClient]:
+        """
+        Get or create a search client for the specified index.
+        
+        Args:
+            index_name: Name of the index
+            
+        Returns:
+            SearchClient for the index or None if not configured
+        """
+        if not settings.AZURE_SEARCH_ENDPOINT or not settings.AZURE_SEARCH_KEY:
+            logger.warning("Azure Search not configured")
+            return None
+        
+        if index_name not in self.search_clients:
+            self.search_clients[index_name] = SearchClient(
+                endpoint=settings.AZURE_SEARCH_ENDPOINT,
+                index_name=index_name,
+                credential=AzureKeyCredential(settings.AZURE_SEARCH_KEY)
+            )
+        
+        return self.search_clients[index_name]
+    
+    async def search_documents(
+        self,
+        index_name: str,
+        query: str,
+        filter: Optional[str] = None,
+        top: int = 10,
+        skip: int = 0,
+        select: Optional[str] = None,
+        order_by: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for documents in an index.
+        
+        Args:
+            index_name: Name of the index
+            query: Search query
+            filter: Filter expression
+            top: Maximum number of results
+            skip: Number of results to skip
+            select: Fields to include in results
+            order_by: Order by expression
+            
+        Returns:
+            List of matching documents
+        """
+        try:
+            client = await self.get_search_client(index_name)
+            if not client:
+                return []
+            
+            # Build search options
+            search_options = {
+                "filter": filter,
+                "top": top,
+                "skip": skip,
+                "include_total_count": True
+            }
+            
+            if select:
+                search_options["select"] = select.split(",")
+            
+            if order_by:
+                search_options["order_by"] = order_by.split(",")
+            
+            # Execute search
+            results = await client.search(query, **search_options)
+            
+            # Convert results to list of dictionaries
+            documents = []
+            async for result in results:
+                documents.append(dict(result))
+            
+            return documents
+            
+        except Exception as e:
+            logger.error(f"Error searching documents: {e}")
+            return []
+    
+    async def index_document(
+        self,
+        index_name: str,
+        document: Dict[str, Any]
+    ) -> bool:
+        """
+        Index a document in Azure AI Search.
+        
+        Args:
+            index_name: Name of the index
+            document: Document to index
+            
+        Returns:
+            Success status
+        """
+        try:
+            client = await self.get_search_client(index_name)
+            if not client:
+                return False
+            
+            # Upload the document
+            result = await client.upload_documents(documents=[document])
+            
+            # Check if the operation was successful
+            return result[0].succeeded
+            
+        except Exception as e:
+            logger.error(f"Error indexing document: {e}")
+            return False
+    
+    async def delete_document(
+        self,
+        index_name: str,
+        document_id: str
+    ) -> bool:
+        """
+        Delete a document from Azure AI Search.
+        
+        Args:
+            index_name: Name of the index
+            document_id: ID of the document to delete
+            
+        Returns:
+            Success status
+        """
+        try:
+            client = await self.get_search_client(index_name)
+            if not client:
+                return False
+            
+            # Delete the document
+            result = await client.delete_documents(documents=[{"id": document_id}])
+            
+            # Check if the operation was successful
+            return result[0].succeeded
+            
+        except Exception as e:
+            logger.error(f"Error deleting document: {e}")
+            return False
+    
+    async def close(self):
+        """Close all search clients."""
+        for client in self.search_clients.values():
+            await client.close()
+
+# Singleton instance
+search_service = None
+
+async def get_search_service():
+    """Get or create search service singleton."""
+    global search_service
+    if search_service is None:
+        search_service = SearchService()
+    return search_service
 
 class AzureSearchService:
     """Service for managing data storage in Azure AI Search."""

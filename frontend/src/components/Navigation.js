@@ -104,6 +104,17 @@ const Navigation = () => {
                   >
                     Content
                   </Link>
+                  
+                  <Link
+                    to="/reports"
+                    className={`px-3 py-2 text-sm font-medium rounded-md ${
+                      isActive('/reports') 
+                        ? 'bg-blue-50 text-blue-700' 
+                        : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    Student Reports
+                  </Link>
                 </>
               )}
             </div>
@@ -234,6 +245,18 @@ const Navigation = () => {
                     onClick={closeMenu}
                   >
                     Content
+                  </Link>
+                  
+                  <Link
+                    to="/reports"
+                    className={`block px-4 py-3 text-lg font-medium rounded-md ${
+                      isActive('/reports') 
+                        ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-500' 
+                        : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 border-l-4 border-transparent'
+                    }`}
+                    onClick={closeMenu}
+                  >
+                    Student Reports
                   </Link>
                   
                   <Link

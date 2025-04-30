@@ -32,6 +32,7 @@ app.add_middleware(
 # Import API routes
 from api.auth_routes import router as auth_router
 from api.learning_plan_routes import router as learning_plan_router
+from api.student_report_routes import student_report_router
 
 # Create user router for the /users/me endpoint
 from auth.authentication import get_current_user
@@ -100,6 +101,7 @@ async def startup_event():
 app.include_router(auth_router)
 app.include_router(learning_plan_router)
 app.include_router(user_router)  # Include the user router
+app.include_router(student_report_router)  # Include student report router
 
 # Include optional routers if available
 if has_content_endpoints:
