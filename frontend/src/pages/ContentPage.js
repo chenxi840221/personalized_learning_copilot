@@ -162,13 +162,22 @@ const ContentPage = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-8">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-800 mb-6">
-          {isSearching && searchQuery 
-            ? `Search Results: "${searchQuery}"` 
-            : activeSubject === 'All' 
-              ? 'Browse All Content' 
-              : `${activeSubject} Resources`}
-        </h1>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
+            {isSearching && searchQuery 
+              ? `Search Results: "${searchQuery}"` 
+              : activeSubject === 'All' 
+                ? 'Browse All Content' 
+                : `${activeSubject} Resources`}
+          </h1>
+          
+          {/* Top content counter */}
+          {!isLoading && contentItems.length > 0 && (
+            <span className="mt-2 sm:mt-0 text-sm bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-medium">
+              {contentItems.length} {contentItems.length === 1 ? 'item' : 'items'} found
+            </span>
+          )}
+        </div>
         
         {/* Search Bar */}
         <div className="mb-6">
@@ -297,9 +306,17 @@ const ContentPage = () => {
             )}
             
             {/* No more content indicator */}
-            {!hasMore && contentItems.length > 20 && (
+            {!hasMore && contentItems.length > 0 && (
               <div className="text-center my-8 text-gray-500">
                 <p>You've reached the end of the content.</p>
+                <p className="mt-2 font-medium">Showing {contentItems.length} {contentItems.length === 1 ? 'item' : 'items'} total</p>
+              </div>
+            )}
+            
+            {/* Content count - always show at bottom regardless of hasMore */}
+            {contentItems.length > 0 && hasMore && (
+              <div className="text-center my-8 text-gray-500">
+                <p className="font-medium">Showing {contentItems.length} {contentItems.length === 1 ? 'item' : 'items'}</p>
               </div>
             )}
           </div>
@@ -316,24 +333,37 @@ const ContentPage = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 12H4" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 4v16M17 4v16" />
             </svg>
-            <p className="mt-2 text-lg">
+            <p className="mt-2 text-lg font-medium">
               {isSearching 
                 ? `No results found for "${searchQuery}"`
-                : "No content found for the selected filters."}
+                : `No ${activeSubject !== 'All' ? activeSubject + ' ' : ''}content found${activeType !== 'All' ? ` with type "${activeType}"` : ''}.`}
             </p>
-            <p className="mt-1">
+            <p className="mt-3 mb-1 text-sm">
               {isSearching
                 ? "Try a different search term or broaden your filters."
                 : "Try changing your filter options or select 'All' to see all available content."}
             </p>
-            {isSearching && (
-              <button
-                onClick={handleClearSearch}
-                className="mt-4 px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200"
-              >
-                Clear Search
-              </button>
-            )}
+            <div className="mt-6 flex justify-center">
+              {isSearching && (
+                <button
+                  onClick={handleClearSearch}
+                  className="px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 mr-2"
+                >
+                  Clear Search
+                </button>
+              )}
+              {!isSearching && (
+                <button
+                  onClick={() => {
+                    setActiveSubject('All');
+                    setActiveType('All');
+                  }}
+                  className="px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200"
+                >
+                  View All Content
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
