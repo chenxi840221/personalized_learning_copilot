@@ -2,8 +2,12 @@
 import axios from 'axios';
 
 // Create axios instance with base URL
+// Log the API URL to help diagnose connection issues
+const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+console.log('🔌 API Client initializing with base URL:', apiUrl);
+
 export const apiClient = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
+  baseURL: apiUrl,
   timeout: 120000, // Increased timeout to 2 minutes since document processing can take time
   headers: {
     'Content-Type': 'application/json'
@@ -143,9 +147,31 @@ export const uploadReport = async (formData) => {
 
 export const getReports = async (queryParams) => {
   try {
-    return await api.get('/student-reports', queryParams);
+    console.log('🔍 API Service: Requesting student reports from backend');
+    
+    // Add direct axios call check to diagnose connection issues
+    try {
+      const directResponse = await apiClient.get('/student-reports', { timeout: 5000 });
+      console.log('🔧 Direct axios test worked! Status:', directResponse.status);
+    } catch (directError) {
+      // If the direct call fails, log detailed information
+      console.error('🔧 Direct axios test failed:', directError.message);
+      console.error('🔧 Request URL:', directError.config?.url);
+      console.error('🔧 Is network error:', directError.isAxiosError && !directError.response);
+    }
+    
+    // Proceed with regular API call
+    const result = await api.get('/student-reports', queryParams);
+    console.log('📊 API Service: Received', result?.length || 0, 'reports from backend');
+    return result;
   } catch (error) {
-    console.error('Error fetching reports:', error);
+    console.error('❌ API Service Error fetching reports:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      isAxiosError: error.isAxiosError || false,
+      status: error.response?.status || 'No response',
+      statusText: error.response?.statusText || 'No response text'
+    });
     throw error;
   }
 };

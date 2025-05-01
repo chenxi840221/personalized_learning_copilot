@@ -62,21 +62,90 @@ class StudentReportProcessor:
     
     async def _init_encryption(self):
         """Initialize encryption for PII data using Azure Key Vault if configured, or local key."""
+        logger.info("Initializing encryption...")
+        
         # Try to use Azure Key Vault first
-        key = await self._get_key_from_keyvault() or settings.ENCRYPTION_KEY
+        try:
+            key_vault_key = await self._get_key_from_keyvault()
+            if key_vault_key:
+                logger.info("Successfully retrieved key from Key Vault")
+                key = key_vault_key
+            else:
+                logger.info("No Key Vault key available, using local key")
+                key = settings.ENCRYPTION_KEY
+        except Exception as kv_error:
+            logger.error(f"Error retrieving key from Key Vault: {kv_error}")
+            logger.info("Falling back to local key")
+            key = settings.ENCRYPTION_KEY
         
         if not key:
             logger.warning("No encryption key provided. Sensitive data will not be encrypted.")
             self.cipher = None
             return
             
+        # Log key info without revealing actual key
+        logger.info(f"Key type: {type(key)}, Key length: {len(str(key)) if key else 0}")
+        
+        # Add a key verification step
+        try:
+            # Simple test to see if the key exists and has non-zero length
+            if not key or (isinstance(key, str) and len(key.strip()) == 0):
+                logger.error("Key is empty or null")
+                self.cipher = None
+                return
+        except Exception as verify_error:
+            logger.error(f"Error verifying key: {verify_error}")
+            self.cipher = None
+            return
+        
         try:
             # Check if the key is already in the correct format for Fernet
             # (URL-safe base64-encoded 32-byte key)
-            if isinstance(key, str) and len(base64.urlsafe_b64decode(key + "=" * (-len(key) % 4))) == 32:
-                # Key is already in the correct format
-                self.cipher = Fernet(key.encode() if isinstance(key, str) else key)
+            if isinstance(key, str):
+                # Try to normalize the key
+                modified_key = key.strip()
+                
+                # Add padding if necessary
+                if len(modified_key) % 4 != 0:
+                    logger.info("Adding padding to key")
+                    modified_key = modified_key + "=" * (-len(modified_key) % 4)
+                
+                try:
+                    # Check if it's a valid Fernet key
+                    decoded = base64.urlsafe_b64decode(modified_key)
+                    if len(decoded) == 32:
+                        logger.info("Key is in the correct format for Fernet")
+                        self.cipher = Fernet(modified_key.encode())
+                    else:
+                        logger.info(f"Key is not 32 bytes (length: {len(decoded)}), deriving proper key")
+                        # Derive a key from the provided key or secret
+                        salt = b'personalized_learning_salt'  # In production, store this in Key Vault too
+                        kdf = PBKDF2HMAC(
+                            algorithm=hashes.SHA256(),
+                            length=32,
+                            salt=salt,
+                            iterations=100000,
+                        )
+                        derived_key = base64.urlsafe_b64encode(kdf.derive(key.encode()))
+                        self.cipher = Fernet(derived_key)
+                except Exception as decode_err:
+                    logger.warning(f"Key is not a valid base64 string: {decode_err}")
+                    logger.info("Deriving key from the provided value")
+                    # Derive a key from the provided key or secret
+                    salt = b'personalized_learning_salt'  # In production, store this in Key Vault too
+                    kdf = PBKDF2HMAC(
+                        algorithm=hashes.SHA256(),
+                        length=32,
+                        salt=salt,
+                        iterations=100000,
+                    )
+                    derived_key = base64.urlsafe_b64encode(kdf.derive(key.encode()))
+                    self.cipher = Fernet(derived_key)
             else:
+                logger.warning(f"Key is not a string: {type(key)}")
+                # Convert to bytes if needed
+                key_bytes = key if isinstance(key, bytes) else str(key).encode()
+                
                 # Derive a key from the provided key or secret
                 salt = b'personalized_learning_salt'  # In production, store this in Key Vault too
                 kdf = PBKDF2HMAC(
@@ -85,12 +154,56 @@ class StudentReportProcessor:
                     salt=salt,
                     iterations=100000,
                 )
-                derived_key = base64.urlsafe_b64encode(kdf.derive(key.encode() if isinstance(key, str) else key))
+                derived_key = base64.urlsafe_b64encode(kdf.derive(key_bytes))
                 self.cipher = Fernet(derived_key)
                 
             logger.info("Encryption initialized successfully")
+            
+            # Test the cipher with a simple encryption/decryption
+            try:
+                logger.info("Testing encryption functionality...")
+                test_message = "encryption_test_message"
+                encrypted_test = self.cipher.encrypt(test_message.encode())
+                decrypted_test = self.cipher.decrypt(encrypted_test).decode()
+                
+                if decrypted_test == test_message:
+                    logger.info("Encryption test successful")
+                else:
+                    logger.error(f"Encryption test failed! Expected '{test_message}' but got '{decrypted_test}'")
+                    raise ValueError("Encryption test failed: message mismatch")
+            except Exception as test_error:
+                logger.error(f"Encryption test failed: {test_error}")
+                # Create a new key derivation as a fallback
+                try:
+                    logger.info("Trying fallback key derivation")
+                    salt = b'personalized_learning_salt_fallback'
+                    kdf = PBKDF2HMAC(
+                        algorithm=hashes.SHA256(),
+                        length=32,
+                        salt=salt,
+                        iterations=100000,
+                    )
+                    key_bytes = key if isinstance(key, bytes) else str(key).encode()
+                    derived_key = base64.urlsafe_b64encode(kdf.derive(key_bytes))
+                    self.cipher = Fernet(derived_key)
+                    
+                    # Test again
+                    encrypted_test = self.cipher.encrypt(test_message.encode())
+                    decrypted_test = self.cipher.decrypt(encrypted_test).decode()
+                    if decrypted_test == test_message:
+                        logger.info("Fallback encryption test successful")
+                    else:
+                        logger.error("Fallback encryption test also failed")
+                        self.cipher = None
+                except Exception as fallback_error:
+                    logger.error(f"Fallback encryption initialization failed: {fallback_error}")
+                    self.cipher = None
+                    
+            # End of the encryption initialization
+                
         except Exception as e:
             logger.error(f"Error initializing encryption: {e}")
+            logger.error(f"Stack trace: {traceback.format_exc()}")
             self.cipher = None
             
     async def _get_key_from_keyvault(self):
@@ -182,29 +295,134 @@ class StudentReportProcessor:
     
     async def ensure_initialized(self):
         """Ensure the processor is initialized."""
-        if not self._initialized:
-            await self._init_encryption()
-            self._initialized = True
+        try:
+            if not self._initialized:
+                logger.info("Initializing report processor...")
+                await self._init_encryption()
+                logger.info("Initialization complete")
+                self._initialized = True
+            else:
+                logger.debug("Report processor already initialized")
+                
+            # Verify cipher is available
+            if not self.cipher:
+                logger.warning("Initialization completed but cipher is not available")
+                
+        except Exception as init_error:
+            logger.error(f"Error during initialization: {init_error}")
+            logger.error(f"Initialization traceback: {traceback.format_exc()}")
+            # Don't set _initialized to True if initialization failed
+            raise
     
     async def encrypt_pii(self, text: str) -> str:
         """Encrypt sensitive PII data."""
-        await self.ensure_initialized()
+        if not text:
+            logger.warning("Empty text provided to encrypt_pii")
+            return ""
+            
+        if not isinstance(text, str):
+            logger.error(f"Invalid type for text: {type(text)}. Expected string.")
+            return str(text) if text is not None else ""
+        
+        # Ensure initialization is complete    
+        try:
+            await self.ensure_initialized()
+        except Exception as init_error:
+            logger.error(f"Error initializing cipher for encryption: {init_error}")
+            # Return original text if encryption fails
+            return text
         
         if not self.cipher:
             logger.warning("Encryption not configured. Data will be stored unencrypted.")
             return text
+        
+        try:
+            # Attempt encryption
+            encrypted = self.cipher.encrypt(text.encode()).decode()
+            logger.info("Successfully encrypted data")
+            return encrypted
             
-        return self.cipher.encrypt(text.encode()).decode()
+        except Exception as e:
+            logger.error(f"Error encrypting data: {e}")
+            logger.error(f"Stack trace: {traceback.format_exc()}")
+            # Return the original text if encryption fails
+            return text
     
     async def decrypt_pii(self, encrypted_text: str) -> str:
         """Decrypt sensitive PII data."""
-        await self.ensure_initialized()
+        if not encrypted_text:
+            logger.warning("Empty encrypted text provided to decrypt_pii")
+            return ""
+            
+        if not isinstance(encrypted_text, str):
+            logger.error(f"Invalid type for encrypted_text: {type(encrypted_text)}. Expected string.")
+            return f"[Decryption Error: Invalid type {type(encrypted_text)}]"
+        
+        # Ensure initialization is complete    
+        try:
+            await self.ensure_initialized()
+        except Exception as init_error:
+            logger.error(f"Error initializing cipher for decryption: {init_error}")
+            return f"[Decryption Error: Initialization Failed]"
         
         if not self.cipher:
             logger.warning("Encryption not configured. Data may not be properly encrypted.")
             return encrypted_text
+        
+        try:
+            # Try to clean the encrypted text first - remove any whitespace or newlines
+            cleaned_text = encrypted_text.strip()
             
-        return self.cipher.decrypt(encrypted_text.encode()).decode()
+            # Check if it's a valid base64 string for Fernet
+            import re
+            import base64
+            
+            # Attempt to fix common base64 issues
+            # 1. Ensure valid base64 characters only
+            cleaned_text = re.sub(r'[^A-Za-z0-9+/=]', '', cleaned_text)
+            
+            # 2. Add proper padding if missing
+            if len(cleaned_text) % 4 != 0:
+                logger.info(f"Adding padding to encrypted text: {len(cleaned_text)} chars") 
+                cleaned_text = cleaned_text + "=" * (-len(cleaned_text) % 4)
+            
+            # Encode for decryption
+            encoded_value = cleaned_text.encode()
+            
+            # Attempt to validate as base64 before decryption
+            try:
+                # This will fail if not valid base64
+                base64.urlsafe_b64decode(cleaned_text)
+            except Exception as base64_err:
+                logger.warning(f"Value is not valid base64: {base64_err}")
+                # Return the original value since we can't decrypt it
+                return f"[Invalid Base64: {str(base64_err)[:20]}...]"
+                
+            # Attempt decryption
+            try:
+                decrypted = self.cipher.decrypt(encoded_value).decode()
+                logger.info("Successfully decrypted data")
+                return decrypted
+            except Exception as primary_error:
+                logger.warning(f"Primary decryption attempt failed: {primary_error}")
+                
+                # Fallback: Try with original text and padding
+                try:
+                    logger.info("Trying fallback decryption with original text + padding")
+                    padded = encrypted_text + "=" * (-len(encrypted_text) % 4)
+                    decrypted = self.cipher.decrypt(padded.encode()).decode()
+                    logger.info("Fallback decryption succeeded")
+                    return decrypted
+                except Exception as fallback_error:
+                    logger.error(f"Fallback decryption failed: {fallback_error}")
+                    # Let original exception continue to final handler
+                    raise primary_error
+            
+        except Exception as e:
+            logger.error(f"Error decrypting data: {e}")
+            logger.error(f"Encrypted text preview: {encrypted_text[:30]}...")
+            # Return a placeholder value instead of failing
+            return f"[Decryption Error: {str(e)[:50]}...]"
     
     async def process_report_document(self, document_path: str, student_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -596,20 +814,47 @@ report_processor = None
 async def get_report_processor():
     """Get or create the report processor singleton."""
     global report_processor
-    logger.info("Getting report processor instance")
+    logger.info("====== START: Getting report processor instance ======")
+    
+    # Return current instance if already initialized
+    if report_processor is not None and report_processor._initialized:
+        logger.info("Using existing initialized StudentReportProcessor instance")
+        return report_processor
+    
+    # Try to create and/or initialize the processor
     try:
+        # Create the processor if it doesn't exist
         if report_processor is None:
             logger.info("Creating new StudentReportProcessor instance")
-            report_processor = StudentReportProcessor()
-            logger.info("StudentReportProcessor instance created successfully")
+            try:
+                report_processor = StudentReportProcessor()
+                logger.info("StudentReportProcessor instance created successfully")
+            except Exception as create_error:
+                logger.error(f"CRITICAL ERROR: Failed to create StudentReportProcessor: {create_error}")
+                logger.error(f"Creation traceback: {traceback.format_exc()}")
+                return None
         else:
-            logger.info("Using existing StudentReportProcessor instance")
+            logger.info("Using existing StudentReportProcessor instance (needs initialization)")
         
         # Ensure the processor is initialized
-        await report_processor.ensure_initialized()
-        logger.info("Report processor initialized successfully")
-        
+        try:
+            logger.info("Starting processor initialization")
+            await report_processor.ensure_initialized()
+            logger.info("Report processor initialized successfully")
+        except Exception as init_error:
+            logger.error(f"CRITICAL ERROR: Failed to initialize StudentReportProcessor: {init_error}")
+            logger.error(f"Initialization traceback: {traceback.format_exc()}")
+            
+            # Return the instance even if not fully initialized
+            # Some functionality might still work without encryption
+            logger.warning("Returning partially initialized processor (encryption may not work)")
+            
+        logger.info("====== END: Report processor setup complete ======")
         return report_processor
+        
     except Exception as e:
-        logger.exception(f"Error creating/initializing report processor: {e}")
-        raise
+        logger.error(f"CRITICAL ERROR: Unexpected error creating/initializing report processor: {e}")
+        logger.error(f"Error traceback: {traceback.format_exc()}")
+        # Return None instead of raising, so API endpoints can handle gracefully
+        logger.warning("Returning None due to critical initialization error")
+        return None

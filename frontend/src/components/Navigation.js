@@ -112,6 +112,15 @@ const Navigation = () => {
                         ? 'bg-blue-50 text-blue-700' 
                         : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                     }`}
+                    onClick={() => {
+                      // Force report refresh when clicked
+                      // This is a workaround for the navigation issue
+                      if (isActive('/reports')) {
+                        console.log('Refreshing reports from navigation click');
+                        // Dispatch a custom event that StudentReport will listen for
+                        window.dispatchEvent(new CustomEvent('refresh-reports'));
+                      }
+                    }}
                   >
                     Student Reports
                   </Link>
@@ -254,7 +263,15 @@ const Navigation = () => {
                         ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-500' 
                         : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 border-l-4 border-transparent'
                     }`}
-                    onClick={closeMenu}
+                    onClick={(e) => {
+                      closeMenu();
+                      // Force report refresh when clicked
+                      if (isActive('/reports')) {
+                        console.log('Refreshing reports from mobile navigation click');
+                        // Dispatch a custom event that StudentReport will listen for
+                        window.dispatchEvent(new CustomEvent('refresh-reports'));
+                      }
+                    }}
                   >
                     Student Reports
                   </Link>

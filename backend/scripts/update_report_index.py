@@ -163,6 +163,11 @@ def update_student_reports_index():
         logger.error(f"Error creating/updating index: {e}")
         return False
 
+# Make the function publicly accessible
+def create_reports_index():
+    """Wrapper function that creates the student reports index."""
+    return update_student_reports_index()
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Update student reports index in Azure AI Search")
     args = parser.parse_args()

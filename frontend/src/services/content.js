@@ -5,19 +5,32 @@ import { api } from './api';
  * Get all content with optional filters
  * @param {string|null} subject - Optional subject filter
  * @param {string|null} contentType - Optional content type filter
+ * @param {string|null} difficulty - Optional difficulty filter
+ * @param {number|null} gradeLevel - Optional grade level filter
  * @returns {Promise<Array>} Array of content items
  */
-export const getContent = async (subject = null, contentType = null) => {
+export const getContent = async (subject = null, contentType = null, difficulty = null, gradeLevel = null) => {
   try {
+    console.log(`🔍 Fetching content with filters - Subject: ${subject}, Type: ${contentType}`);
+    
     // Build query parameters
     const params = {};
     if (subject) params.subject = subject;
     if (contentType) params.content_type = contentType;
+    if (difficulty) params.difficulty = difficulty;
+    if (gradeLevel) params.grade_level = gradeLevel;
     
     // Make API request
-    return await api.get('/content/', params);
+    const result = await api.get('/content', params);
+    console.log(`📚 Received ${result?.length || 0} content items from API`);
+    return result;
   } catch (error) {
-    console.error('Failed to fetch content:', error);
+    console.error('❌ Failed to fetch content:', error);
+    console.error('Error details:', {
+      message: error.message,
+      status: error.status || 'N/A',
+      data: error.data || 'N/A'
+    });
     throw error;
   }
 };
@@ -29,14 +42,93 @@ export const getContent = async (subject = null, contentType = null) => {
  */
 export const getRecommendations = async (subject = null) => {
   try {
+    console.log(`🔍 Fetching personalized recommendations${subject ? ` for ${subject}` : ''}`);
+    
     // Build query parameters
     const params = {};
     if (subject) params.subject = subject;
     
-    // Make API request
-    return await api.get('/content/recommendations/', params);
+    try {
+      // First try the recommendations endpoint
+      const result = await api.get('/content/recommendations', params);
+      console.log(`📚 Received ${result?.length || 0} recommended items from API`);
+      return result;
+    } catch (recommendationError) {
+      // If recommendations endpoint fails, fallback to main content endpoint
+      console.log('⚠️ Recommendations endpoint failed, falling back to content endpoint');
+      console.error(recommendationError);
+      
+      // Fallback to the regular content endpoint
+      const fallbackResult = await api.get('/content', params);
+      console.log(`📚 Received ${fallbackResult?.length || 0} content items from fallback API`);
+      return fallbackResult;
+    }
   } catch (error) {
-    console.error('Failed to fetch recommendations:', error);
+    console.error('❌ Failed to fetch recommendations:', error);
+    console.error('Error details:', {
+      message: error.message,
+      status: error.status || 'N/A',
+      data: error.data || 'N/A'
+    });
+    
+    // Return empty array instead of throwing to provide graceful degradation
+    return [];
+  }
+};
+
+/**
+ * Search for content using text and vector search
+ * @param {string} query - Search query
+ * @param {string|null} subject - Optional subject filter
+ * @param {string|null} contentType - Optional content type filter
+ * @returns {Promise<Array>} Array of content items matching the search
+ */
+export const searchContent = async (query, subject = null, contentType = null) => {
+  try {
+    console.log(`🔍 Searching for content with query: "${query}"${subject ? `, subject: ${subject}` : ''}${contentType ? `, type: ${contentType}` : ''}`);
+    
+    // Build query parameters
+    const params = { query };
+    if (subject) params.subject = subject;
+    if (contentType) params.content_type = contentType;
+    
+    // Make API request using GET as defined in the backend
+    const result = await api.get('/content/search', params);
+    console.log(`🔎 Found ${result?.length || 0} search results`);
+    return result;
+  } catch (error) {
+    console.error('❌ Failed to search content:', error);
+    console.error('Error details:', {
+      message: error.message,
+      status: error.status || 'N/A',
+      data: error.data || 'N/A'
+    });
+    
+    // Return empty array instead of throwing to provide graceful degradation
+    return [];
+  }
+};
+
+/**
+ * Get content by ID
+ * @param {string} contentId - Content ID
+ * @returns {Promise<Object>} Content item 
+ */
+export const getContentById = async (contentId) => {
+  try {
+    console.log(`🔍 Fetching content with ID: ${contentId}`);
+    
+    // Make API request
+    const result = await api.get(`/content/${contentId}`);
+    console.log(`📚 Received content item from API:`, result);
+    return result;
+  } catch (error) {
+    console.error(`❌ Failed to fetch content with ID ${contentId}:`, error);
+    console.error('Error details:', {
+      message: error.message,
+      status: error.status || 'N/A',
+      data: error.data || 'N/A'
+    });
     throw error;
   }
 };

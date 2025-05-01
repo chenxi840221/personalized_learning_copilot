@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { getContent, getRecommendations } from '../services/content';
+import { getContent, getRecommendations, searchContent } from '../services/content';
 import ContentRecommendation from '../components/ContentRecommendation';
 
 const ContentPage = () => {
@@ -10,10 +10,12 @@ const ContentPage = () => {
   const [error, setError] = useState('');
   const [activeSubject, setActiveSubject] = useState(subject || 'All');
   const [activeType, setActiveType] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   
-  // Available subjects and content types
-  const subjects = ['All', 'Mathematics', 'Science', 'English'];
+  // Available subjects and content types - extended with more options
+  const subjects = ['All', 'Mathematics', 'Science', 'English', 'History', 'Geography', 'Arts'];
   const contentTypes = ['All', 'Video', 'Article', 'Interactive', 'Quiz', 'Lesson', 'Worksheet', 'Activity'];
   
   // Fetch content on component mount and when filters change
@@ -23,30 +25,42 @@ const ContentPage = () => {
       setError('');
       
       try {
-        let data;
+        let data = [];
         
-        // If "All" is selected, get recommendations
-        if (activeSubject === 'All' && activeType === 'All') {
+        if (isSearching && searchQuery.trim()) {
+          // If there's a search query, use search API
+          console.log(`🔍 Searching for: "${searchQuery}"`);
+          const subjectParam = activeSubject !== 'All' ? activeSubject : null;
+          const typeParam = activeType !== 'All' ? activeType.toLowerCase() : null;
+          
+          data = await searchContent(searchQuery, subjectParam, typeParam);
+        } else if (activeSubject === 'All' && activeType === 'All') {
+          // If "All" is selected, get recommendations
+          console.log('📚 Getting personalized recommendations');
           data = await getRecommendations();
         } else {
           // Otherwise, get filtered content
           const subjectParam = activeSubject !== 'All' ? activeSubject : null;
           const typeParam = activeType !== 'All' ? activeType.toLowerCase() : null;
+          console.log(`📚 Getting filtered content - Subject: ${subjectParam}, Type: ${typeParam}`);
+          
           data = await getContent(subjectParam, typeParam);
         }
         
-        setContentItems(data);
+        console.log(`📊 Loaded ${data?.length || 0} content items`);
+        setContentItems(data || []);
       } catch (err) {
-        console.error('Error fetching content:', err);
+        console.error('❌ Error fetching content:', err);
         setError(err.message || 'Failed to load content. Please try again.');
       } finally {
         setIsLoading(false);
         setIsRetrying(false);
+        setIsSearching(false);
       }
     };
     
     fetchContent();
-  }, [activeSubject, activeType, isRetrying]);
+  }, [activeSubject, activeType, isRetrying, isSearching, searchQuery]);
   
   // Set active subject from URL param on mount
   useEffect(() => {
@@ -60,12 +74,63 @@ const ContentPage = () => {
     setIsRetrying(true);
   };
   
+  // Handle search
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      setIsSearching(true);
+    }
+  };
+  
+  // Clear search
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setIsSearching(false);
+  };
+  
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-8">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-800 mb-6">
-          {activeSubject === 'All' ? 'Browse All Content' : `${activeSubject} Resources`}
+          {isSearching && searchQuery 
+            ? `Search Results: "${searchQuery}"` 
+            : activeSubject === 'All' 
+              ? 'Browse All Content' 
+              : `${activeSubject} Resources`}
         </h1>
+        
+        {/* Search Bar */}
+        <div className="mb-6">
+          <form onSubmit={handleSearch} className="flex gap-2">
+            <div className="flex-grow relative">
+              <input
+                type="search"
+                placeholder="Search for content..."
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                disabled={isLoading}
+              />
+              {isSearching && (
+                <button
+                  type="button"
+                  onClick={handleClearSearch}
+                  className="absolute right-3 top-2 text-gray-400 hover:text-gray-600"
+                  aria-label="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={isLoading || !searchQuery.trim()}
+            >
+              Search
+            </button>
+          </form>
+        </div>
         
         {/* Filters */}
         <div className="flex flex-col sm:flex-row flex-wrap gap-4 mb-6">
@@ -152,8 +217,24 @@ const ContentPage = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 12H4" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 4v16M17 4v16" />
             </svg>
-            <p className="mt-2 text-lg">No content found for the selected filters.</p>
-            <p className="mt-1">Try changing your filter options or select "All" to see all available content.</p>
+            <p className="mt-2 text-lg">
+              {isSearching 
+                ? `No results found for "${searchQuery}"`
+                : "No content found for the selected filters."}
+            </p>
+            <p className="mt-1">
+              {isSearching
+                ? "Try a different search term or broaden your filters."
+                : "Try changing your filter options or select 'All' to see all available content."}
+            </p>
+            {isSearching && (
+              <button
+                onClick={handleClearSearch}
+                className="mt-4 px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200"
+              >
+                Clear Search
+              </button>
+            )}
           </div>
         )}
       </div>

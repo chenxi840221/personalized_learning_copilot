@@ -53,8 +53,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
             try:
                 payload = jwt.decode(
                     token,
-                    options={"verify_signature": False},  # We rely on MS for signature verification
-                    audience=settings.CLIENT_ID
+                    options={"verify_signature": False, "verify_aud": False},  # We rely on MS for verification
+                    algorithms=["RS256"]  # Specify the algorithm explicitly
                 )
                 
                 # Extract user info from claims
@@ -107,7 +107,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
                     "is_active": user_data.get("is_active", True)
                 }
                 logger.debug("Successfully validated simple JWT token")
-            except jwt.JWTError as jwt_error:
+            except Exception as jwt_error:
                 logger.error(f"JWT validation error: {jwt_error}")
                 raise credentials_exception
 

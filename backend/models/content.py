@@ -1,8 +1,10 @@
-from pydantic import BaseModel, Field, HttpUrl
-from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field, HttpUrl, AnyUrl
+from typing import List, Optional, Dict, Any, Union
 from enum import Enum
+import uuid
 from datetime import datetime
-# Content Type Enum
+
+# Content Type Enum - with extra options for flexibility
 class ContentType(str, Enum):
     ARTICLE = "article"
     VIDEO = "video"
@@ -11,30 +13,39 @@ class ContentType(str, Enum):
     QUIZ = "quiz"
     LESSON = "lesson"
     ACTIVITY = "activity"
+    OTHER = "other"
+
 # Difficulty Level Enum
 class DifficultyLevel(str, Enum):
     BEGINNER = "beginner"
     INTERMEDIATE = "intermediate"
     ADVANCED = "advanced"
+    UNKNOWN = "unknown"
+
 # Content models
 class Content(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    title: str
-    description: str
-    content_type: ContentType
-    subject: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    content_type: Optional[Union[ContentType, str]] = None
+    subject: Optional[str] = None
     topics: List[str] = []
-    url: HttpUrl
-    source: str = "ABC Education"
-    difficulty_level: DifficultyLevel
-    grade_level: List[int] = []
+    url: Optional[Union[HttpUrl, AnyUrl, str]] = None  # More flexible URL field
+    source: Optional[str] = "ABC Education"
+    difficulty_level: Optional[Union[DifficultyLevel, str]] = None
+    grade_level: Optional[List[int]] = []
     duration_minutes: Optional[int] = None
-    keywords: List[str] = []
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-    metadata: Dict[str, Any] = {}
+    keywords: Optional[List[str]] = []
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    metadata: Optional[Dict[str, Any]] = {}
+    
     class Config:
         orm_mode = True
+        # Allow any extra fields that might come from Azure Search
+        extra = "allow"
+        # Be more permissive with field values
+        arbitrary_types_allowed = True
 # Content with embedding model
 class ContentWithEmbedding(Content):
     embedding: List[float]
