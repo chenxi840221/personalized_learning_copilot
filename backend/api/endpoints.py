@@ -108,7 +108,16 @@ async def get_content_endpoint(
         # Build filter expression
         filter_parts = []
         if subject:
-            filter_parts.append(f"subject eq '{subject}'")
+            # Check for subject aliases that might be in the database differently
+            if subject == "Math" or subject == "Mathematics":
+                # Try all variations of Mathematics subject
+                filter_parts.append("(subject eq 'Math' or subject eq 'Mathematics' or subject eq 'Maths')")
+            elif subject == "Maths":
+                # This is the actual name in the Azure Search index
+                filter_parts.append("subject eq 'Maths'")
+            else:
+                filter_parts.append(f"subject eq '{subject}'")
+        
         if content_type:
             filter_parts.append(f"content_type eq '{content_type.lower()}'")
         if difficulty:
@@ -118,8 +127,30 @@ async def get_content_endpoint(
         
         filter_expression = " and ".join(filter_parts) if filter_parts else None
         
+        # Add debugging for the filter expression
+        logger.info(f"Using filter expression: {filter_expression}")
+        
         # Use the search_documents method which is available on SearchService
         content_index_name = settings.CONTENT_INDEX_NAME or "educational-content"
+        
+        # First, search more broadly without subject filter to see what we have
+        if subject in ["Mathematics", "Math", "Maths", "History"] and filter_parts:
+            # Log all available subjects for debugging
+            all_content = await search_service.search_documents(
+                index_name=content_index_name,
+                query="*",
+                top=100,
+                select="subject"
+            )
+            
+            subjects_in_index = set()
+            for item in all_content:
+                if "subject" in item:
+                    subjects_in_index.add(item["subject"])
+            
+            logger.info(f"Available subjects in index: {subjects_in_index}")
+        
+        # Now do the actual filtered search
         contents = await search_service.search_documents(
             index_name=content_index_name,
             query="*",
@@ -127,25 +158,6 @@ async def get_content_endpoint(
             top=50,
             select="id,title,description,subject,content_type,difficulty_level,grade_level,topics,url,duration_minutes,keywords,source"
         )
-        
-        # For subjects with insufficient content, add default content
-        if subject in ["Mathematics", "History"] and (not contents or len(contents) < 5):
-            logger.info(f"Adding default content for {subject} as only {len(contents) if contents else 0} items found")
-            
-            # Combine existing results with default content
-            all_contents = list(contents) if contents else []
-            
-            if subject == "Mathematics":
-                math_contents = _get_default_math_content()
-                all_contents.extend(math_contents)
-                logger.info(f"Added {len(math_contents)} default Mathematics content items")
-            elif subject == "History":
-                history_contents = _get_default_history_content()
-                all_contents.extend(history_contents)
-                logger.info(f"Added {len(history_contents)} default History content items")
-                
-            logger.info(f"Returning {len(all_contents)} content items (including default content)")
-            return all_contents
         
         if not contents:
             # Log the empty result situation with details
@@ -166,183 +178,7 @@ async def get_content_endpoint(
             detail=f"Error retrieving content: {str(e)}"
         )
 
-def _get_default_math_content():
-    """Returns default Mathematics content items."""
-    return [
-        {
-            "id": "math-sample-1",
-            "title": "Algebra Fundamentals",
-            "description": "Learn the basics of algebra including variables, equations, and solving for unknowns.",
-            "content_type": "lesson",
-            "subject": "Mathematics",
-            "topics": ["Algebra", "Equations", "Variables"],
-            "url": "https://www.khanacademy.org/math/algebra/x2f8bb11595b61c86:foundation-algebra",
-            "source": "Khan Academy",
-            "difficulty_level": "intermediate",
-            "grade_level": [7, 8, 9],
-            "duration_minutes": 45,
-            "keywords": ["algebra", "equations", "mathematics", "variables"]
-        },
-        {
-            "id": "math-sample-2",
-            "title": "Geometry: Understanding Shapes and Space",
-            "description": "Explore the properties of shapes, angles, and spatial relationships in this comprehensive geometry lesson.",
-            "content_type": "lesson",
-            "subject": "Mathematics",
-            "topics": ["Geometry", "Shapes", "Angles", "Spatial Reasoning"],
-            "url": "https://www.khanacademy.org/math/geometry",
-            "source": "Khan Academy",
-            "difficulty_level": "intermediate",
-            "grade_level": [8, 9, 10],
-            "duration_minutes": 50,
-            "keywords": ["geometry", "shapes", "angles", "mathematics"]
-        },
-        {
-            "id": "math-sample-3",
-            "title": "Calculus: Introduction to Derivatives",
-            "description": "An introduction to derivatives and their applications in mathematics and real-world scenarios.",
-            "content_type": "video",
-            "subject": "Mathematics",
-            "topics": ["Calculus", "Derivatives", "Functions"],
-            "url": "https://www.khanacademy.org/math/ap-calculus-ab/ab-differentiation-1-new",
-            "source": "Khan Academy",
-            "difficulty_level": "advanced",
-            "grade_level": [11, 12],
-            "duration_minutes": 35,
-            "keywords": ["calculus", "derivatives", "functions", "mathematics"]
-        },
-        {
-            "id": "math-sample-4",
-            "title": "Statistics and Probability Fundamentals",
-            "description": "Learn the basics of statistics and probability including data analysis, distributions, and random variables.",
-            "content_type": "interactive",
-            "subject": "Mathematics",
-            "topics": ["Statistics", "Probability", "Data Analysis"],
-            "url": "https://www.khanacademy.org/math/statistics-probability",
-            "source": "Khan Academy",
-            "difficulty_level": "intermediate",
-            "grade_level": [9, 10, 11],
-            "duration_minutes": 40,
-            "keywords": ["statistics", "probability", "data", "mathematics"]
-        },
-        {
-            "id": "math-sample-5",
-            "title": "Number Theory: Prime Numbers and Factorization",
-            "description": "Explore the fascinating world of prime numbers, factorization, and their properties in number theory.",
-            "content_type": "article",
-            "subject": "Mathematics",
-            "topics": ["Number Theory", "Prime Numbers", "Factorization"],
-            "url": "https://www.khanacademy.org/math/arithmetic-home/multiply-divide/prime_factorization/v/prime-factorization",
-            "source": "Khan Academy",
-            "difficulty_level": "intermediate",
-            "grade_level": [6, 7, 8],
-            "duration_minutes": 30,
-            "keywords": ["prime numbers", "factorization", "number theory", "mathematics"]
-        },
-        {
-            "id": "math-sample-6",
-            "title": "Trigonometry: Exploring the Unit Circle",
-            "description": "Learn about the unit circle and how it relates to trigonometric functions.",
-            "content_type": "interactive",
-            "subject": "Mathematics",
-            "topics": ["Trigonometry", "Unit Circle", "Functions"],
-            "url": "https://www.khanacademy.org/math/trigonometry/unit-circle-trig-func",
-            "source": "Khan Academy",
-            "difficulty_level": "intermediate",
-            "grade_level": [9, 10, 11],
-            "duration_minutes": 45,
-            "keywords": ["trigonometry", "unit circle", "sine", "cosine", "mathematics"]
-        }
-    ]
-
-def _get_default_history_content():
-    """Returns default History content items."""
-    return [
-        {
-            "id": "history-sample-1",
-            "title": "Ancient Civilizations: Egypt, Greece, and Rome",
-            "description": "Explore the rise and fall of ancient civilizations and their lasting impact on modern society.",
-            "content_type": "lesson",
-            "subject": "History",
-            "topics": ["Ancient Egypt", "Ancient Greece", "Roman Empire", "Civilizations"],
-            "url": "https://www.khanacademy.org/humanities/world-history/world-history-beginnings",
-            "source": "Khan Academy",
-            "difficulty_level": "intermediate",
-            "grade_level": [6, 7, 8],
-            "duration_minutes": 50,
-            "keywords": ["ancient", "civilizations", "egypt", "greece", "rome", "history"]
-        },
-        {
-            "id": "history-sample-2",
-            "title": "The Renaissance: Art, Culture, and Innovation",
-            "description": "Discover the cultural rebirth of Europe during the Renaissance period, including major artists, thinkers, and innovations.",
-            "content_type": "video",
-            "subject": "History",
-            "topics": ["Renaissance", "Art History", "European History", "Cultural Movements"],
-            "url": "https://www.khanacademy.org/humanities/renaissance-reformation/early-renaissance",
-            "source": "Khan Academy",
-            "difficulty_level": "intermediate",
-            "grade_level": [8, 9, 10],
-            "duration_minutes": 40,
-            "keywords": ["renaissance", "art", "culture", "europe", "history"]
-        },
-        {
-            "id": "history-sample-3",
-            "title": "World War II: Causes, Events, and Aftermath",
-            "description": "A comprehensive overview of World War II, including its causes, major battles, and lasting impact on global politics.",
-            "content_type": "lesson",
-            "subject": "History",
-            "topics": ["World War II", "20th Century", "Military History", "Global Politics"],
-            "url": "https://www.khanacademy.org/humanities/world-history/euro-hist/world-war-ii",
-            "source": "Khan Academy",
-            "difficulty_level": "advanced",
-            "grade_level": [10, 11, 12],
-            "duration_minutes": 60,
-            "keywords": ["world war", "military", "politics", "20th century", "history"]
-        },
-        {
-            "id": "history-sample-4",
-            "title": "The Industrial Revolution: Technology and Society",
-            "description": "Examine how technological innovations during the Industrial Revolution transformed society, economics, and daily life.",
-            "content_type": "article",
-            "subject": "History",
-            "topics": ["Industrial Revolution", "Technology", "Economics", "Social Change"],
-            "url": "https://www.khanacademy.org/humanities/world-history/euro-hist/industrial-revolution",
-            "source": "Khan Academy",
-            "difficulty_level": "intermediate",
-            "grade_level": [9, 10, 11],
-            "duration_minutes": 35,
-            "keywords": ["industrial revolution", "technology", "economy", "society", "history"]
-        },
-        {
-            "id": "history-sample-5",
-            "title": "Civil Rights Movement: Leaders, Events, and Legacy",
-            "description": "Learn about the key figures, pivotal events, and lasting impact of the Civil Rights Movement in the United States.",
-            "content_type": "video",
-            "subject": "History",
-            "topics": ["Civil Rights", "American History", "Social Movements", "Equality"],
-            "url": "https://www.khanacademy.org/humanities/us-history/postwarusa/civil-rights-movement",
-            "source": "Khan Academy",
-            "difficulty_level": "intermediate",
-            "grade_level": [8, 9, 10, 11],
-            "duration_minutes": 45,
-            "keywords": ["civil rights", "equality", "social justice", "american history"]
-        },
-        {
-            "id": "history-sample-6",
-            "title": "Ancient China: Dynasties, Innovations, and Culture",
-            "description": "Explore the history of ancient China, including its major dynasties, technological innovations, and cultural achievements.",
-            "content_type": "interactive",
-            "subject": "History",
-            "topics": ["Ancient China", "Chinese Dynasties", "Chinese Culture", "Asian History"],
-            "url": "https://www.khanacademy.org/humanities/world-history/ancient-medieval/zhou-qin-han-china",
-            "source": "Khan Academy",
-            "difficulty_level": "intermediate",
-            "grade_level": [7, 8, 9],
-            "duration_minutes": 40,
-            "keywords": ["china", "dynasties", "culture", "asia", "history"]
-        }
-    ]
+# Mock content functions removed as they're no longer needed
 
 async def get_content_by_id_endpoint(
     content_id: str = Path(..., description="Content ID")
@@ -351,37 +187,27 @@ async def get_content_by_id_endpoint(
 ):
     """Get content by ID."""
     try:
-        # First, check if this is one of our default content items
-        if content_id.startswith("math-sample-"):
-            math_contents = _get_default_math_content()
-            for item in math_contents:
-                if item["id"] == content_id:
-                    logger.info(f"Retrieved default Mathematics content item with ID {content_id}")
-                    return item
-        
-        if content_id.startswith("history-sample-"):
-            history_contents = _get_default_history_content()
-            for item in history_contents:
-                if item["id"] == content_id:
-                    logger.info(f"Retrieved default History content item with ID {content_id}")
-                    return item
-        
-        # If not a default item, search in Azure Search
+        # Get the search service
         search_service = await get_search_service()
         
         # Use filter search to get the content by ID
         content_index_name = settings.CONTENT_INDEX_NAME or "educational-content"
         filter_expression = f"id eq '{content_id}'"
         
+        # Log the filter being used
+        logger.info(f"Searching for content with filter: {filter_expression}")
+        
+        # Specify explicit fields to ensure consistency in results
         results = await search_service.search_documents(
             index_name=content_index_name,
             query="*",
             filter=filter_expression,
-            top=1
+            top=1,
+            select="id,title,description,subject,content_type,difficulty_level,grade_level,topics,url,duration_minutes,keywords,source"
         )
         
         if not results or len(results) == 0:
-            logger.warning(f"Content with ID {content_id} not found")
+            logger.warning(f"Content with ID {content_id} not found in Azure Search")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Content with ID {content_id} not found"
@@ -412,9 +238,38 @@ async def get_recommendations_endpoint(
         filter_parts = []
         
         if subject:
-            filter_parts.append(f"subject eq '{subject}'")
+            # Check for subject aliases that might be in the database differently
+            if subject == "Math" or subject == "Mathematics":
+                # Try all variations of Mathematics subject
+                filter_parts.append("(subject eq 'Math' or subject eq 'Mathematics' or subject eq 'Maths')")
+            elif subject == "Maths":
+                # This is the actual name in the Azure Search index
+                filter_parts.append("subject eq 'Maths'")
+            else:
+                filter_parts.append(f"subject eq '{subject}'")
         
         filter_expression = " and ".join(filter_parts) if filter_parts else None
+        
+        # Add debugging for the filter expression
+        logger.info(f"Recommendations using filter expression: {filter_expression}")
+        
+        # If debugging Math or History subject issues
+        if subject in ["Mathematics", "Math", "Maths", "History"] and filter_parts:
+            # Log all available subjects for debugging
+            content_index_name = settings.CONTENT_INDEX_NAME or "educational-content"
+            all_content = await search_service.search_documents(
+                index_name=content_index_name,
+                query="*",
+                top=100,
+                select="subject"
+            )
+            
+            subjects_in_index = set()
+            for item in all_content:
+                if "subject" in item:
+                    subjects_in_index.add(item["subject"])
+            
+            logger.info(f"Available subjects in index for recommendations: {subjects_in_index}")
         
         # For now, instead of personalized recommendations, just return general content
         # Use the search_documents method which is available on SearchService
@@ -427,35 +282,23 @@ async def get_recommendations_endpoint(
             select="id,title,description,subject,content_type,difficulty_level,grade_level,topics,url,duration_minutes,keywords,source"
         )
         
-        # For subjects with insufficient content, add default content
-        if subject in ["Mathematics", "History"] and (not recommendations or len(recommendations) < 5):
-            logger.info(f"Adding default content for {subject} as only {len(recommendations) if recommendations else 0} items found in recommendations")
+        if not recommendations:
+            # Log the empty result situation with details
+            logger.info(f"No recommendations found with filters: {filter_expression}")
             
-            # Combine existing results with default content
-            all_recommendations = list(recommendations) if recommendations else []
-            
-            if subject == "Mathematics":
-                math_contents = _get_default_math_content()
-                all_recommendations.extend(math_contents)
-                logger.info(f"Added {len(math_contents)} default Mathematics content items to recommendations")
-            elif subject == "History":
-                history_contents = _get_default_history_content()
-                all_recommendations.extend(history_contents)
-                logger.info(f"Added {len(history_contents)} default History content items to recommendations")
-                
-            logger.info(f"Returning {len(all_recommendations)} recommendation items (including default content)")
-            return all_recommendations
+            # Return empty list with HTTP 200
+            return []
         
-        logger.info(f"Found {len(recommendations)} items for subject: {subject}")
+        logger.info(f"Found {len(recommendations)} recommendation items for subject: {subject}")
         return recommendations
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting content: {str(e)}")
+        logger.error(f"Error getting recommendations: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error getting content: {str(e)}"
+            detail=f"Error getting recommendations: {str(e)}"
         )
 
 async def search_content_endpoint(
@@ -472,14 +315,63 @@ async def search_content_endpoint(
         # Build filter expression
         filter_parts = []
         if subject:
-            filter_parts.append(f"subject eq '{subject}'")
+            # Check for subject aliases that might be in the database differently
+            if subject == "Math" or subject == "Mathematics":
+                # Try all variations of Mathematics subject
+                filter_parts.append("(subject eq 'Math' or subject eq 'Mathematics' or subject eq 'Maths')")
+            elif subject == "Maths":
+                # This is the actual name in the Azure Search index
+                filter_parts.append("subject eq 'Maths'")
+            else:
+                filter_parts.append(f"subject eq '{subject}'")
+                
         if content_type:
             filter_parts.append(f"content_type eq '{content_type.lower()}'")
         
         filter_expression = " and ".join(filter_parts) if filter_parts else None
         
+        # Add debugging for the filter expression
+        logger.info(f"Search using filter expression: {filter_expression}, query: {query}")
+        
         # Use the search_documents method which is available on SearchService
         content_index_name = settings.CONTENT_INDEX_NAME or "educational-content"
+        
+        # For Math and History, try additional approaches if needed
+        if subject in ["Mathematics", "Math", "Maths", "History"]:
+            # First try a more aggressive search with looser filters
+            logger.info(f"Using broader search for {subject} with query: {query}")
+            
+            # Determine actual subject name for expansive search
+            search_subject_name = subject
+            if subject in ["Mathematics", "Math"]:
+                search_subject_name = "Maths"  # Use the name stored in Azure AI Search
+            
+            # Try a more expansive search query by including the subject name in the query
+            expanded_query = f"{query} {search_subject_name}"
+            
+            contents = await search_service.search_documents(
+                index_name=content_index_name,
+                query=expanded_query,
+                filter=None,  # Remove filter for this search to get more results
+                top=20,
+                select="id,title,description,subject,content_type,difficulty_level,grade_level,topics,url,duration_minutes,keywords,source"
+            )
+            
+            if contents and len(contents) > 0:
+                logger.info(f"Found {len(contents)} results using broader search approach")
+                # Filter the results programmatically to match the subject
+                filtered_contents = [
+                    item for item in contents
+                    if item.get("subject") == subject or 
+                    (subject in ["Math", "Mathematics"] and item.get("subject") == "Maths") or
+                    (subject == "Maths" and item.get("subject") in ["Math", "Mathematics"])
+                ]
+                
+                if filtered_contents:
+                    logger.info(f"Returning {len(filtered_contents)} filtered results from broader search")
+                    return filtered_contents
+        
+        # Standard search if the above didn't work or for other subjects
         contents = await search_service.search_documents(
             index_name=content_index_name,
             query=query,
@@ -487,46 +379,6 @@ async def search_content_endpoint(
             top=20,
             select="id,title,description,subject,content_type,difficulty_level,grade_level,topics,url,duration_minutes,keywords,source"
         )
-        
-        # For subjects with insufficient content, add default content if it matches the search query
-        if subject in ["Mathematics", "History"] and (not contents or len(contents) < 3):
-            logger.info(f"Adding default content for {subject} search as only {len(contents) if contents else 0} items found")
-            
-            # Combine existing results with default content that matches the search query
-            all_contents = list(contents) if contents else []
-            query_lower = query.lower()
-            
-            if subject == "Mathematics":
-                math_contents = _get_default_math_content()
-                # Only add default content that matches the search query
-                matching_math_contents = [
-                    item for item in math_contents 
-                    if query_lower in item.get("title", "").lower() 
-                    or query_lower in item.get("description", "").lower()
-                    or any(query_lower in topic.lower() for topic in item.get("topics", []))
-                    or any(query_lower in keyword.lower() for keyword in item.get("keywords", []))
-                ]
-                if matching_math_contents:
-                    all_contents.extend(matching_math_contents)
-                    logger.info(f"Added {len(matching_math_contents)} matching default Mathematics content items")
-            
-            elif subject == "History":
-                history_contents = _get_default_history_content()
-                # Only add default content that matches the search query
-                matching_history_contents = [
-                    item for item in history_contents 
-                    if query_lower in item.get("title", "").lower() 
-                    or query_lower in item.get("description", "").lower()
-                    or any(query_lower in topic.lower() for topic in item.get("topics", []))
-                    or any(query_lower in keyword.lower() for keyword in item.get("keywords", []))
-                ]
-                if matching_history_contents:
-                    all_contents.extend(matching_history_contents)
-                    logger.info(f"Added {len(matching_history_contents)} matching default History content items")
-                
-            if all_contents:
-                logger.info(f"Returning {len(all_contents)} search results (including matching default content)")
-                return all_contents
         
         if not contents:
             # Log the empty result situation with details

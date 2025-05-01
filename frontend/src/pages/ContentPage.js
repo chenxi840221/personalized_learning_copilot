@@ -15,7 +15,7 @@ const ContentPage = () => {
   const [isRetrying, setIsRetrying] = useState(false);
   
   // Available subjects and content types - extended with more options
-  const subjects = ['All', 'Mathematics', 'Science', 'English', 'History', 'Geography', 'Arts'];
+  const subjects = ['All', 'Maths', 'Science', 'English', 'History', 'Geography', 'Arts'];
   const contentTypes = ['All', 'Video', 'Article', 'Interactive', 'Quiz', 'Lesson', 'Worksheet', 'Activity'];
   
   // Fetch content on component mount and when filters change

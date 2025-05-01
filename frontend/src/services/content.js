@@ -15,7 +15,14 @@ export const getContent = async (subject = null, contentType = null, difficulty 
     
     // Build query parameters
     const params = {};
-    if (subject) params.subject = subject;
+    if (subject) {
+      // Map "Maths" in frontend to what the backend expects
+      if (subject === "Maths") {
+        params.subject = "Maths";
+      } else {
+        params.subject = subject;
+      }
+    }
     if (contentType) params.content_type = contentType;
     if (difficulty) params.difficulty = difficulty;
     if (gradeLevel) params.grade_level = gradeLevel;
@@ -46,7 +53,14 @@ export const getRecommendations = async (subject = null) => {
     
     // Build query parameters
     const params = {};
-    if (subject) params.subject = subject;
+    if (subject) {
+      // Map "Maths" in frontend to what the backend expects
+      if (subject === "Maths") {
+        params.subject = "Maths";
+      } else {
+        params.subject = subject;
+      }
+    }
     
     try {
       // First try the recommendations endpoint
@@ -89,7 +103,14 @@ export const searchContent = async (query, subject = null, contentType = null) =
     
     // Build query parameters
     const params = { query };
-    if (subject) params.subject = subject;
+    if (subject) {
+      // Map "Maths" in frontend to what the backend expects
+      if (subject === "Maths") {
+        params.subject = "Maths";
+      } else {
+        params.subject = subject;
+      }
+    }
     if (contentType) params.content_type = contentType;
     
     // Make API request using GET as defined in the backend
@@ -142,7 +163,14 @@ export const getLearningPlans = async (subject = null) => {
   try {
     // Build query parameters
     const params = {};
-    if (subject) params.subject = subject;
+    if (subject) {
+      // Map "Maths" in frontend to what the backend expects
+      if (subject === "Maths") {
+        params.subject = "Maths";
+      } else {
+        params.subject = subject;
+      }
+    }
     
     // Make API request
     return await api.get('/learning-plans/', params);
@@ -195,7 +223,14 @@ export const getAIRecommendations = async (subject = null) => {
   try {
     // Build query parameters
     const params = {};
-    if (subject) params.subject = subject;
+    if (subject) {
+      // Map "Maths" in frontend to what the backend expects
+      if (subject === "Maths") {
+        params.subject = "Maths";
+      } else {
+        params.subject = subject;
+      }
+    }
     
     // Make API request to AI endpoint
     return await api.get('/ai/personalized-recommendations', params);
