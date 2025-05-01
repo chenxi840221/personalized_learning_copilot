@@ -150,14 +150,58 @@ async def get_content_endpoint(
             
             logger.info(f"Available subjects in index: {subjects_in_index}")
         
-        # Now do the actual filtered search
-        contents = await search_service.search_documents(
-            index_name=content_index_name,
-            query="*",
-            filter=filter_expression,
-            top=50,
-            select="id,title,description,subject,content_type,difficulty_level,grade_level,topics,url,duration_minutes,keywords,source"
-        )
+        # When no subject is provided, ensure we're getting a representative sample across subjects
+        if not subject:
+            logger.info("No subject filter, getting content from across various subjects")
+            
+            # Get all available subjects first to ensure balanced representation
+            all_subjects_result = await search_service.search_documents(
+                index_name=content_index_name,
+                query="*",
+                top=100,
+                select="subject"
+            )
+            
+            # Extract unique subjects
+            unique_subjects = set()
+            for item in all_subjects_result:
+                if "subject" in item and item["subject"]:
+                    unique_subjects.add(item["subject"])
+            
+            logger.info(f"Found {len(unique_subjects)} unique subjects for content: {unique_subjects}")
+            
+            # Get representative content from each subject
+            all_contents = []
+            for subj in unique_subjects:
+                subj_filter = f"subject eq '{subj}'"
+                subject_content = await search_service.search_documents(
+                    index_name=content_index_name,
+                    query="*", 
+                    filter=subj_filter,
+                    top=8,  # Get more items per subject for content vs recommendations
+                    select="id,title,description,subject,content_type,difficulty_level,grade_level,topics,url,duration_minutes,keywords,source"
+                )
+                
+                if subject_content:
+                    logger.info(f"Adding {len(subject_content)} items from subject '{subj}'")
+                    all_contents.extend(subject_content)
+            
+            # Shuffle to mix subjects
+            import random
+            random.shuffle(all_contents)
+            
+            # Limit to a reasonable number
+            contents = all_contents[:50]
+            logger.info(f"Prepared {len(contents)} balanced content items across subjects")
+        else:
+            # Normal filtered search for specified subject
+            contents = await search_service.search_documents(
+                index_name=content_index_name,
+                query="*",
+                filter=filter_expression,
+                top=50,
+                select="id,title,description,subject,content_type,difficulty_level,grade_level,topics,url,duration_minutes,keywords,source"
+            )
         
         if not contents:
             # Log the empty result situation with details
@@ -274,13 +318,59 @@ async def get_recommendations_endpoint(
         # For now, instead of personalized recommendations, just return general content
         # Use the search_documents method which is available on SearchService
         content_index_name = settings.CONTENT_INDEX_NAME or "educational-content"
-        recommendations = await search_service.search_documents(
-            index_name=content_index_name,
-            query="*",
-            filter=filter_expression,
-            top=12,
-            select="id,title,description,subject,content_type,difficulty_level,grade_level,topics,url,duration_minutes,keywords,source"
-        )
+        
+        # When no subject is provided, we want to return a balanced mix of content from all subjects
+        if not subject:
+            logger.info("No subject specified for recommendations, getting content from all subjects")
+            
+            # Get all available subjects first
+            all_subjects = await search_service.search_documents(
+                index_name=content_index_name,
+                query="*",
+                top=100,
+                select="subject"
+            )
+            
+            # Extract unique subjects
+            unique_subjects = set()
+            for item in all_subjects:
+                if "subject" in item and item["subject"]:
+                    unique_subjects.add(item["subject"])
+            
+            logger.info(f"Found {len(unique_subjects)} unique subjects: {unique_subjects}")
+            
+            # Get 3-4 items from each subject to create a balanced mix
+            all_recommendations = []
+            for subj in unique_subjects:
+                subj_filter = f"subject eq '{subj}'"
+                subject_content = await search_service.search_documents(
+                    index_name=content_index_name,
+                    query="*",
+                    filter=subj_filter,
+                    top=3, # Get up to 3 items per subject
+                    select="id,title,description,subject,content_type,difficulty_level,grade_level,topics,url,duration_minutes,keywords,source"
+                )
+                
+                if subject_content:
+                    logger.info(f"Adding {len(subject_content)} items from subject '{subj}'")
+                    all_recommendations.extend(subject_content)
+            
+            # Shuffle the recommendations to mix up subjects
+            import random
+            random.shuffle(all_recommendations)
+            
+            # Limit to top 12-15 items total
+            recommendations = all_recommendations[:15]
+            logger.info(f"Prepared {len(recommendations)} balanced recommendations across subjects")
+        else:
+            # Normal filter-based search for specified subject
+            recommendations = await search_service.search_documents(
+                index_name=content_index_name,
+                query="*",
+                filter=filter_expression,
+                top=12,
+                select="id,title,description,subject,content_type,difficulty_level,grade_level,topics,url,duration_minutes,keywords,source"
+            )
         
         if not recommendations:
             # Log the empty result situation with details
