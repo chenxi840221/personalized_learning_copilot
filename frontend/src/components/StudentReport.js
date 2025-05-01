@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useEntraAuth } from '../hooks/useEntraAuth';
 import { useLocation } from 'react-router-dom';
 import { uploadReport, getReports, getReport, deleteReport, apiClient } from '../services/api';
+import TestApiReport from './TestApiReport';
 
 const StudentReport = () => {
   const { user } = useAuth();
@@ -56,13 +57,13 @@ const StudentReport = () => {
       console.log('🚀 Component mounted with authenticated user, fetching reports');
       fetchReports();
       
-      // Set up a more frequent refresh interval (every 10 seconds) while component is mounted
+      // Set up a periodic refresh at 30 second intervals while the component is mounted
       const intervalId = setInterval(() => {
         console.log('⏰ Periodic refresh triggered');
         if (document.visibilityState === 'visible') {
           fetchReports();
         }
-      }, 10000); // 10 seconds
+      }, 30000); // 30 seconds
       
       // Also set a short timeout to ensure data is loaded after mount
       const initialDelayId = setTimeout(() => {
@@ -256,7 +257,8 @@ const StudentReport = () => {
     }
     
     // Check if Authorization header is already set
-    if (!apiClient.defaults.headers.common['Authorization']) {
+    const authHeader = apiClient.defaults.headers.common['Authorization'];
+    if (!authHeader) {
       console.log('🔐 Authorization header not set, getting fresh token');
       try {
         const token = await getAccessToken();
@@ -274,6 +276,20 @@ const StudentReport = () => {
         return false;
       }
     } else {
+      // Even if header exists, check if token is valid and refresh if needed
+      try {
+        // Always get a fresh token to ensure it's valid
+        const token = await getAccessToken({ forceRefresh: false });
+        if (token) {
+          // Update header with fresh token
+          console.log('🔄 Refreshing existing Authorization header with fresh token');
+          apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        }
+      } catch (error) {
+        console.warn('⚠️ Error refreshing token, continuing with existing token:', error);
+        // Continue with existing token
+      }
+      
       console.log('✅ Authorization header already set');
       return true;
     }
@@ -282,8 +298,20 @@ const StudentReport = () => {
   const fetchReports = async () => {
     console.log('🔄 FETCH REPORTS CALLED - API REQUEST STARTING');
     
-    // Ensure authentication first
-    if (!await ensureAuth()) {
+    // Ensure authentication first with multiple retry attempts
+    let authSuccess = false;
+    
+    // First try
+    authSuccess = await ensureAuth();
+    
+    // If first try failed, try one more time after a short delay
+    if (!authSuccess) {
+      console.log('⚠️ First auth attempt failed, trying again...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      authSuccess = await ensureAuth();
+    }
+    
+    if (!authSuccess) {
       console.error('❌ Authentication check failed, cannot fetch reports');
       setError('Authentication required. Please log in.');
       setLoading(false);
@@ -320,8 +348,14 @@ const StudentReport = () => {
       if (err?.response?.status === 401) {
         console.error('🔒 Authentication error (401), trying to refresh token');
         try {
-          const refreshed = await ensureAuth();
-          if (refreshed) {
+          // Try to get a completely fresh token with force refresh
+          const token = await getAccessToken({ forceRefresh: true });
+          
+          if (token) {
+            // Set the fresh token in the header
+            console.log('🔑 Setting fresh token after 401 error');
+            apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            
             // Try the request again with the new token
             console.log('🔄 Retrying fetch with new token');
             const data = await getReports();
@@ -489,9 +523,12 @@ const StudentReport = () => {
     return new Date(dateString).toLocaleDateString();
   };
 
+  // Generate a unique key for rendering
+  const componentKey = `reports-${lastFetchTime}`;
+  
   // Restructured for easier debugging
   return (
-    <div id="reports-container" className="container mx-auto px-4 py-8">
+    <div id="reports-container" className="container mx-auto px-4 py-8" key={componentKey}>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Student Reports</h1>
         <button 
@@ -510,6 +547,8 @@ const StudentReport = () => {
           Refresh Reports
         </button>
       </div>
+      
+      {/* TestApiReport component removed as requested */}
       
       {/* Upload Form */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
@@ -595,6 +634,8 @@ const StudentReport = () => {
                 Refresh List
               </button>
             </div>
+            
+            {/* Debug panel removed as requested */}
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {reports.map((report) => (

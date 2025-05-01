@@ -9,7 +9,7 @@ import { api } from './api';
  * @param {number|null} gradeLevel - Optional grade level filter
  * @returns {Promise<Array>} Array of content items
  */
-export const getContent = async (subject = null, contentType = null, difficulty = null, gradeLevel = null, page = 1, limit = 21) => {
+export const getContent = async (subject = null, contentType = null, difficulty = null, gradeLevel = null, page = 1, limit = 100) => {
   try {
     console.log(`🔍 Fetching content with filters - Subject: ${subject}, Type: ${contentType}, Page: ${page}`);
     
@@ -51,7 +51,7 @@ export const getContent = async (subject = null, contentType = null, difficulty 
  * @param {string|null} subject - Optional subject filter
  * @returns {Promise<Array>} Array of recommended content items
  */
-export const getRecommendations = async (subject = null, page = 1, limit = 21) => {
+export const getRecommendations = async (subject = null, page = 1, limit = 100) => {
   try {
     console.log(`🔍 Fetching personalized recommendations${subject ? ` for ${subject}` : ''} (page ${page})`);
     
@@ -105,7 +105,7 @@ export const getRecommendations = async (subject = null, page = 1, limit = 21) =
  * @param {string|null} contentType - Optional content type filter
  * @returns {Promise<Array>} Array of content items matching the search
  */
-export const searchContent = async (query, subject = null, contentType = null, page = 1, limit = 21) => {
+export const searchContent = async (query, subject = null, contentType = null, page = 1, limit = 100) => {
   try {
     console.log(`🔍 Searching for content with query: "${query}"${subject ? `, subject: ${subject}` : ''}${contentType ? `, type: ${contentType}` : ''} (page ${page})`);
     

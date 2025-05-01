@@ -171,12 +171,7 @@ const ContentPage = () => {
                 : `${activeSubject} Resources`}
           </h1>
           
-          {/* Top content counter */}
-          {!isLoading && contentItems.length > 0 && (
-            <span className="mt-2 sm:mt-0 text-sm bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-medium">
-              {contentItems.length} {contentItems.length === 1 ? 'item' : 'items'} found
-            </span>
-          )}
+          {/* Top content counter removed as requested */}
         </div>
         
         {/* Search Bar */}

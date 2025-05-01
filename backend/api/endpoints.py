@@ -99,7 +99,7 @@ async def get_content_endpoint(
     difficulty: Optional[str] = Query(None, description="Filter by difficulty level"),
     grade_level: Optional[int] = Query(None, description="Filter by grade level"),
     page: int = Query(1, description="Page number for pagination"),
-    limit: int = Query(21, description="Number of items per page")
+    limit: int = Query(100, description="Number of items per page")
     # Remove authentication for now
     # current_user: Dict = Depends(get_current_user)
 ):
@@ -156,60 +156,21 @@ async def get_content_endpoint(
         skip_value = (page - 1) * limit
         logger.info(f"Pagination: page={page}, limit={limit}, skip={skip_value}")
         
-        # When no subject is provided, ensure we're getting a representative sample across subjects
+        # When no subject is provided, use a more direct approach to get all content
         if not subject:
-            logger.info("No subject filter, getting content from across various subjects")
+            logger.info("No subject filter, getting all content directly")
             
-            # Get all available subjects first to ensure balanced representation
-            all_subjects_result = await search_service.search_documents(
+            # For pagination without subject filter, use direct query with skip/limit
+            contents = await search_service.search_documents(
                 index_name=content_index_name,
                 query="*",
-                top=100,
-                select="subject"
+                filter=None,  # No filter means get everything
+                top=limit, 
+                skip=skip_value,
+                select="id,title,description,subject,content_type,difficulty_level,grade_level,topics,url,duration_minutes,keywords,source"
             )
             
-            # Extract unique subjects
-            unique_subjects = set()
-            for item in all_subjects_result:
-                if "subject" in item and item["subject"]:
-                    unique_subjects.add(item["subject"])
-            
-            logger.info(f"Found {len(unique_subjects)} unique subjects for content: {unique_subjects}")
-            
-            # For pagination without subject filter, we need to get enough content first
-            # and then paginate from the aggregated results
-            items_per_subject = 10  # Get enough from each subject 
-            
-            # Get representative content from each subject
-            all_contents = []
-            for subj in unique_subjects:
-                subj_filter = f"subject eq '{subj}'"
-                subject_content = await search_service.search_documents(
-                    index_name=content_index_name,
-                    query="*", 
-                    filter=subj_filter,
-                    top=items_per_subject,  # Get more items per subject
-                    select="id,title,description,subject,content_type,difficulty_level,grade_level,topics,url,duration_minutes,keywords,source"
-                )
-                
-                if subject_content:
-                    logger.info(f"Adding {len(subject_content)} items from subject '{subj}'")
-                    all_contents.extend(subject_content)
-            
-            # Shuffle to mix subjects - use a fixed seed for consistent ordering across pages
-            import random
-            random_gen = random.Random(42)  # Use fixed seed for consistent shuffling
-            random_gen.shuffle(all_contents)
-            
-            # Get total count for pagination info
-            total_count = len(all_contents)
-            
-            # Get the current page of results
-            start_idx = min(skip_value, total_count)
-            end_idx = min(start_idx + limit, total_count)
-            
-            contents = all_contents[start_idx:end_idx]
-            logger.info(f"Paginated results: {start_idx+1}-{end_idx} of {total_count} total items")
+            logger.info(f"Direct pagination: fetched page {page} with {len(contents)} items")
         else:
             # For subject-specific search, we can paginate directly via the Azure Search API
             contents = await search_service.search_documents(
@@ -290,7 +251,7 @@ async def get_content_by_id_endpoint(
 async def get_recommendations_endpoint(
     subject: Optional[str] = Query(None, description="Optional subject filter"),
     page: int = Query(1, description="Page number for pagination"),
-    limit: int = Query(21, description="Number of items per page")
+    limit: int = Query(100, description="Number of items per page")
     # Remove authentication for now
     # current_user: Dict = Depends(get_current_user)
 ):
@@ -364,7 +325,7 @@ async def get_recommendations_endpoint(
             logger.info(f"Found {len(unique_subjects)} unique subjects: {unique_subjects}")
             
             # Get more items from each subject for pagination support
-            items_per_subject = 8  # Increased for pagination
+            items_per_subject = 1000  # Significantly increased to show all available content
             all_recommendations = []
             
             for subj in unique_subjects:
@@ -430,7 +391,7 @@ async def search_content_endpoint(
     subject: Optional[str] = Query(None, description="Filter by subject"),
     content_type: Optional[str] = Query(None, description="Filter by content type", alias="content_type"),
     page: int = Query(1, description="Page number for pagination"),
-    limit: int = Query(21, description="Number of items per page")
+    limit: int = Query(100, description="Number of items per page")
     # Remove authentication for now
     # current_user: Dict = Depends(get_current_user)
 ):
