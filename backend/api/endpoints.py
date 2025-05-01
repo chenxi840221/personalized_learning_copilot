@@ -97,7 +97,9 @@ async def get_content_endpoint(
     subject: Optional[str] = Query(None, description="Filter by subject"),
     content_type: Optional[str] = Query(None, description="Filter by content type"),
     difficulty: Optional[str] = Query(None, description="Filter by difficulty level"),
-    grade_level: Optional[int] = Query(None, description="Filter by grade level")
+    grade_level: Optional[int] = Query(None, description="Filter by grade level"),
+    page: int = Query(1, description="Page number for pagination"),
+    limit: int = Query(21, description="Number of items per page")
     # Remove authentication for now
     # current_user: Dict = Depends(get_current_user)
 ):
@@ -150,6 +152,10 @@ async def get_content_endpoint(
             
             logger.info(f"Available subjects in index: {subjects_in_index}")
         
+        # Calculate skip value for pagination (0-indexed)
+        skip_value = (page - 1) * limit
+        logger.info(f"Pagination: page={page}, limit={limit}, skip={skip_value}")
+        
         # When no subject is provided, ensure we're getting a representative sample across subjects
         if not subject:
             logger.info("No subject filter, getting content from across various subjects")
@@ -170,6 +176,10 @@ async def get_content_endpoint(
             
             logger.info(f"Found {len(unique_subjects)} unique subjects for content: {unique_subjects}")
             
+            # For pagination without subject filter, we need to get enough content first
+            # and then paginate from the aggregated results
+            items_per_subject = 10  # Get enough from each subject 
+            
             # Get representative content from each subject
             all_contents = []
             for subj in unique_subjects:
@@ -178,7 +188,7 @@ async def get_content_endpoint(
                     index_name=content_index_name,
                     query="*", 
                     filter=subj_filter,
-                    top=8,  # Get more items per subject for content vs recommendations
+                    top=items_per_subject,  # Get more items per subject
                     select="id,title,description,subject,content_type,difficulty_level,grade_level,topics,url,duration_minutes,keywords,source"
                 )
                 
@@ -186,20 +196,28 @@ async def get_content_endpoint(
                     logger.info(f"Adding {len(subject_content)} items from subject '{subj}'")
                     all_contents.extend(subject_content)
             
-            # Shuffle to mix subjects
+            # Shuffle to mix subjects - use a fixed seed for consistent ordering across pages
             import random
-            random.shuffle(all_contents)
+            random_gen = random.Random(42)  # Use fixed seed for consistent shuffling
+            random_gen.shuffle(all_contents)
             
-            # Limit to a reasonable number
-            contents = all_contents[:50]
-            logger.info(f"Prepared {len(contents)} balanced content items across subjects")
+            # Get total count for pagination info
+            total_count = len(all_contents)
+            
+            # Get the current page of results
+            start_idx = min(skip_value, total_count)
+            end_idx = min(start_idx + limit, total_count)
+            
+            contents = all_contents[start_idx:end_idx]
+            logger.info(f"Paginated results: {start_idx+1}-{end_idx} of {total_count} total items")
         else:
-            # Normal filtered search for specified subject
+            # For subject-specific search, we can paginate directly via the Azure Search API
             contents = await search_service.search_documents(
                 index_name=content_index_name,
                 query="*",
                 filter=filter_expression,
-                top=50,
+                top=limit,
+                skip=skip_value,
                 select="id,title,description,subject,content_type,difficulty_level,grade_level,topics,url,duration_minutes,keywords,source"
             )
         
@@ -270,7 +288,9 @@ async def get_content_by_id_endpoint(
         )
 
 async def get_recommendations_endpoint(
-    subject: Optional[str] = Query(None, description="Optional subject filter")
+    subject: Optional[str] = Query(None, description="Optional subject filter"),
+    page: int = Query(1, description="Page number for pagination"),
+    limit: int = Query(21, description="Number of items per page")
     # Remove authentication for now
     # current_user: Dict = Depends(get_current_user)
 ):
@@ -319,6 +339,10 @@ async def get_recommendations_endpoint(
         # Use the search_documents method which is available on SearchService
         content_index_name = settings.CONTENT_INDEX_NAME or "educational-content"
         
+        # Calculate skip value for pagination (0-indexed)
+        skip_value = (page - 1) * limit
+        logger.info(f"Recommendations pagination: page={page}, limit={limit}, skip={skip_value}")
+        
         # When no subject is provided, we want to return a balanced mix of content from all subjects
         if not subject:
             logger.info("No subject specified for recommendations, getting content from all subjects")
@@ -339,15 +363,17 @@ async def get_recommendations_endpoint(
             
             logger.info(f"Found {len(unique_subjects)} unique subjects: {unique_subjects}")
             
-            # Get 3-4 items from each subject to create a balanced mix
+            # Get more items from each subject for pagination support
+            items_per_subject = 8  # Increased for pagination
             all_recommendations = []
+            
             for subj in unique_subjects:
                 subj_filter = f"subject eq '{subj}'"
                 subject_content = await search_service.search_documents(
                     index_name=content_index_name,
                     query="*",
                     filter=subj_filter,
-                    top=3, # Get up to 3 items per subject
+                    top=items_per_subject, 
                     select="id,title,description,subject,content_type,difficulty_level,grade_level,topics,url,duration_minutes,keywords,source"
                 )
                 
@@ -355,20 +381,28 @@ async def get_recommendations_endpoint(
                     logger.info(f"Adding {len(subject_content)} items from subject '{subj}'")
                     all_recommendations.extend(subject_content)
             
-            # Shuffle the recommendations to mix up subjects
+            # Shuffle the recommendations with a fixed seed for consistent ordering
             import random
-            random.shuffle(all_recommendations)
+            random_gen = random.Random(42)  # Use fixed seed for consistent shuffling
+            random_gen.shuffle(all_recommendations)
             
-            # Limit to top 12-15 items total
-            recommendations = all_recommendations[:15]
-            logger.info(f"Prepared {len(recommendations)} balanced recommendations across subjects")
+            # Get total count for pagination info
+            total_count = len(all_recommendations)
+            
+            # Get the page of results
+            start_idx = min(skip_value, total_count)
+            end_idx = min(start_idx + limit, total_count)
+            
+            recommendations = all_recommendations[start_idx:end_idx]
+            logger.info(f"Recommendations paginated results: {start_idx+1}-{end_idx} of {total_count} total items")
         else:
-            # Normal filter-based search for specified subject
+            # Normal filter-based search for specified subject with pagination
             recommendations = await search_service.search_documents(
                 index_name=content_index_name,
                 query="*",
                 filter=filter_expression,
-                top=12,
+                top=limit,
+                skip=skip_value,
                 select="id,title,description,subject,content_type,difficulty_level,grade_level,topics,url,duration_minutes,keywords,source"
             )
         
@@ -394,7 +428,9 @@ async def get_recommendations_endpoint(
 async def search_content_endpoint(
     query: str = Query(..., description="Search query"),
     subject: Optional[str] = Query(None, description="Filter by subject"),
-    content_type: Optional[str] = Query(None, description="Filter by content type", alias="content_type")
+    content_type: Optional[str] = Query(None, description="Filter by content type", alias="content_type"),
+    page: int = Query(1, description="Page number for pagination"),
+    limit: int = Query(21, description="Number of items per page")
     # Remove authentication for now
     # current_user: Dict = Depends(get_current_user)
 ):
@@ -462,11 +498,16 @@ async def search_content_endpoint(
                     return filtered_contents
         
         # Standard search if the above didn't work or for other subjects
+        # Calculate skip value for pagination
+        skip_value = (page - 1) * limit
+        logger.info(f"Search pagination: page={page}, limit={limit}, skip={skip_value}")
+        
         contents = await search_service.search_documents(
             index_name=content_index_name,
             query=query,
             filter=filter_expression,
-            top=20,
+            top=limit,
+            skip=skip_value,
             select="id,title,description,subject,content_type,difficulty_level,grade_level,topics,url,duration_minutes,keywords,source"
         )
         

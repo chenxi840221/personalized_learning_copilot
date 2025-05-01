@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { getContent, getRecommendations, searchContent } from '../services/content';
 import ContentRecommendation from '../components/ContentRecommendation';
@@ -14,15 +14,81 @@ const ContentPage = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const observer = useRef();
+  const lastElementRef = useRef();
+  
   // Available subjects and content types - extended with more options
   const subjects = ['All', 'Maths', 'Science', 'English', 'History', 'Geography', 'Arts'];
   const contentTypes = ['All', 'Video', 'Article', 'Interactive', 'Quiz', 'Lesson', 'Worksheet', 'Activity'];
   
-  // Fetch content on component mount and when filters change
+  // Last element ref for infinite scrolling
+  const lastItemElementRef = useCallback(node => {
+    if (loadingMore) return;
+    if (observer.current) observer.current.disconnect();
+    
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        console.log('🔄 Reached bottom of content list, loading more...');
+        loadMoreContent();
+      }
+    });
+    
+    if (node) observer.current.observe(node);
+  }, [loadingMore, hasMore]);
+  
+  // Function to load more content
+  const loadMoreContent = async () => {
+    if (!hasMore || loadingMore) return;
+    
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    console.log(`📑 Loading more content (page ${nextPage})`);
+    
+    try {
+      let newData = [];
+      const subjectParam = activeSubject !== 'All' ? activeSubject : null;
+      const typeParam = activeType !== 'All' ? activeType.toLowerCase() : null;
+      
+      if (isSearching && searchQuery.trim()) {
+        // Load more search results
+        newData = await searchContent(searchQuery, subjectParam, typeParam, nextPage);
+      } else if (activeSubject === 'All' && activeType === 'All') {
+        // Load more recommendations
+        newData = await getRecommendations(null, nextPage);
+      } else {
+        // Load more filtered content
+        newData = await getContent(subjectParam, typeParam, null, null, nextPage);
+      }
+      
+      // If no new items or fewer than requested, we've reached the end
+      if (!newData || newData.length === 0) {
+        setHasMore(false);
+        console.log('🏁 No more content to load');
+      } else {
+        setContentItems(prev => [...prev, ...newData]);
+        setPage(nextPage);
+        console.log(`📊 Loaded ${newData.length} more items (total: ${contentItems.length + newData.length})`);
+      }
+    } catch (err) {
+      console.error('❌ Error loading more content:', err);
+      // Don't set error state to avoid replacing the content already shown
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+  
+  // Fetch initial content on component mount and when filters change
   useEffect(() => {
     const fetchContent = async () => {
       setIsLoading(true);
       setError('');
+      setContentItems([]);  // Clear existing content
+      setPage(1);           // Reset to first page
+      setHasMore(true);     // Reset has more flag
       
       try {
         let data = [];
@@ -45,6 +111,11 @@ const ContentPage = () => {
           console.log(`📚 Getting filtered content - Subject: ${subjectParam}, Type: ${typeParam}`);
           
           data = await getContent(subjectParam, typeParam);
+        }
+        
+        // If we got fewer items than expected, there's no more to load
+        if (!data || data.length < 21) {
+          setHasMore(false);
         }
         
         console.log(`📊 Loaded ${data?.length || 0} content items`);
@@ -198,11 +269,39 @@ const ContentPage = () => {
             <p className="mt-4 text-gray-600">Loading content...</p>
           </div>
         ) : contentItems.length > 0 ? (
-          /* Content Items */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {contentItems.map(content => (
-              <ContentRecommendation key={content.id} content={content} />
-            ))}
+          /* Content Items with infinite scroll */
+          <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {contentItems.map((content, index) => {
+                // Apply ref to last element for intersection observer
+                if (contentItems.length === index + 1) {
+                  return (
+                    <div ref={lastItemElementRef} key={content.id}>
+                      <ContentRecommendation content={content} />
+                    </div>
+                  );
+                } else {
+                  return (
+                    <ContentRecommendation key={content.id} content={content} />
+                  );
+                }
+              })}
+            </div>
+            
+            {/* Loading more indicator */}
+            {loadingMore && (
+              <div className="flex justify-center my-8">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                <span className="ml-3 text-gray-600">Loading more content...</span>
+              </div>
+            )}
+            
+            {/* No more content indicator */}
+            {!hasMore && contentItems.length > 20 && (
+              <div className="text-center my-8 text-gray-500">
+                <p>You've reached the end of the content.</p>
+              </div>
+            )}
           </div>
         ) : (
           /* No Content Found */

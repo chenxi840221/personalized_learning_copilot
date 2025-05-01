@@ -9,12 +9,16 @@ import { api } from './api';
  * @param {number|null} gradeLevel - Optional grade level filter
  * @returns {Promise<Array>} Array of content items
  */
-export const getContent = async (subject = null, contentType = null, difficulty = null, gradeLevel = null) => {
+export const getContent = async (subject = null, contentType = null, difficulty = null, gradeLevel = null, page = 1, limit = 21) => {
   try {
-    console.log(`🔍 Fetching content with filters - Subject: ${subject}, Type: ${contentType}`);
+    console.log(`🔍 Fetching content with filters - Subject: ${subject}, Type: ${contentType}, Page: ${page}`);
     
     // Build query parameters
-    const params = {};
+    const params = {
+      page,
+      limit
+    };
+    
     if (subject) {
       // Map "Maths" in frontend to what the backend expects
       if (subject === "Maths") {
@@ -29,7 +33,7 @@ export const getContent = async (subject = null, contentType = null, difficulty 
     
     // Make API request
     const result = await api.get('/content', params);
-    console.log(`📚 Received ${result?.length || 0} content items from API`);
+    console.log(`📚 Received ${result?.length || 0} content items from API (page ${page})`);
     return result;
   } catch (error) {
     console.error('❌ Failed to fetch content:', error);
@@ -47,12 +51,16 @@ export const getContent = async (subject = null, contentType = null, difficulty 
  * @param {string|null} subject - Optional subject filter
  * @returns {Promise<Array>} Array of recommended content items
  */
-export const getRecommendations = async (subject = null) => {
+export const getRecommendations = async (subject = null, page = 1, limit = 21) => {
   try {
-    console.log(`🔍 Fetching personalized recommendations${subject ? ` for ${subject}` : ''}`);
+    console.log(`🔍 Fetching personalized recommendations${subject ? ` for ${subject}` : ''} (page ${page})`);
     
     // Build query parameters
-    const params = {};
+    const params = {
+      page,
+      limit
+    };
+    
     if (subject) {
       // Map "Maths" in frontend to what the backend expects
       if (subject === "Maths") {
@@ -65,7 +73,7 @@ export const getRecommendations = async (subject = null) => {
     try {
       // First try the recommendations endpoint
       const result = await api.get('/content/recommendations', params);
-      console.log(`📚 Received ${result?.length || 0} recommended items from API`);
+      console.log(`📚 Received ${result?.length || 0} recommended items from API (page ${page})`);
       return result;
     } catch (recommendationError) {
       // If recommendations endpoint fails, fallback to main content endpoint
@@ -97,12 +105,17 @@ export const getRecommendations = async (subject = null) => {
  * @param {string|null} contentType - Optional content type filter
  * @returns {Promise<Array>} Array of content items matching the search
  */
-export const searchContent = async (query, subject = null, contentType = null) => {
+export const searchContent = async (query, subject = null, contentType = null, page = 1, limit = 21) => {
   try {
-    console.log(`🔍 Searching for content with query: "${query}"${subject ? `, subject: ${subject}` : ''}${contentType ? `, type: ${contentType}` : ''}`);
+    console.log(`🔍 Searching for content with query: "${query}"${subject ? `, subject: ${subject}` : ''}${contentType ? `, type: ${contentType}` : ''} (page ${page})`);
     
     // Build query parameters
-    const params = { query };
+    const params = { 
+      query,
+      page,
+      limit
+    };
+    
     if (subject) {
       // Map "Maths" in frontend to what the backend expects
       if (subject === "Maths") {
@@ -115,7 +128,7 @@ export const searchContent = async (query, subject = null, contentType = null) =
     
     // Make API request using GET as defined in the backend
     const result = await api.get('/content/search', params);
-    console.log(`🔎 Found ${result?.length || 0} search results`);
+    console.log(`🔎 Found ${result?.length || 0} search results (page ${page})`);
     return result;
   } catch (error) {
     console.error('❌ Failed to search content:', error);
