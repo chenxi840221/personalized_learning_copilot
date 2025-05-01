@@ -64,16 +64,20 @@ async def count_content_by_subject(search_service, index_name):
             filter_expression = f"subject eq '{subject}'"
             
             try:
-                # First try with a count query (more efficient)
+                # Query with select=id to minimize data transfer
                 result = await search_service.search_documents(
                     index_name=index_name,
                     query="*",
                     filter=filter_expression,
-                    top=0,
-                    include_total_count=True
+                    top=1000,  # Get up to 1000 items
+                    select="id"
                 )
                 
                 count = len(result) if result else 0
+                
+                # If we got exactly 1000 items, there might be more
+                if count == 1000:
+                    print(f"Note: Subject '{subject}' may have more than 1000 items")
                 subject_counts[subject] = count
                 
             except Exception as count_error:
@@ -94,15 +98,11 @@ async def count_content_by_subject(search_service, index_name):
                     print(f"Error in fallback method for subject '{subject}': {fallback_error}")
                     subject_counts[subject] = -1  # Indicate error
         
-        # Get total item count
-        total_result = await search_service.search_documents(
-            index_name=index_name,
-            query="*",
-            top=0,
-            include_total_count=True
-        )
+        # Get total item count by summing individual subject counts
+        # This is an approximation if there are items with no subject or multiple subjects
+        total_count = sum(count for count in subject_counts.values() if count >= 0)
         
-        total_count = len(total_result) if total_result else 0
+        print(f"Total count (sum of subjects): {total_count}")
         
         # Sort subjects by count and prepare table data
         table_data = []

@@ -252,12 +252,13 @@ async def main():
         # Define the index name
         index_name = settings.CONTENT_INDEX_NAME or "educational-content"
         
-        # First, get the total count of items in the index
+        # First, get an approximation of total items by retrieving with a high limit
+        print("Getting approximation of total items...")
         total_result = await search_service.search_documents(
             index_name=index_name,
             query="*",
-            top=0,
-            include_total_count=True
+            top=1000,
+            select="id"  # Only get IDs to minimize data transfer
         )
         
         total_count = len(total_result) if total_result else 0

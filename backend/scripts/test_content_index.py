@@ -57,17 +57,25 @@ async def get_content_stats(search_service, index_name, subject=None, count=100,
             
             print(f"Filtering by subject: {subject} (Filter: {filter_expression})")
         
-        # Get total count of documents in the index
-        total_result = await search_service.search_documents(
-            index_name=index_name,
-            query="*",
-            filter=filter_expression,
-            top=0,
-            include_total_count=True
-        )
-        
-        total_count = len(total_result) if total_result else 0
-        print(f"Found {total_count} content items{' for subject ' + subject if subject else ''}")
+        # Get total count of documents in the index by retrieving all IDs
+        try:
+            total_result = await search_service.search_documents(
+                index_name=index_name,
+                query="*",
+                filter=filter_expression,
+                top=1000,
+                select="id"  # Only retrieve IDs to minimize data transfer
+            )
+            
+            total_count = len(total_result) if total_result else 0
+            print(f"Found {total_count} content items{' for subject ' + subject if subject else ''}")
+            
+            # If we get exactly 1000 items, there might be more
+            if total_count == 1000:
+                print("Note: Retrieved maximum of 1000 items, total count may be higher")
+        except Exception as count_error:
+            print(f"Error getting total count: {count_error}")
+            total_count = 0
         
         # Retrieve content items for detailed analysis
         results = await search_service.search_documents(
