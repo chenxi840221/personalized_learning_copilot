@@ -17,7 +17,9 @@ This system automates the creation of student academic reports by leveraging Azu
 - **📊 Customizable Assessments**: Creates comments tailored to specific subjects and student profiles
 - **⚡ Batch Processing**: Generate multiple reports simultaneously with unique student profiles
 - **📄 Multiple Output Formats**: Export reports as PDF or HTML with professionally formatted layouts
-- **🖼️ DALL-E Image Generation**: Optional integration to create school logos and student photos
+- **🖼️ DALL-E Image Generation**: Integrated DALL-E capabilities for generating school logos and student photos
+- **🔄 Flexible Template System**: Easily customize report templates with Jinja2 templating
+- **📐 Multiple Image Sizes**: Support for various DALL-E image sizes (1024x1024, 1792x1024, 1024x1792)
 
 ## 🛠️ Installation
 
@@ -73,6 +75,10 @@ For enhanced PDF generation:
   ```
 - **wkhtmltopdf** (external tool for improved rendering)
   - Download from: https://wkhtmltopdf.org/downloads.html
+- **ReportLab** (additional PDF generation capabilities)
+  ```bash
+  pip install reportlab
+  ```
 
 ## 🚀 Usage
 
@@ -129,6 +135,13 @@ For reports with AI-generated images:
 python generate_dalle_reports.py single --style act --badge-style modern
 ```
 
+#### DALL-E Configuration Options
+
+- `--badge-style`: Style of school badge/logo (modern, traditional, minimalist, elegant)
+- `--badge-colors`: Comma-separated color names (e.g., "navy blue,gold")
+- `--photo-style`: Style for student photos (school portrait, yearbook, classroom)
+- `--image-size`: Size for generated images (1024x1024, 1792x1024, 1024x1792)
+
 ## 🏫 Supported Report Styles
 
 The system supports multiple Australian educational jurisdiction styles:
@@ -158,17 +171,19 @@ student-report-synthesis/
 │       ├── styles/             # Report style handling
 │       ├── templates/          # HTML template handling
 │       ├── utils/              # Utility functions
+│       │   └── pdf_utils.py    # PDF conversion utilities
 │       ├── student_data_generator.py  # Synthetic profiles
 │       └── enhanced_report_generator.py  # Main generator
 ├── report_styles/              # Style configurations (JSON)
 ├── templates/                  # HTML templates
 ├── static/                     # Static assets
+│   ├── css/                    # CSS stylesheets
 │   └── images/
 │       └── logos/              # School and jurisdiction logos
 ├── output/                     # Generated reports
 ├── main.py                     # Main entry point
 ├── generate_reports.py         # CLI for report generation
-├── generate_dalle_reports.py   # DALL-E integration demo
+├── generate_dalle_reports.py   # DALL-E integration script
 └── manage_project.py           # Project setup utility
 ```
 
@@ -261,7 +276,11 @@ Templates use Jinja2 syntax and have access to the following data structure:
   },
   "semester": "1",
   "year": 2025,
-  "report_date": "19 April 2025"
+  "report_date": "19 April 2025",
+  "images": {  # When DALL-E is enabled
+    "school_logo": "path/to/generated/logo.png",
+    "student_photo": "path/to/generated/photo.png"
+  }
 }
 ```
 
@@ -285,6 +304,6 @@ pytest --cov=src tests/
 
 ## 🙏 Acknowledgements
 
-- This project uses Azure OpenAI services for AI-generated content
-- PDF conversion uses multiple libraries including WeasyPrint and xhtml2pdf
+- This project uses Azure OpenAI services for AI-generated content and DALL-E for image generation
+- PDF conversion uses multiple libraries including WeasyPrint, xhtml2pdf, and ReportLab
 - Template rendering uses Jinja2
