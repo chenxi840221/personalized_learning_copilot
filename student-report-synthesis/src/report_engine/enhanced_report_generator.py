@@ -195,12 +195,17 @@ class EnhancedReportGenerator:
             student_profile = data_generator.generate_student_profile()
             school_profile = data_generator.generate_school_profile(state=style if style in ["act", "nsw", "qld", "vic", "sa", "wa", "tas", "nt"] else "act")
             
+            # Generate randomized semester and year data
+            semester = str(random.randint(1, 2))
+            # Use current year minus 0-3 years to create a realistic range
+            year = datetime.now().year - random.randint(0, 3)
+            
             student_data = {
                 "student": student_profile.to_dict(),
                 "school": school_profile.to_dict(),
                 "report_id": report_id,
-                "semester": "1" if datetime.now().month < 7 else "2",
-                "year": datetime.now().year,
+                "semester": semester,
+                "year": year,
                 "report_date": datetime.now().strftime("%d %B %Y")
             }
         
@@ -222,49 +227,57 @@ class EnhancedReportGenerator:
                 image_options["photo_size"] = "1024x1024"
             
             try:
-                # Generate school badge
-                school_name = student_data["school"]["name"]
-                school_type = student_data["school"]["type"]
-                motto = student_data["school"].get("motto")
+                # Check if we need to generate a school badge
+                # Only generate if not already provided in the student data
+                if "logo_data" not in student_data["school"]:
+                    school_name = student_data["school"]["name"]
+                    school_type = student_data["school"]["type"]
+                    motto = student_data["school"].get("motto")
+                    
+                    school_logo = self.dalle_generator.generate_school_badge(
+                        school_name=school_name,
+                        school_type=school_type,
+                        style=image_options.get("badge_style", "modern"),
+                        colors=image_options.get("badge_colors", ["navy blue", "gold"]),
+                        motto=motto,
+                        image_size=image_options.get("photo_size", "1024x1024")  # Use validated size
+                    )
+                    
+                    # Add logo to school data
+                    student_data["school"]["logo_data"] = school_logo
+                    logger.info(f"Generated school badge for {school_name}")
+                else:
+                    logger.info(f"Using pre-existing school logo for {student_data['school']['name']}")
                 
-                school_logo = self.dalle_generator.generate_school_badge(
-                    school_name=school_name,
-                    school_type=school_type,
-                    style=image_options.get("badge_style", "modern"),
-                    colors=image_options.get("badge_colors", ["navy blue", "gold"]),
-                    motto=motto,
-                    image_size=image_options.get("photo_size", "1024x1024")  # Use validated size
-                )
-                
-                # Add logo to school data
-                student_data["school"]["logo_data"] = school_logo
-                logger.info(f"Generated school badge for {school_name}")
-                
-                # Generate student photo
-                student_gender = student_data["student"]["gender"]
-                
-                # Determine age from grade
-                grade_str = student_data["student"]["grade"].lower()
-                age = 10  # Default age
-                if "year" in grade_str:
-                    try:
-                        year_num = int(grade_str.split("year")[1].strip())
-                        age = 5 + year_num  # Year 1 = age 6, etc.
-                    except:
-                        pass
-                elif "kindergarten" in grade_str or "prep" in grade_str:
-                    age = 5
-                
-                student_photo = self.dalle_generator.generate_student_photo(
-                    gender=student_gender,
-                    age=age,
-                    style=image_options.get("photo_style", "school portrait"),
-                    image_size=image_options.get("photo_size", "1024x1024")  # Use validated size
-                )
-                
-                # Add photo to student data
-                student_data["student"]["photo_data"] = student_photo
-                logger.info(f"Generated student photo for {student_data['student']['name']['first_name']}")
+                # Check if we need to generate a student photo
+                # Only generate if not already provided in the student data
+                if "photo_data" not in student_data["student"]:
+                    student_gender = student_data["student"]["gender"]
+                    
+                    # Determine age from grade
+                    grade_str = student_data["student"]["grade"].lower()
+                    age = 10  # Default age
+                    if "year" in grade_str:
+                        try:
+                            year_num = int(grade_str.split("year")[1].strip())
+                            age = 5 + year_num  # Year 1 = age 6, etc.
+                        except:
+                            pass
+                    elif "kindergarten" in grade_str or "prep" in grade_str:
+                        age = 5
+                    
+                    student_photo = self.dalle_generator.generate_student_photo(
+                        gender=student_gender,
+                        age=age,
+                        style=image_options.get("photo_style", "school portrait"),
+                        image_size=image_options.get("photo_size", "1024x1024")  # Use validated size
+                    )
+                    
+                    # Add photo to student data
+                    student_data["student"]["photo_data"] = student_photo
+                    logger.info(f"Generated student photo for {student_data['student']['name']['first_name']}")
+                else:
+                    logger.info(f"Using pre-existing student photo for {student_data['student']['name']['first_name']}")
                 
             except Exception as e:
                 logger.error(f"Error generating images: {str(e)}")
@@ -278,6 +291,24 @@ class EnhancedReportGenerator:
         achievement_scale = style_config.get("achievement_scale", [])
         effort_scale = style_config.get("effort_scale", [])
         
+        # Extract progress information for AI comment generation
+        progress_factor = student_data.get("progress_factor", 0.0)
+        sequence_index = student_data.get("sequence_index", 0)
+        current_semester = student_data.get("semester", "1")
+        current_year = student_data.get("year", datetime.now().year)
+        previous_semester = student_data.get("previous_semester")
+        previous_year = student_data.get("previous_year")
+        
+        # If this is a report in a sequence (not the first), we need to adjust achievement and effort
+        # to show improvement over time. Performance should generally improve across the reports.
+        if sequence_index > 0:
+            # Adjust weights based on progress factor to show improvement over time
+            achievement_adjustment = min(sequence_index * 0.33, 0.8)  # Maximum 0.8 adjustment
+            effort_adjustment = min(sequence_index * 0.33, 0.8)  # Maximum 0.8 adjustment
+        else:
+            achievement_adjustment = 0
+            effort_adjustment = 0
+            
         subject_assessments = []
         
         for subject in subjects:
@@ -285,9 +316,35 @@ class EnhancedReportGenerator:
             # Create weights list with the same length as achievement_scale
             achievement_weights = []
             if len(achievement_scale) == 5:
-                achievement_weights = [0.1, 0.25, 0.4, 0.15, 0.1]  # 5 levels
+                # Base weights
+                base_weights = [0.1, 0.25, 0.4, 0.15, 0.1]  # 5 levels
+                
+                # For later reports, gradually shift weights toward better achievement
+                if achievement_adjustment > 0:
+                    # Shift weights toward better achievement (lower indices)
+                    achievement_weights = [
+                        base_weights[0] + achievement_adjustment * 0.2,  # Increase top level
+                        base_weights[1] + achievement_adjustment * 0.3,  # Increase second level
+                        base_weights[2] - achievement_adjustment * 0.1,  # Decrease middle
+                        base_weights[3] - achievement_adjustment * 0.2,  # Decrease fourth level
+                        base_weights[4] - achievement_adjustment * 0.2   # Decrease bottom level
+                    ]
+                else:
+                    achievement_weights = base_weights
             elif len(achievement_scale) == 3:
-                achievement_weights = [0.25, 0.5, 0.25]  # 3 levels
+                # Base weights
+                base_weights = [0.25, 0.5, 0.25]  # 3 levels
+                
+                # For later reports, gradually shift weights toward better achievement
+                if achievement_adjustment > 0:
+                    # Shift weights toward better achievement (lower indices)
+                    achievement_weights = [
+                        base_weights[0] + achievement_adjustment * 0.3,  # Increase top level
+                        base_weights[1] - achievement_adjustment * 0.1,  # Slight decrease middle
+                        base_weights[2] - achievement_adjustment * 0.2   # Decrease bottom level
+                    ]
+                else:
+                    achievement_weights = base_weights
             else:
                 # Ensure weights match the length of the scale
                 weight_per_item = 1.0 / len(achievement_scale)
@@ -303,9 +360,34 @@ class EnhancedReportGenerator:
             # Determine effort level - usually correlates somewhat with achievement
             effort_weights = []
             if len(effort_scale) == 4:
-                effort_weights = [0.4, 0.3, 0.2, 0.1]  # 4 levels
+                # Base weights
+                base_weights = [0.4, 0.3, 0.2, 0.1]  # 4 levels
+                
+                # For later reports, gradually shift weights toward better effort
+                if effort_adjustment > 0:
+                    # Shift weights toward better effort (lower indices)
+                    effort_weights = [
+                        base_weights[0] + effort_adjustment * 0.3,  # Increase top level
+                        base_weights[1] + effort_adjustment * 0.1,  # Slight increase second level
+                        base_weights[2] - effort_adjustment * 0.2,  # Decrease third level
+                        base_weights[3] - effort_adjustment * 0.2   # Decrease bottom level
+                    ]
+                else:
+                    effort_weights = base_weights
             elif len(effort_scale) == 3:
-                effort_weights = [0.4, 0.4, 0.2]  # 3 levels
+                # Base weights
+                base_weights = [0.4, 0.4, 0.2]  # 3 levels
+                
+                # For later reports, gradually shift weights toward better effort
+                if effort_adjustment > 0:
+                    # Shift weights toward better effort (lower indices)
+                    effort_weights = [
+                        base_weights[0] + effort_adjustment * 0.3,  # Increase top level
+                        base_weights[1] - effort_adjustment * 0.1,  # Slight decrease middle
+                        base_weights[2] - effort_adjustment * 0.2   # Decrease bottom level
+                    ]
+                else:
+                    effort_weights = base_weights
             else:
                 # Ensure weights match the length of the scale
                 weight_per_item = 1.0 / len(effort_scale)
@@ -335,7 +417,13 @@ class EnhancedReportGenerator:
                     achievement_level=achievement["label"],
                     effort_level=effort["label"],
                     style=style,
-                    comment_length=comment_length
+                    comment_length=comment_length,
+                    progress_factor=progress_factor,
+                    sequence_index=sequence_index,
+                    semester=current_semester,
+                    year=current_year,
+                    previous_semester=previous_semester,
+                    previous_year=previous_year
                 )
             except Exception as e:
                 logger.error(f"Error generating AI comment for {subject}: {str(e)}")
@@ -358,8 +446,13 @@ class EnhancedReportGenerator:
                 subjects_data=subject_assessments,
                 school_info=student_data["school"],
                 style=style,
-                semester=student_data.get("semester", "1"),
-                comment_length=comment_length
+                semester=current_semester,
+                year=current_year,
+                comment_length=comment_length,
+                progress_factor=progress_factor,
+                sequence_index=sequence_index,
+                previous_semester=previous_semester,
+                previous_year=previous_year
             )
         except Exception as e:
             logger.error(f"Error generating general comment: {str(e)}")
@@ -369,18 +462,48 @@ class EnhancedReportGenerator:
         
         # Generate attendance data if not provided
         if "attendance" not in student_data:
-            # Most students have good attendance
-            if random.random() < 0.7:  # 70% have good attendance
-                absent_days = random.randint(0, 5)
-                late_days = random.randint(0, 3)
-            elif random.random() < 0.9:  # 20% have moderate attendance issues
-                absent_days = random.randint(5, 10)
-                late_days = random.randint(2, 6)
-            else:  # 10% have significant attendance issues
-                absent_days = random.randint(10, 20)
-                late_days = random.randint(4, 10)
-            
+            # Keep total days consistent across all reports for the same student
             total_days = random.randint(45, 55)
+            
+            # Generate base profile for attendance
+            # Most students have generally good attendance
+            if random.random() < 0.7:  # 70% have generally good attendance
+                attendance_profile = "good"
+            elif random.random() < 0.9:  # 20% have moderate attendance issues
+                attendance_profile = "moderate"
+            else:  # 10% have significant attendance issues
+                attendance_profile = "poor"
+            
+            # Apply profile but adjust based on sequence index for improvement over time
+            improvement_factor = sequence_index * 0.15  # 0%, 15%, 30%, 45% improvement
+            
+            if attendance_profile == "good":
+                # Good attendance (0-5 absences) improves slightly over time
+                base_absences = random.randint(3, 5)
+                base_lates = random.randint(2, 3)
+                
+                # Reduce absences and lates over time (minimum 0)
+                absent_days = max(0, round(base_absences * (1 - improvement_factor)))
+                late_days = max(0, round(base_lates * (1 - improvement_factor)))
+                
+            elif attendance_profile == "moderate":
+                # Moderate attendance issues (5-10 absences) show more improvement
+                base_absences = random.randint(7, 10)
+                base_lates = random.randint(4, 6)
+                
+                # More significant reduction over time
+                absent_days = max(2, round(base_absences * (1 - improvement_factor * 1.2)))
+                late_days = max(1, round(base_lates * (1 - improvement_factor * 1.2)))
+                
+            else:  # poor attendance
+                # Poor attendance (10-20 absences) shows most significant improvement
+                base_absences = random.randint(12, 18)
+                base_lates = random.randint(6, 10)
+                
+                # Most significant reduction over time
+                absent_days = max(4, round(base_absences * (1 - improvement_factor * 1.5)))
+                late_days = max(2, round(base_lates * (1 - improvement_factor * 1.5)))
+            
             present_days = total_days - absent_days
             
             student_data["attendance"] = {
@@ -388,7 +511,9 @@ class EnhancedReportGenerator:
                 "present_days": present_days,
                 "absent_days": absent_days,
                 "late_days": late_days,
-                "attendance_rate": round(present_days / total_days * 100, 1)
+                "attendance_rate": round(present_days / total_days * 100, 1),
+                "profile": attendance_profile,
+                "improvement_factor": improvement_factor
             }
         
         # Determine output path
@@ -1003,11 +1128,18 @@ class EnhancedReportGenerator:
         """
         Generate a batch of synthetic student reports.
         
+        For each student, generates reports for four consecutive semesters spanning two years.
+        When image generation is enabled, the system will:
+        1. Generate student photos and school badges only for the first report of each student
+        2. Cache these images in memory
+        3. Reuse the cached images for subsequent reports of the same student
+        This ensures consistency across different semesters/years for the same student.
+        
         Args:
-            num_reports: Number of reports to generate
+            num_reports: Number of students to generate reports for
             style: Report style to use
             output_format: Output format (pdf or html)
-            comment_length: Length of comments (brief, standard, detailed)
+            comment_length: Length of comments (brief, standard, detailed) 
             batch_id: Optional batch ID (generated if not provided)
             generate_images: Whether to generate images using DALL-E
             image_options: Options for image generation
@@ -1022,52 +1154,125 @@ class EnhancedReportGenerator:
         output_dir = self.output_dir / batch_id
         os.makedirs(output_dir, exist_ok=True)
         
-        # Generate reports
+        # Generate reports - for each student, create 4 semester reports over 2 years
         reports = []
         
+        # Image cache to store and reuse generated images
+        # Structure: {'student_id': {'photo': photo_data_uri, 'school_logo': logo_data_uri}}
+        image_cache = {}
+        
         for i in range(num_reports):
-            try:
-                output_path = str(output_dir / f"report_{i+1}.{output_format}")
+            student_index = i + 1
+            student_id = f"student_{student_index}"
+            
+            # First, generate student and school profiles that will be shared across all reports
+            data_generator = StudentDataGenerator(style=style)
+            student_profile = data_generator.generate_student_profile()
+            school_profile = data_generator.generate_school_profile(state=style if style in ["act", "nsw", "qld", "vic", "sa", "wa", "tas", "nt"] else "act")
+            
+            # Set starting year (1-3 years ago)
+            base_year = datetime.now().year - random.randint(1, 3)
+            
+            # Generate 4 reports over 2 years (2 reports per year)
+            for semester_index in range(4):
+                # Calculate current semester and year
+                current_semester = (semester_index % 2) + 1  # Alternates between 1 and 2
+                current_year = base_year + (semester_index // 2)  # Changes every 2 semesters
                 
-                report_path = self.generate_report(
-                    student_data=None,  # Generate synthetic data
-                    style=style,
-                    output_format=output_format,
-                    comment_length=comment_length,
-                    output_path=output_path,
-                    generate_images=generate_images,
-                    image_options=image_options
-                )
+                # Calculate progress trend - typically improving over time
+                progress_factor = semester_index / 3.0  # 0.0, 0.33, 0.66, 1.0
                 
-                if report_path:
-                    # Extract student name from filename
-                    filename = os.path.basename(report_path)
-                    student_name = filename.split('_')[0].replace('_', ' ')
+                try:
+                    # Create filename with student name, style, semester, and year
+                    student_name = student_profile.to_dict()["name"]["full_name"].replace(" ", "_")
+                    filename = f"{student_name}_{style}_S{current_semester}_{current_year}"
+                    output_path = str(output_dir / f"{filename}.{output_format}")
                     
+                    # Create student data with current semester/year
+                    student_data = {
+                        "student": student_profile.to_dict(),
+                        "school": school_profile.to_dict(),
+                        "report_id": f"{student_index}_{semester_index}",
+                        "semester": str(current_semester),
+                        "year": current_year,
+                        "report_date": datetime.now().strftime("%d %B %Y"),
+                        "progress_factor": progress_factor,  # Used to guide AI comment generation
+                        "is_first_report": semester_index == 0,
+                        "previous_semester": (2 if current_semester == 1 else 1) if semester_index > 0 else None,
+                        "previous_year": (current_year - 1) if current_semester == 1 and semester_index > 0 else current_year,
+                        "sequence_index": semester_index  # Position in the sequence of reports
+                    }
+                    
+                    # Check if we should generate images for this report
+                    should_generate_images = generate_images
+                    
+                    # Check if we already have cached images for this student
+                    if student_id in image_cache and semester_index > 0:
+                        # Reuse the cached images instead of generating new ones
+                        if 'photo' in image_cache[student_id]:
+                            student_data["student"]["photo_data"] = image_cache[student_id]['photo']
+                            logger.info(f"Reusing cached student photo for {student_name} in semester {current_semester}, year {current_year}")
+                        
+                        if 'school_logo' in image_cache[student_id]:
+                            student_data["school"]["logo_data"] = image_cache[student_id]['school_logo']
+                            logger.info(f"Reusing cached school logo for {student_name} in semester {current_semester}, year {current_year}")
+                        
+                        # Since we're reusing cached images, don't generate new ones
+                        should_generate_images = False
+                    
+                    # Generate the report
+                    report_path = self.generate_report(
+                        student_data=student_data,
+                        style=style,
+                        output_format=output_format,
+                        comment_length=comment_length,
+                        output_path=output_path,
+                        generate_images=should_generate_images and semester_index == 0,  # Only generate new images for first report
+                        image_options=image_options
+                    )
+                    
+                    # After generating the first report, cache the images for reuse
+                    if semester_index == 0 and generate_images:
+                        image_cache[student_id] = {}
+                        
+                        # Cache student photo if it was generated
+                        if "photo_data" in student_data["student"]:
+                            image_cache[student_id]['photo'] = student_data["student"]["photo_data"]
+                            logger.info(f"Cached student photo for {student_name}")
+                        
+                        # Cache school logo if it was generated
+                        if "logo_data" in student_data["school"]:
+                            image_cache[student_id]['school_logo'] = student_data["school"]["logo_data"]
+                            logger.info(f"Cached school logo for {student_name}")
+                    
+                    if report_path:
+                        reports.append({
+                            "id": f"report_{student_index}_{semester_index}",
+                            "student_name": student_profile.to_dict()["name"]["full_name"],
+                            "semester": current_semester,
+                            "year": current_year,
+                            "path": report_path,
+                            "status": "generated"
+                        })
+                    else:
+                        reports.append({
+                            "id": f"report_{student_index}_{semester_index}",
+                            "status": "failed"
+                        })
+                except Exception as e:
+                    logger.error(f"Error generating report for student {student_index}, semester {current_semester}, year {current_year}: {str(e)}")
                     reports.append({
-                        "id": f"report_{i+1}",
-                        "student_name": student_name,
-                        "path": report_path,
-                        "status": "generated"
+                        "id": f"report_{student_index}_{semester_index}",
+                        "status": "failed",
+                        "error": str(e)
                     })
-                else:
-                    reports.append({
-                        "id": f"report_{i+1}",
-                        "status": "failed"
-                    })
-            except Exception as e:
-                logger.error(f"Error generating report {i+1}: {str(e)}")
-                reports.append({
-                    "id": f"report_{i+1}",
-                    "status": "failed",
-                    "error": str(e)
-                })
         
         # Create batch information
         batch_result = {
             "batch_id": batch_id,
             "style": style,
-            "num_reports": num_reports,
+            "num_students": num_reports,
+            "num_reports": num_reports * 4,  # 4 reports per student
             "format": output_format,
             "reports": reports,
             "status": "completed",
@@ -1078,7 +1283,7 @@ class EnhancedReportGenerator:
         with open(output_dir / "metadata.json", "w") as f:
             json.dump(batch_result, f, indent=2)
         
-        logger.info(f"Generated {len([r for r in reports if r['status'] == 'generated'])} out of {num_reports} reports for batch {batch_id}")
+        logger.info(f"Generated {len([r for r in reports if r['status'] == 'generated'])} out of {num_reports * 4} reports for batch {batch_id}")
         return batch_result
     
     def create_zip_archive(self, batch_id: str) -> Optional[str]:
