@@ -208,6 +208,35 @@ class SearchService:
             if isinstance(value, datetime):
                 # Format as ISO 8601 with Z for UTC timezone
                 cleaned_doc[key] = value.strftime("%Y-%m-%dT%H:%M:%SZ")
+            elif isinstance(value, str) and key in ["created_at", "updated_at", "last_report_date", "report_date"]:
+                # Try to parse and format any date strings to ensure they're in the correct format
+                try:
+                    # Handle various ISO format datetime strings
+                    if 'T' in value:  # Basic check for ISO format
+                        # Handle case with Z already
+                        if value.endswith('Z'):
+                            # Verify it's a valid format by parsing and re-formatting
+                            dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                            cleaned_doc[key] = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                        # Handle cases with microseconds or timezone info
+                        elif '.' in value or '+' in value or '-' in value:
+                            # Try to parse with fromisoformat (Python 3.7+)
+                            dt = datetime.fromisoformat(value)
+                            cleaned_doc[key] = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                        # Handle basic ISO format without timezone
+                        else:
+                            # Assume UTC
+                            dt = datetime.fromisoformat(value)
+                            cleaned_doc[key] = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    # Try a more lenient parsing for other formats as fallback
+                    else:
+                        from dateutil import parser
+                        dt = parser.parse(value)
+                        cleaned_doc[key] = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                except Exception as e:
+                    # If parsing fails, log and leave as is
+                    logger.debug(f"Could not parse date string '{value}' for field '{key}': {e}")
+                    pass
                 
         # Make sure embedding is a simple list with no metadata
         if 'embedding' in cleaned_doc and isinstance(cleaned_doc['embedding'], list):
@@ -279,6 +308,16 @@ class SearchService:
             
             # Upload the document
             try:
+                # Add debug logging before upload
+                logger.info(f"DEBUG: Uploading document to index {index_name}")
+                logger.info(f"DEBUG: Document keys: {list(prepared_doc.keys())}")
+                logger.info(f"DEBUG: Document ID: {prepared_doc.get('id')}")
+                
+                # Check for Azure Search configuration
+                logger.info(f"DEBUG: Azure Search endpoint: {settings.AZURE_SEARCH_ENDPOINT[:20]}...")
+                logger.info(f"DEBUG: Azure Search key present: {bool(settings.AZURE_SEARCH_KEY)}")
+                
+                # Upload document
                 result = await client.upload_documents(documents=[prepared_doc])
                 
                 # Check if the operation was successful
@@ -287,7 +326,23 @@ class SearchService:
                     logger.info(f"Successfully indexed document with ID: {prepared_doc.get('id')}")
                 else:
                     logger.error(f"Failed to index document: {result[0].error_message}")
-                
+                    # More detailed error logging
+                    logger.error(f"DEBUG: Full error details: {result[0].__dict__}")
+                    logger.error(f"DEBUG: Error message: {result[0].error_message}")
+                    logger.error(f"DEBUG: Key: {result[0].key}")
+                    logger.error(f"DEBUG: Status code: {result[0].status_code}")
+                    
+                    # Check for specific error types
+                    error_msg = result[0].error_message or ""
+                    if "property" in error_msg and "does not exist" in error_msg:
+                        logger.error("DEBUG: Schema mismatch error detected")
+                        # Try to extract the problematic field name
+                        import re
+                        field_match = re.search(r"property '([^']+)'", error_msg)
+                        if field_match:
+                            field_name = field_match.group(1)
+                            logger.error(f"DEBUG: Problem with field: {field_name}")
+                    
                 return is_success
             except Exception as upload_err:
                 logger.error(f"Error uploading document to search index: {upload_err}")

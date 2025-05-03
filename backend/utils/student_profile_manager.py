@@ -9,6 +9,7 @@ import logging
 import os
 import json
 import uuid
+import traceback
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
@@ -54,12 +55,39 @@ class StudentProfileManager:
                     
                     # Try different import approaches
                     try:
+                        # Try direct import first
                         from create_student_profiles_index import create_student_profiles_index
                         success = await create_student_profiles_index()
                     except ImportError:
-                        # Try alternative import path
-                        from scripts.create_student_profiles_index import create_student_profiles_index
-                        success = await create_student_profiles_index()
+                        try:
+                            # Try with scripts prefix
+                            from scripts.create_student_profiles_index import create_student_profiles_index
+                            success = await create_student_profiles_index()
+                        except ImportError:
+                            # Try with full absolute import
+                            import subprocess
+                            import sys
+                            
+                            logger.info("Attempting to run create_student_profiles_index.py directly")
+                            script_path = os.path.join(script_path, "create_student_profiles_index.py")
+                            
+                            if os.path.exists(script_path):
+                                # Execute the script directly
+                                process = subprocess.Popen(
+                                    [sys.executable, script_path],
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE
+                                )
+                                stdout, stderr = process.communicate()
+                                success = process.returncode == 0
+                                
+                                if success:
+                                    logger.info(f"Successfully created student profiles index via subprocess: {stdout.decode()}")
+                                else:
+                                    logger.error(f"Failed to create student profiles index via subprocess: {stderr.decode()}")
+                            else:
+                                logger.error(f"Script not found at path: {script_path}")
+                                success = False
                     if success:
                         logger.info("Successfully created student profiles index")
                     else:
@@ -165,6 +193,8 @@ class StudentProfileManager:
             # Add report information
             profile_data["school_name"] = report_data.get("school_name")
             profile_data["teacher_name"] = report_data.get("teacher_name")
+            profile_data["school_year"] = report_data.get("school_year")
+            profile_data["term"] = report_data.get("term")
             
             # Ensure profile_data has required fields
             if "strengths" not in profile_data or not profile_data["strengths"]:
@@ -275,11 +305,75 @@ class StudentProfileManager:
                 if embedding:
                     updated_profile["embedding"] = embedding
                 
+                # Log profile details for debugging
+                logger.info(f"DEBUG: Preparing to update student profile with ID: {profile_id}")
+                logger.info(f"DEBUG: Student profiles index name: {self.student_profiles_index_name}")
+                logger.info(f"DEBUG: Updated profile keys: {list(updated_profile.keys())}")
+                
+                # Verify index exists before attempting to update
+                try:
+                    index_exists = await self.search_service.check_index_exists(self.student_profiles_index_name)
+                    if not index_exists:
+                        logger.error(f"CRITICAL ERROR: Index '{self.student_profiles_index_name}' does not exist")
+                        logger.info("Attempting to create index now...")
+                        
+                        # Try to run index creation directly
+                        import sys
+                        script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts")
+                        create_script_path = os.path.join(script_path, "create_student_profiles_index.py")
+                        
+                        if os.path.exists(create_script_path):
+                            # Run the script directly
+                            import subprocess
+                            process = subprocess.Popen(
+                                [sys.executable, create_script_path],
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE
+                            )
+                            stdout, stderr = process.communicate()
+                            if process.returncode == 0:
+                                logger.info(f"Successfully created index: {stdout.decode()}")
+                                logger.info("Proceeding with document indexing...")
+                            else:
+                                logger.error(f"Failed to create index: {stderr.decode()}")
+                                logger.error("Will attempt to index anyway in case index exists through other means")
+                        else:
+                            logger.error(f"Index creation script not found at: {create_script_path}")
+                except Exception as check_ex:
+                    logger.error(f"DEBUG: Exception checking index existence: {check_ex}")
+                    logger.error(traceback.format_exc())
+                
+                # Dump document to logs for inspection
+                try:
+                    logger.info(f"DEBUG: Document to be indexed: {json.dumps(updated_profile)[:500]}...")
+                except:
+                    logger.error("Could not dump document JSON")
+                
                 # Update the profile in the index
-                success = await self.search_service.index_document(
-                    index_name=self.student_profiles_index_name,
-                    document=updated_profile
-                )
+                try:
+                    logger.info(f"Updating document in index: {self.student_profiles_index_name}")
+                    success = await self.search_service.index_document(
+                        index_name=self.student_profiles_index_name,
+                        document=updated_profile
+                    )
+                    logger.info(f"DEBUG: Profile update result: {success}")
+                except Exception as index_ex:
+                    logger.error(f"DEBUG: Exception during profile update: {index_ex}")
+                    logger.error(traceback.format_exc())
+                    
+                    # Try to identify common issues
+                    error_msg = str(index_ex)
+                    if "model binding failed" in error_msg.lower():
+                        logger.error("DEBUG: Schema mismatch detected. Document doesn't match index schema.")
+                        # Try to identify the problematic field
+                        import re
+                        field_match = re.search(r"property '([^']+)'", error_msg)
+                        if field_match:
+                            problematic_field = field_match.group(1)
+                            logger.error(f"DEBUG: Problematic field appears to be: {problematic_field}")
+                            logger.error(f"DEBUG: Field value: {updated_profile.get(problematic_field, 'Not present')}")
+                    
+                    success = False
                 
                 if success:
                     logger.info(f"Successfully updated student profile with ID: {profile_id}")
@@ -294,6 +388,37 @@ class StudentProfileManager:
                 # Create a new profile
                 profile_id = str(uuid.uuid4())
                 
+                # Get school year and term from report data
+                school_year = report_data.get("school_year")
+                term = report_data.get("term")
+                
+                # Create year-term identifier
+                year_term_id = None
+                years_and_terms = []
+                historical_data = {}
+                
+                if school_year and term:
+                    year_term_id = f"{school_year}-{term}"
+                    years_and_terms = [year_term_id]
+                    
+                    # Prepare current term data for historical records
+                    current_term_data = {
+                        "school_year": school_year,
+                        "term": term,
+                        "report_id": report_id,
+                        "grade_level": profile_data.get("grade_level"),
+                        "learning_style": profile_data.get("learning_style"),
+                        "school_name": profile_data.get("school_name"),
+                        "teacher_name": profile_data.get("teacher_name"),
+                        "strengths": profile_data.get("strengths", []),
+                        "interests": profile_data.get("interests", []),
+                        "areas_for_improvement": profile_data.get("areas_for_improvement", []),
+                        "updated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+                    }
+                    
+                    # Add to historical records
+                    historical_data[year_term_id] = current_term_data
+                
                 # Prepare the profile document
                 new_profile = {
                     "id": profile_id,
@@ -307,9 +432,14 @@ class StudentProfileManager:
                     "school_name": profile_data.get("school_name"),
                     "teacher_name": profile_data.get("teacher_name"),
                     "report_ids": [report_id],
-                    "created_at": datetime.utcnow().isoformat(),
-                    "updated_at": datetime.utcnow().isoformat(),
-                    "last_report_date": datetime.utcnow().isoformat()
+                    "created_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "updated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "last_report_date": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    # Add semester/year fields
+                    "current_school_year": school_year,
+                    "current_term": term,
+                    "years_and_terms": years_and_terms,
+                    "historical_data": json.dumps(historical_data) if historical_data else None
                 }
                 
                 # Generate embedding for the profile
@@ -317,11 +447,76 @@ class StudentProfileManager:
                 if embedding:
                     new_profile["embedding"] = embedding
                 
+                # Log profile details for debugging
+                logger.info(f"DEBUG: Preparing to index new student profile with ID: {profile_id}")
+                logger.info(f"DEBUG: Student profiles index name: {self.student_profiles_index_name}")
+                logger.info(f"DEBUG: New profile keys: {list(new_profile.keys())}")
+                logger.info(f"DEBUG: Student name in profile: {new_profile.get('full_name')}")
+                
+                # Verify index exists before attempting to index
+                try:
+                    index_exists = await self.search_service.check_index_exists(self.student_profiles_index_name)
+                    if not index_exists:
+                        logger.error(f"CRITICAL ERROR: Index '{self.student_profiles_index_name}' does not exist")
+                        logger.info("Attempting to create index now...")
+                        
+                        # Try to run index creation directly
+                        import sys
+                        script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts")
+                        create_script_path = os.path.join(script_path, "create_student_profiles_index.py")
+                        
+                        if os.path.exists(create_script_path):
+                            # Run the script directly
+                            import subprocess
+                            process = subprocess.Popen(
+                                [sys.executable, create_script_path],
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE
+                            )
+                            stdout, stderr = process.communicate()
+                            if process.returncode == 0:
+                                logger.info(f"Successfully created index: {stdout.decode()}")
+                                logger.info("Proceeding with document indexing...")
+                            else:
+                                logger.error(f"Failed to create index: {stderr.decode()}")
+                                logger.error("Will attempt to index anyway in case index exists through other means")
+                        else:
+                            logger.error(f"Index creation script not found at: {create_script_path}")
+                except Exception as check_ex:
+                    logger.error(f"DEBUG: Exception checking index existence: {check_ex}")
+                    logger.error(traceback.format_exc())
+                
+                # Dump document to logs for inspection
+                try:
+                    logger.info(f"DEBUG: Document to be indexed: {json.dumps(new_profile)[:500]}...")
+                except:
+                    logger.error("Could not dump document JSON")
+                
                 # Index the profile
-                success = await self.search_service.index_document(
-                    index_name=self.student_profiles_index_name,
-                    document=new_profile
-                )
+                try:
+                    logger.info(f"Indexing document to index: {self.student_profiles_index_name}")
+                    success = await self.search_service.index_document(
+                        index_name=self.student_profiles_index_name,
+                        document=new_profile
+                    )
+                    logger.info(f"DEBUG: Profile indexing result: {success}")
+                except Exception as index_ex:
+                    logger.error(f"DEBUG: Exception during profile indexing: {index_ex}")
+                    logger.error(traceback.format_exc())
+                    
+                    # Try to identify common issues
+                    error_msg = str(index_ex)
+                    if "model binding failed" in error_msg.lower():
+                        logger.error("DEBUG: Schema mismatch detected. Document doesn't match index schema.")
+                        # Try to identify the problematic field
+                        import re
+                        field_match = re.search(r"property '([^']+)'", error_msg)
+                        if field_match:
+                            problematic_field = field_match.group(1)
+                            logger.error(f"DEBUG: Problematic field appears to be: {problematic_field}")
+                            logger.error(f"DEBUG: Field value: {new_profile.get(problematic_field, 'Not present')}")
+                    
+                    success = False
                 
                 if success:
                     logger.info(f"Successfully created student profile with ID: {profile_id}")
@@ -353,6 +548,59 @@ class StudentProfileManager:
         """
         merged_profile = existing_profile.copy()
         
+        # Get school year and term from the new profile data
+        school_year = new_profile_data.get("school_year")
+        term = new_profile_data.get("term")
+        
+        # Update current school year and term
+        if school_year:
+            merged_profile["current_school_year"] = school_year
+        if term:
+            merged_profile["current_term"] = term
+            
+        # Create year-term identifier
+        year_term_id = None
+        if school_year and term:
+            year_term_id = f"{school_year}-{term}"
+            
+            # Add to years_and_terms collection if it doesn't exist
+            if "years_and_terms" not in merged_profile:
+                merged_profile["years_and_terms"] = []
+                
+            if year_term_id not in merged_profile["years_and_terms"]:
+                merged_profile["years_and_terms"].append(year_term_id)
+        
+        # Initialize or parse historical data
+        historical_data = {}
+        if "historical_data" in merged_profile and merged_profile["historical_data"]:
+            try:
+                historical_data = json.loads(merged_profile["historical_data"])
+            except (json.JSONDecodeError, TypeError):
+                logger.warning(f"Failed to parse historical data for student {merged_profile.get('full_name')}")
+                historical_data = {}
+        
+        # Prepare current term data
+        current_term_data = {
+            "school_year": school_year,
+            "term": term,
+            "report_id": report_id,
+            "grade_level": new_profile_data.get("grade_level"),
+            "learning_style": new_profile_data.get("learning_style"),
+            "school_name": new_profile_data.get("school_name"),
+            "teacher_name": new_profile_data.get("teacher_name"),
+            "strengths": new_profile_data.get("strengths", []),
+            "interests": new_profile_data.get("interests", []),
+            "areas_for_improvement": new_profile_data.get("areas_for_improvement", []),
+            "updated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        }
+        
+        # Add current data to historical records
+        if year_term_id:
+            historical_data[year_term_id] = current_term_data
+            
+            # Save back to profile
+            merged_profile["historical_data"] = json.dumps(historical_data)
+        
         # Update non-list fields if they have values in the new profile
         for field in ["gender", "grade_level", "learning_style", "school_name", "teacher_name"]:
             if field in new_profile_data and new_profile_data[field]:
@@ -382,8 +630,8 @@ class StudentProfileManager:
             merged_profile["report_ids"].append(report_id)
         
         # Update timestamps
-        merged_profile["updated_at"] = datetime.utcnow().isoformat()
-        merged_profile["last_report_date"] = datetime.utcnow().isoformat()
+        merged_profile["updated_at"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        merged_profile["last_report_date"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         
         return merged_profile
     
