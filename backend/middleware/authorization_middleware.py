@@ -133,20 +133,31 @@ class ResourceAuthorizationMiddleware(BaseHTTPMiddleware):
     
     def _is_collection_endpoint(self, path: str) -> bool:
         """Check if the path is a collection endpoint (no specific resource ID)."""
+        # Collection endpoints without specific resource IDs
         if path in ["/student-reports", "/student-reports/", "/student-profiles", "/student-profiles/", 
                    "/learning-plans", "/learning-plans/"]:
             return True
         
-        # Also skip upload endpoint
-        if path == "/student-reports/upload":
+        # Special action endpoints that don't reference a specific resource ID
+        special_endpoints = [
+            "/student-reports/upload",
+            "/learning-plans/profile-based"
+        ]
+        
+        if path in special_endpoints:
             return True
             
         return False
     
     def _extract_resource_id(self, path: str) -> Optional[str]:
         """Extract resource ID from URL path."""
-        # Skip special endpoints like "upload" that are not resource IDs
-        if path == "/student-reports/upload":
+        # Skip special endpoints that are not resource IDs
+        special_endpoints = [
+            "/student-reports/upload",
+            "/learning-plans/profile-based"
+        ]
+        
+        if path in special_endpoints:
             return None
             
         # Check student reports
