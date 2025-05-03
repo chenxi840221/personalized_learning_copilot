@@ -65,9 +65,9 @@ const HomePage = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold mb-3">Create Your Students' Profile</h3>
+            <h3 className="text-xl font-semibold mb-3">Create Your Students' Profiles</h3>
             <p className="text-gray-600">
-              Tell us about your students' learning style, student demographics, and educational goals to personalize your students' experience.
+              Tell us about your students' learning styles, demographics, and educational goals to personalize their learning experience.
             </p>
           </div>
           
@@ -127,7 +127,7 @@ const HomePage = () => {
               <div className="p-6">
                 <h3 className="text-xl font-semibold mb-2">Science</h3>
                 <p className="text-gray-600 mb-4">
-                  Biology, chemistry, physics and more with interactive and engaging content.
+                  Explore biology, chemistry, physics, and more with interactive and engaging content.
                 </p>
                 <Link to="/content/Science" className="text-blue-600 font-medium hover:underline">
                   Explore Science Resources →
@@ -156,7 +156,7 @@ const HomePage = () => {
       {/* Call to Action */}
       <div className="py-16 text-center">
         <h2 className="text-3xl font-bold text-gray-900 mb-6">
-          Ready to boost Your Teaching Journey with AI assistant?
+          Ready to Boost Your Teaching Journey with an AI Assistant?
         </h2>
         <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
           Let us help students who are discovering the power of personalized learning.
