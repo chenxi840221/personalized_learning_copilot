@@ -65,9 +65,9 @@ const HomePage = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold mb-3">Create Your Teacher Profile</h3>
+            <h3 className="text-xl font-semibold mb-3">Create Your Students' Profile</h3>
             <p className="text-gray-600">
-              Tell us about your teaching style, student demographics, and educational goals to personalize your experience.
+              Tell us about your students' learning style, student demographics, and educational goals to personalize your students' experience.
             </p>
           </div>
           
