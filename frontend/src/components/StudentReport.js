@@ -17,6 +17,7 @@ const StudentReport = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [lastFetchTime, setLastFetchTime] = useState(0);
   const fetchTimeoutRef = useRef(null);
   const [tokenRefreshed, setTokenRefreshed] = useState(false);
@@ -406,6 +407,7 @@ const StudentReport = () => {
     setUploading(true);
     setUploadProgress(0);
     setError('');
+    setSuccessMessage('');
     
     try {
       const formData = new FormData();
@@ -433,6 +435,13 @@ const StudentReport = () => {
       // Add the new report to the list and reset form
       setReports([data, ...reports]);
       setSelectedFile(null);
+      
+      // Set success message if profile was processed
+      if (data.profile_processed) {
+        setSuccessMessage('Student report uploaded and student profile updated successfully.');
+      } else {
+        setSuccessMessage('Student report uploaded successfully.');
+      }
       
       // Reset the file input
       document.getElementById('report-file-input').value = '';
@@ -593,10 +602,15 @@ const StudentReport = () => {
                   `Uploading: ${uploadProgress}%` : 
                   'Processing document... This may take up to 2 minutes.'}
               </p>
+              <p className="text-sm text-blue-600 mt-1">
+                {uploadProgress === 100 && 
+                  'Analyzing report and updating student profile...'}
+              </p>
             </div>
           )}
           
           {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+          {successMessage && <p className="text-green-600 text-sm mt-2">{successMessage}</p>}
         </div>
       </div>
       

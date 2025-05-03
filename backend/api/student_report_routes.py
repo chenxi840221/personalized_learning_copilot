@@ -13,6 +13,7 @@ import traceback
 from models.student_report import StudentReport, ReportType
 from auth.entra_auth import get_current_user
 from utils.report_processor import get_report_processor
+from utils.student_profile_manager import get_student_profile_manager
 from config.settings import Settings
 from services.search_service import get_search_service
 
@@ -139,6 +140,48 @@ async def upload_student_report(
         processed_report["indexing_status"] = index_status
         
         logger.info("Report processing and indexing completed successfully")
+        # Process student profile extraction and update
+        try:
+            logger.info("Checking for existing student profile and updating if needed")
+            # Get the student profile manager
+            profile_manager = await get_student_profile_manager()
+            
+            if profile_manager:
+                # Check for student name in the processed report
+                student_name = None
+                
+                # Try to extract student name from the processed report
+                if "student_name" in processed_report and processed_report["student_name"]:
+                    student_name = processed_report["student_name"]
+                else:
+                    # Try to extract student name from structured fields
+                    # This might require decrypting PII fields
+                    logger.info("Attempting to extract student name from report data")
+                    
+                    # Create or update student profile based on report data
+                    profile_result = await profile_manager.create_or_update_student_profile(
+                        processed_report, 
+                        processed_report.get("id", "unknown")
+                    )
+                    
+                    if profile_result:
+                        logger.info(f"Successfully processed student profile for report: {processed_report.get('id')}")
+                        # Add profile info to the response
+                        processed_report["profile_processed"] = True
+                        processed_report["student_profile_id"] = profile_result.get("id")
+                    else:
+                        logger.warning(f"Failed to process student profile for report: {processed_report.get('id')}")
+                        processed_report["profile_processed"] = False
+            else:
+                logger.warning("Student profile manager not available, skipping profile extraction")
+                processed_report["profile_processed"] = False
+        
+        except Exception as profile_err:
+            logger.error(f"Error processing student profile: {profile_err}")
+            logger.error(f"Profile processing traceback: {traceback.format_exc()}")
+            processed_report["profile_processed"] = False
+            # Continue with report processing even if profile processing fails
+            
         # Return the processed report
         return processed_report
     
