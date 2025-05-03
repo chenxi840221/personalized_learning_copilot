@@ -15,7 +15,7 @@ const HomePage = () => {
           </h1>
           <p className="text-xl text-gray-600 mb-8">
             Your AI-powered companion for personalized education. Discover tailored learning
-            plans and resources designed specifically for your learning style and interests.
+            plans and resources designed specifically for your students' learning styles and interests.
           </p>
           
           {user ? (
@@ -31,7 +31,7 @@ const HomePage = () => {
                 to="/register"
                 className="bg-blue-600 text-white px-6 py-3 rounded-md text-lg font-medium hover:bg-blue-700 transition-colors"
               >
-                Get Started
+                Get Started as a Teacher
               </Link>
               <Link
                 to="/login"
@@ -65,9 +65,9 @@ const HomePage = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold mb-3">Create Your Profile</h3>
+            <h3 className="text-xl font-semibold mb-3">Create Your Teacher Profile</h3>
             <p className="text-gray-600">
-              Tell us about your interests, learning style, and educational goals to personalize your experience.
+              Tell us about your teaching style, student demographics, and educational goals to personalize your experience.
             </p>
           </div>
           
@@ -79,7 +79,7 @@ const HomePage = () => {
             </div>
             <h3 className="text-xl font-semibold mb-3">Get Learning Plans</h3>
             <p className="text-gray-600">
-              Our AI creates personalized learning plans with curated resources matched to your needs.
+              Our AI creates personalized learning plans with curated resources matched to your students' needs.
             </p>
           </div>
           
@@ -89,9 +89,9 @@ const HomePage = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold mb-3">Track Your Progress</h3>
+            <h3 className="text-xl font-semibold mb-3">Track Students' Progress</h3>
             <p className="text-gray-600">
-              Monitor your learning journey and see your improvement over time with detailed analytics.
+              Monitor your students' learning journeys and see their improvement over time with detailed analytics.
             </p>
           </div>
         </div>
@@ -156,11 +156,11 @@ const HomePage = () => {
       {/* Call to Action */}
       <div className="py-16 text-center">
         <h2 className="text-3xl font-bold text-gray-900 mb-6">
-          Ready to Start Your Learning Journey?
+          Ready to boost Your Teaching Journey with AI assistant?
         </h2>
         <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-          Join thousands of students who are discovering the power of personalized learning.
-          Get started today and unlock your full potential.
+          Let us help students who are discovering the power of personalized learning.
+          Get started today and unlock your teaching potential.
         </p>
         
         {user ? (
@@ -175,7 +175,7 @@ const HomePage = () => {
             to="/register"
             className="bg-blue-600 text-white px-8 py-4 rounded-md text-lg font-medium hover:bg-blue-700 transition-colors"
           >
-            Create Your Free Account
+            Create Your Teacher Account
           </Link>
         )}
       </div>
