@@ -217,12 +217,13 @@ class AzureLangChainIntegration:
             logger.error(f"Error generating embeddings: {e}")
             raise
     
-    async def index_documents(self, documents: List[Dict[str, Any]]) -> bool:
+    async def index_documents(self, documents: List[Dict[str, Any]], owner_id: Optional[str] = None) -> bool:
         """
         Index documents in Azure AI Search using LangChain.
         
         Args:
             documents: List of documents to index
+            owner_id: Optional owner ID to assign to all documents (for access control)
             
         Returns:
             Success status
@@ -236,8 +237,19 @@ class AzureLangChainIntegration:
         try:
             # Process documents with embeddings
             texts = [doc.get("text", "") or doc.get("content", "") for doc in documents]
-            metadatas = [{"id": doc.get("id", str(i)), **{k: v for k, v in doc.items() if k not in ["text", "content"]}} 
-                         for i, doc in enumerate(documents)]
+            metadatas = []
+            
+            for i, doc in enumerate(documents):
+                # Start with the existing metadata excluding text/content fields
+                metadata = {"id": doc.get("id", str(i)), **{k: v for k, v in doc.items() if k not in ["text", "content"]}}
+                
+                # Ensure owner_id is set for each document
+                if "owner_id" not in metadata and owner_id:
+                    metadata["owner_id"] = owner_id
+                elif "owner_id" not in metadata:
+                    logger.warning(f"Document {metadata.get('id')} has no owner_id field and no default provided")
+                
+                metadatas.append(metadata)
             
             # Add documents to the vector store
             await asyncio.to_thread(self.vector_store.add_texts, texts, metadatas)

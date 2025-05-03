@@ -1,6 +1,5 @@
 # backend/app.py
 from fastapi import FastAPI, Depends, HTTPException, status, APIRouter
-from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional, Dict, Any
 import logging
 import os
@@ -20,36 +19,23 @@ app = FastAPI(
     version="0.2.0",
 )
 
-# Add CORS middleware with more permissive settings for development
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Add enhanced CORS handling
+from middleware.cors_middleware import setup_cors
+setup_cors(app, settings.CORS_ORIGINS)
+
+# Add resource authorization middleware
+from middleware.authorization_middleware import create_authorization_middleware
+from services.search_service import get_search_service
+app.add_middleware(create_authorization_middleware(get_search_service))
 
 # Import API routes
 from api.auth_routes import router as auth_router
 from api.learning_plan_routes import router as learning_plan_router
 from api.student_report_routes import student_report_router
-
-# Create user router for the /users/me endpoint
-from auth.authentication import get_current_user
-user_router = APIRouter(prefix="/users", tags=["users"])
-
-@user_router.get("/me/")
-async def get_current_user_profile(current_user: Dict[str, Any] = Depends(get_current_user)):
-    """
-    Get the current authenticated user's profile.
-    
-    Args:
-        current_user: Current authenticated user
-        
-    Returns:
-        User profile information
-    """
-    return current_user
+from api.student_profile_routes import student_profile_router
+from api.debug_routes import debug_router
+from api.direct_profile_indexer import direct_index_router
+from api.user_routes import router as user_router
 
 # Import AI routes if available
 try:
@@ -102,6 +88,9 @@ app.include_router(auth_router)
 app.include_router(learning_plan_router)
 app.include_router(user_router)  # Include the user router
 app.include_router(student_report_router)  # Include student report router
+app.include_router(student_profile_router)  # Include student profile router
+app.include_router(debug_router)  # Include debug router
+app.include_router(direct_index_router)  # Include direct profile indexer
 
 # Include optional routers if available
 if has_content_endpoints:
@@ -120,18 +109,46 @@ async def health_check():
     Returns:
         Health status
     """
+    # Check Azure Search indexes
+    from services.search_service import get_search_service
+    search_service = await get_search_service()
+    
+    indexes = {
+        "student-reports": False,
+        "student-profiles": False,
+        "educational-content": False,
+        "user-profiles": False,
+        "learning-plans": False
+    }
+    
+    if search_service:
+        for index_name in indexes.keys():
+            try:
+                exists = await search_service.check_index_exists(index_name)
+                indexes[index_name] = exists
+            except:
+                pass
+    
     return {
         "status": "ok",
         "version": "0.2.0",
         "services": {
             "entra_id": settings.CLIENT_ID != "",
             "azure_search": settings.AZURE_SEARCH_ENDPOINT != "",
-            "azure_openai": settings.AZURE_OPENAI_ENDPOINT != ""
+            "azure_openai": settings.AZURE_OPENAI_ENDPOINT != "",
+            "form_recognizer": settings.FORM_RECOGNIZER_ENDPOINT != ""
+        },
+        "indexes": indexes,
+        "environment": {
+            "reports_index": settings.REPORTS_INDEX_NAME,
+            "content_index": settings.CONTENT_INDEX_NAME,
+            "users_index": settings.USERS_INDEX_NAME,
+            "plans_index": settings.PLANS_INDEX_NAME
         }
     }
 
 # Main entrypoint
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8000))
+    port = int(os.environ.get("PORT", 8001))
     uvicorn.run("app:app", host="0.0.0.0", port=port, reload=True)

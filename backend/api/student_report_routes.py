@@ -115,14 +115,27 @@ async def upload_student_report(
                 }
                 logger.info(f"Debug info for report: {debug_info}")
                 
+                # Set the owner_id of the report to the current user BEFORE indexing
+                processed_report["owner_id"] = current_user.get("id")
+                
                 # Log the document being indexed
                 logger.info(f"Indexing document with ID: {processed_report.get('id')}")
                 logger.info(f"Document has {len(processed_report.get('subjects', []))} subjects")
+                logger.info(f"DEBUG: Report index name: {settings.REPORTS_INDEX_NAME}")
+                logger.info(f"DEBUG: Student name in report: {processed_report.get('student_name')}")
+                logger.info(f"DEBUG: Owner ID: {processed_report.get('owner_id')}")
+                logger.info(f"DEBUG: Document keys: {list(processed_report.keys())}")
                 
-                success = await search_service.index_document(
-                    index_name=settings.REPORTS_INDEX_NAME,
-                    document=processed_report
-                )
+                try:
+                    success = await search_service.index_document(
+                        index_name=settings.REPORTS_INDEX_NAME,
+                        document=processed_report
+                    )
+                    logger.info(f"DEBUG: Index document result: {success}")
+                except Exception as index_ex:
+                    logger.error(f"DEBUG: Exception during index_document: {index_ex}")
+                    logger.error(traceback.format_exc())
+                    success = False
                 
                 if not success:
                     logger.warning("Report indexing failed but continuing with report processing")
@@ -140,6 +153,7 @@ async def upload_student_report(
         processed_report["indexing_status"] = index_status
         
         logger.info("Report processing and indexing completed successfully")
+        
         # Process student profile extraction and update
         try:
             logger.info("Checking for existing student profile and updating if needed")
@@ -158,10 +172,45 @@ async def upload_student_report(
                     # This might require decrypting PII fields
                     logger.info("Attempting to extract student name from report data")
                     
+                    # Check if student-profiles index exists first
+                    index_exists = await search_service.check_index_exists("student-profiles")
+                    if not index_exists:
+                        logger.error("CRITICAL ERROR: student-profiles index does not exist!")
+                        logger.info("Attempting to create student-profiles index...")
+                        
+                        try:
+                            # Try to create the index directly
+                            import sys
+                            import subprocess
+                            
+                            script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
+                                                       "scripts", "create_student_profiles_index.py")
+                            
+                            if os.path.exists(script_path):
+                                # Run the script directly
+                                process = subprocess.Popen(
+                                    [sys.executable, script_path],
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE
+                                )
+                                stdout, stderr = process.communicate()
+                                
+                                if process.returncode == 0:
+                                    logger.info(f"Successfully created student-profiles index: {stdout.decode()}")
+                                else:
+                                    logger.error(f"Failed to create student-profiles index: {stderr.decode()}")
+                            else:
+                                logger.error(f"Student profiles index creation script not found at: {script_path}")
+                        except Exception as index_err:
+                            logger.error(f"Error creating student-profiles index: {index_err}")
+                            logger.error(traceback.format_exc())
+                    
                     # Create or update student profile based on report data
+                    logger.info(f"Attempting to create/update student profile for report: {processed_report.get('id')}")
                     profile_result = await profile_manager.create_or_update_student_profile(
                         processed_report, 
-                        processed_report.get("id", "unknown")
+                        processed_report.get("id", "unknown"),
+                        owner_id=current_user.get("id")  # Pass the owner_id
                     )
                     
                     if profile_result:
@@ -170,7 +219,7 @@ async def upload_student_report(
                         processed_report["profile_processed"] = True
                         processed_report["student_profile_id"] = profile_result.get("id")
                     else:
-                        logger.warning(f"Failed to process student profile for report: {processed_report.get('id')}")
+                        logger.error(f"Failed to process student profile for report: {processed_report.get('id')}")
                         processed_report["profile_processed"] = False
             else:
                 logger.warning("Student profile manager not available, skipping profile extraction")
@@ -221,7 +270,8 @@ async def get_student_reports(
     try:
         # Build filter expression
         logger.info("STEP 2: Building filter expression")
-        filter_parts = [f"student_id eq '{current_user['id']}'"]
+        # Filter by owner_id to ensure user only sees reports they uploaded
+        filter_parts = [f"owner_id eq '{current_user['id']}'"]
         
         if school_year:
             filter_parts.append(f"school_year eq '{school_year}'")
@@ -287,18 +337,18 @@ async def get_student_reports(
             logger.error(f"SEARCH TRACEBACK: {traceback.format_exc()}")
             return []
         
-        # Decrypt PII fields
-        logger.info("STEP 6: Beginning decryption of PII fields")
+        # Process additional fields
+        logger.info("STEP 6: Beginning processing of additional fields")
         if len(reports) > 0:
-            logger.info(f"Preparing to decrypt PII fields for {len(reports)} reports")
+            logger.info(f"Preparing to process additional fields for {len(reports)} reports")
             
             try:
-                # Get the report processor for decryption
+                # Get the report processor for field processing
                 logger.info("STEP 6.1: Initializing report processor")
                 report_processor = await get_report_processor()
                 if not report_processor:
-                    logger.error("Failed to initialize report processor for decryption")
-                    logger.info("Returning reports without decryption due to processor initialization failure")
+                    logger.error("Failed to initialize report processor for field processing")
+                    logger.info("Returning reports without field processing due to processor initialization failure")
                     return reports
                 logger.info("Report processor initialized successfully")
                 
@@ -320,69 +370,69 @@ async def get_student_reports(
                         continue
                     
                     try:
-                        # Check if encrypted_fields exists and is not empty
-                        logger.info(f"Checking encrypted_fields for report {report_id}")
-                        if "encrypted_fields" not in report_copy:
-                            logger.warning(f"Report {report_id} has no encrypted_fields key - skipping")
+                        # Check if additional_fields exists and is not empty
+                        logger.info(f"Checking additional_fields for report {report_id}")
+                        if "additional_fields" not in report_copy:
+                            logger.warning(f"Report {report_id} has no additional_fields key - skipping")
                             continue
                             
-                        if not report_copy["encrypted_fields"]:
-                            logger.warning(f"Report {report_id} has empty encrypted_fields value - skipping")
+                        if not report_copy["additional_fields"]:
+                            logger.warning(f"Report {report_id} has empty additional_fields value - skipping")
                             continue
                         
-                        # Parse encrypted fields with robust error handling
-                        logger.info(f"Parsing encrypted_fields for report {report_id}")
-                        encrypted_fields = {}
+                        # Parse additional fields with robust error handling
+                        logger.info(f"Processing additional_fields for report {report_id}")
+                        additional_fields = {}
                         try:
                             # Handle string format (JSON string)
-                            if isinstance(report_copy["encrypted_fields"], str):
-                                logger.info("Parsing encrypted_fields from JSON string")
+                            if isinstance(report_copy["additional_fields"], str):
+                                logger.info("Parsing additional_fields from JSON string")
                                 try:
-                                    encrypted_fields = json.loads(report_copy["encrypted_fields"])
-                                    logger.info(f"Successfully parsed encrypted_fields JSON for report {report_id}")
+                                    additional_fields = json.loads(report_copy["additional_fields"])
+                                    logger.info(f"Successfully parsed additional_fields JSON for report {report_id}")
                                 except json.JSONDecodeError as json_err:
-                                    logger.error(f"JSON DECODE ERROR: Error parsing encrypted_fields as JSON: {json_err}")
-                                    logger.error(f"JSON STRING: {report_copy['encrypted_fields'][:100]}...")  # Log a truncated version
+                                    logger.error(f"JSON DECODE ERROR: Error parsing additional_fields as JSON: {json_err}")
+                                    logger.error(f"JSON STRING: {report_copy['additional_fields'][:100]}...")  # Log a truncated version
                                     # Skip to next report
                                     continue
                             # Handle dict format
-                            elif isinstance(report_copy["encrypted_fields"], dict):
-                                logger.info("Using encrypted_fields directly (already a dict)")
-                                encrypted_fields = report_copy["encrypted_fields"]
+                            elif isinstance(report_copy["additional_fields"], dict):
+                                logger.info("Using additional_fields directly (already a dict)")
+                                additional_fields = report_copy["additional_fields"]
                             else:
                                 # Unknown format
-                                logger.warning(f"UNEXPECTED TYPE: encrypted_fields has type: {type(report_copy['encrypted_fields'])}")
+                                logger.warning(f"UNEXPECTED TYPE: additional_fields has type: {type(report_copy['additional_fields'])}")
                                 # Skip to next report
                                 continue
                             
-                            # Log encrypted fields keys for debugging
-                            logger.info(f"Found {len(encrypted_fields)} encrypted fields: {list(encrypted_fields.keys())}")
+                            # Log additional fields keys for debugging
+                            logger.info(f"Found {len(additional_fields)} additional fields: {list(additional_fields.keys())}")
                             
                             # Process each field individually with separate error handling
-                            decrypted_count = 0
+                            processed_count = 0
                             error_count = 0
                             
-                            for field, encrypted_value in encrypted_fields.items():
+                            for field, field_value in additional_fields.items():
                                 logger.info(f"Processing field: {field}")
                                 
-                                if not encrypted_value:
-                                    logger.warning(f"Empty encrypted value for field {field} - skipping")
+                                if not field_value:
+                                    logger.warning(f"Empty field value for {field} - skipping")
                                     continue
                                     
                                 try:
-                                    logger.info(f"Decrypting field {field} for report {report_id}")
-                                    report_copy[field] = await report_processor.decrypt_pii(encrypted_value)
-                                    logger.info(f"Successfully decrypted field {field}")
-                                    decrypted_count += 1
+                                    logger.info(f"Processing field {field} for report {report_id}")
+                                    report_copy[field] = field_value
+                                    logger.info(f"Successfully processed field {field}")
+                                    processed_count += 1
                                 except Exception as field_error:
                                     error_count += 1
-                                    logger.error(f"FIELD DECRYPTION ERROR: Failed to decrypt field {field}: {field_error}")
+                                    logger.error(f"FIELD PROCESSING ERROR: Failed to process field {field}: {field_error}")
                                     logger.error(f"FIELD ERROR TRACEBACK: {traceback.format_exc()}")
-                                    report_copy[field] = f"[Decryption Error: {field}]"  # Set an error indicator
+                                    report_copy[field] = f"[Processing Error: {field}]"  # Set an error indicator
                             
-                            logger.info(f"Decryption summary for report {report_id}: {decrypted_count} succeeded, {error_count} failed")
+                            logger.info(f"Processing summary for report {report_id}: {processed_count} succeeded, {error_count} failed")
                         except Exception as parse_error:
-                            logger.error(f"STRUCTURE ERROR: Error processing encrypted fields structure: {parse_error}")
+                            logger.error(f"STRUCTURE ERROR: Error processing additional fields structure: {parse_error}")
                             logger.error(f"STRUCTURE ERROR TRACEBACK: {traceback.format_exc()}")
                             # Continue with other reports
                         
@@ -461,7 +511,7 @@ async def get_student_report(
         
         # Search for the report
         logger.info("STEP 4: Preparing to search for the report")
-        filter_expression = f"id eq '{report_id}' and student_id eq '{current_user['id']}'"
+        filter_expression = f"id eq '{report_id}' and owner_id eq '{current_user['id']}'"
         logger.info(f"Filter expression: {filter_expression}")
         logger.info(f"Index name: {settings.REPORTS_INDEX_NAME}")
         
@@ -508,100 +558,100 @@ async def get_student_report(
             report_copy = report
             logger.info("Falling back to original report object")
         
-        # Process encrypted fields
-        logger.info(f"STEP 9: Beginning PII decryption for report {report_id}")
+        # Process additional fields
+        logger.info(f"STEP 9: Beginning field processing for report {report_id}")
         
         try:
             # Initialize the report processor
             logger.info("STEP 9.1: Initializing report processor")
             report_processor = await get_report_processor()
             if not report_processor:
-                logger.error("Failed to initialize report processor for decryption")
-                logger.info("EARLY RETURN: Returning report without decryption due to processor init failure")
+                logger.error("Failed to initialize report processor for field processing")
+                logger.info("EARLY RETURN: Returning report without field processing due to processor init failure")
                 return report_copy
             logger.info("Report processor initialized successfully")
             
-            # Check encrypted_fields existence
-            logger.info("STEP 9.2: Checking for encrypted_fields in report")
-            if "encrypted_fields" not in report_copy:
-                logger.warning(f"Report {report_id} has no encrypted_fields key")
-                logger.info("EARLY RETURN: Returning report without decryption (no encrypted_fields key)")
+            # Check additional_fields existence
+            logger.info("STEP 9.2: Checking for additional_fields in report")
+            if "additional_fields" not in report_copy:
+                logger.warning(f"Report {report_id} has no additional_fields key")
+                logger.info("EARLY RETURN: Returning report without processing (no additional_fields key)")
                 return report_copy
             
-            # Check encrypted_fields not empty
-            logger.info("STEP 9.3: Checking if encrypted_fields is not empty")
-            if not report_copy["encrypted_fields"]:
-                logger.warning(f"Report {report_id} has empty encrypted_fields value")
-                logger.info("EARLY RETURN: Returning report without decryption (empty encrypted_fields)")
+            # Check additional_fields not empty
+            logger.info("STEP 9.3: Checking if additional_fields is not empty")
+            if not report_copy["additional_fields"]:
+                logger.warning(f"Report {report_id} has empty additional_fields value")
+                logger.info("EARLY RETURN: Returning report without processing (empty additional_fields)")
                 return report_copy
             
-            # Parse encrypted fields
-            logger.info("STEP 9.4: Parsing encrypted fields")
-            logger.debug(f"encrypted_fields type: {type(report_copy['encrypted_fields'])}")
-            if isinstance(report_copy["encrypted_fields"], str):
-                logger.debug(f"encrypted_fields preview: {report_copy['encrypted_fields'][:50]}...")
+            # Parse additional fields
+            logger.info("STEP 9.4: Parsing additional fields")
+            logger.debug(f"additional_fields type: {type(report_copy['additional_fields'])}")
+            if isinstance(report_copy["additional_fields"], str):
+                logger.debug(f"additional_fields preview: {report_copy['additional_fields'][:50]}...")
             
-            encrypted_fields = {}
+            additional_fields = {}
             try:
                 # Handle string format (JSON string)
-                if isinstance(report_copy["encrypted_fields"], str):
-                    logger.info("STEP 9.4.1: Parsing encrypted_fields from JSON string")
+                if isinstance(report_copy["additional_fields"], str):
+                    logger.info("STEP 9.4.1: Parsing additional_fields from JSON string")
                     try:
-                        encrypted_fields = json.loads(report_copy["encrypted_fields"])
-                        logger.info(f"Successfully parsed encrypted_fields JSON for report {report_id}")
+                        additional_fields = json.loads(report_copy["additional_fields"])
+                        logger.info(f"Successfully parsed additional_fields JSON for report {report_id}")
                     except json.JSONDecodeError as json_err:
-                        logger.error(f"JSON DECODE ERROR: Failed to parse encrypted_fields: {json_err}")
-                        logger.error(f"JSON STRING: {report_copy['encrypted_fields'][:100]}...")  # Log a truncated version
-                        logger.info("EARLY RETURN: Returning report without decryption (JSON parse failure)")
+                        logger.error(f"JSON DECODE ERROR: Failed to parse additional_fields: {json_err}")
+                        logger.error(f"JSON STRING: {report_copy['additional_fields'][:100]}...")  # Log a truncated version
+                        logger.info("EARLY RETURN: Returning report without processing (JSON parse failure)")
                         return report_copy
                 # Handle dict format
-                elif isinstance(report_copy["encrypted_fields"], dict):
-                    logger.info("STEP 9.4.2: Using encrypted_fields directly (already a dict)")
-                    encrypted_fields = report_copy["encrypted_fields"]
+                elif isinstance(report_copy["additional_fields"], dict):
+                    logger.info("STEP 9.4.2: Using additional_fields directly (already a dict)")
+                    additional_fields = report_copy["additional_fields"]
                 else:
                     # Unknown format
-                    logger.warning(f"UNEXPECTED TYPE: encrypted_fields has type: {type(report_copy['encrypted_fields'])}")
-                    logger.info("EARLY RETURN: Returning report without decryption (unexpected type)")
+                    logger.warning(f"UNEXPECTED TYPE: additional_fields has type: {type(report_copy['additional_fields'])}")
+                    logger.info("EARLY RETURN: Returning report without processing (unexpected type)")
                     return report_copy
                 
-                # Log encrypted fields for debugging
-                logger.info(f"STEP 9.5: Found {len(encrypted_fields)} encrypted fields: {list(encrypted_fields.keys())}")
+                # Log additional fields for debugging
+                logger.info(f"STEP 9.5: Found {len(additional_fields)} additional fields: {list(additional_fields.keys())}")
                 
                 # Process each field
-                logger.info("STEP 9.6: Beginning decryption of individual fields")
-                decrypted_count = 0
+                logger.info("STEP 9.6: Beginning processing of individual fields")
+                processed_count = 0
                 error_count = 0
                 
-                for field, encrypted_value in encrypted_fields.items():
+                for field, field_value in additional_fields.items():
                     logger.info(f"Processing field: {field}")
                     
-                    if not encrypted_value:
-                        logger.warning(f"Empty encrypted value for field {field} - skipping")
+                    if not field_value:
+                        logger.warning(f"Empty field value for {field} - skipping")
                         continue
                     
                     try:
-                        logger.info(f"STEP 9.6.1: Decrypting field {field}")
-                        logger.debug(f"Encrypted value type: {type(encrypted_value)}")
-                        if isinstance(encrypted_value, str):
-                            logger.debug(f"Encrypted value preview: {encrypted_value[:20]}...")
+                        logger.info(f"STEP 9.6.1: Processing field {field}")
+                        logger.debug(f"Field value type: {type(field_value)}")
+                        if isinstance(field_value, str):
+                            logger.debug(f"Field value preview: {field_value[:20]}...")
                         
-                        # Attempt decryption
-                        report_copy[field] = await report_processor.decrypt_pii(encrypted_value)
-                        logger.info(f"Successfully decrypted field {field}")
-                        decrypted_count += 1
+                        # Set the field value directly
+                        report_copy[field] = field_value
+                        logger.info(f"Successfully processed field {field}")
+                        processed_count += 1
                     except Exception as field_error:
                         error_count += 1
-                        logger.error(f"FIELD DECRYPTION ERROR: Failed to decrypt field {field}: {field_error}")
+                        logger.error(f"FIELD PROCESSING ERROR: Failed to process field {field}: {field_error}")
                         logger.error(f"FIELD ERROR TRACEBACK: {traceback.format_exc()}")
-                        report_copy[field] = f"[Decryption Error: {field}]"  # Set an error indicator
+                        report_copy[field] = f"[Processing Error: {field}]"  # Set an error indicator
                 
-                logger.info(f"STEP 9.7: Decryption summary: {decrypted_count} succeeded, {error_count} failed")
+                logger.info(f"STEP 9.7: Processing summary: {processed_count} succeeded, {error_count} failed")
             except Exception as parse_error:
-                logger.error(f"STRUCTURE ERROR: Error processing encrypted fields structure: {parse_error}")
+                logger.error(f"STRUCTURE ERROR: Error processing additional fields structure: {parse_error}")
                 logger.error(f"STRUCTURE ERROR TRACEBACK: {traceback.format_exc()}")
                 # Continue with unmodified report
         except Exception as e:
-            logger.error(f"CRITICAL DECRYPTION ERROR: Error during overall decryption process: {e}")
+            logger.error(f"CRITICAL PROCESSING ERROR: Error during overall field processing: {e}")
             logger.error(f"CRITICAL ERROR TRACEBACK: {traceback.format_exc()}")
             # Return original report so the API call doesn't fail completely
         
@@ -658,7 +708,7 @@ async def delete_student_report(
         
         try:
             # Verify the report exists and belongs to the user
-            filter_expression = f"id eq '{report_id}' and student_id eq '{current_user['id']}'"
+            filter_expression = f"id eq '{report_id}' and owner_id eq '{current_user['id']}'"
             reports = await search_service.search_documents(
                 index_name=settings.REPORTS_INDEX_NAME,
                 query="*",

@@ -924,13 +924,14 @@ async def get_content_processor():
         await content_processor.initialize()
     return content_processor
 
-async def process_and_index_content(content_url: str, content_info: Dict[str, Any]) -> Dict[str, Any]:
+async def process_and_index_content(content_url: str, content_info: Dict[str, Any], owner_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Process content and index it in the search service.
     
     Args:
         content_url: URL of the content
         content_info: Basic metadata about the content
+        owner_id: Owner ID for access control (optional)
         
     Returns:
         Processed content item
@@ -939,6 +940,11 @@ async def process_and_index_content(content_url: str, content_info: Dict[str, An
     
     # Process the content
     content_item = await processor.process_content(content_url, content_info)
+    
+    # Ensure owner_id is set if provided
+    if owner_id and content_item:
+        content_item["owner_id"] = owner_id
+        logger.info(f"Setting owner_id to {owner_id} for content: {content_item.get('title')}")
     
     # Save to search index
     if content_item:

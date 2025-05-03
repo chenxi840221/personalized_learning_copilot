@@ -914,8 +914,15 @@ class EducationContentExtractor:
                     # Process and index content if processor is available
                     if self.content_processor:
                         try:
-                            # Process and index the content
-                            processed_content = await process_and_index_content(resource["url"], content)
+                            # Set a system owner_id for scraped content
+                            system_owner_id = "system"
+                            
+                            # Process and index the content with system owner_id
+                            processed_content = await process_and_index_content(
+                                resource["url"], 
+                                content, 
+                                owner_id=system_owner_id
+                            )
                             processed_items.append(processed_content)
                             logger.info(f"Successfully processed and indexed: {resource['title'][:30]}{'...' if len(resource['title']) > 30 else ''}")
                         except Exception as e:

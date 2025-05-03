@@ -105,7 +105,8 @@ class SearchService:
         top: int = 10,
         skip: int = 0,
         select: Optional[str] = None,
-        order_by: Optional[str] = None
+        order_by: Optional[str] = None,
+        owner_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Search for documents in an index.
@@ -129,6 +130,16 @@ class SearchService:
                 return []
             
             # Build search options
+            # If owner_id is provided, add it to the filter
+            if owner_id:
+                if filter:
+                    # Combine existing filter with owner_id filter
+                    filter = f"({filter}) and owner_id eq '{owner_id}'"
+                else:
+                    # Just use owner_id filter
+                    filter = f"owner_id eq '{owner_id}'"
+                logger.info(f"Added owner_id filter: {filter}")
+
             search_options = {
                 "filter": filter,
                 "top": top,
@@ -198,6 +209,11 @@ class SearchService:
         # List of fields that are not defined in the search index schema
         invalid_fields = ['_debug_info', 'metadata']
         
+        # Ensure owner_id is included (important for user-based access control)
+        if 'owner_id' not in cleaned_doc:
+            logger.warning(f"Document {cleaned_doc.get('id')} has no owner_id field - indexing may fail permission checks")
+            # We don't set a default owner_id to enforce proper access control and make missing owner_id obvious
+        
         # Remove fields that are not in the schema
         for field in invalid_fields:
             if field in cleaned_doc:
@@ -263,13 +279,24 @@ class SearchService:
                             else:
                                 subj[field] = []
         
-        # Ensure encrypted_fields is a string
-        if 'encrypted_fields' in cleaned_doc and not isinstance(cleaned_doc['encrypted_fields'], str):
-            try:
-                cleaned_doc['encrypted_fields'] = json.dumps(cleaned_doc['encrypted_fields'])
-            except (TypeError, ValueError):
-                # If it can't be serialized, set it to an empty JSON object
-                cleaned_doc['encrypted_fields'] = '{}'
+        # Ensure additional_fields is a dictionary
+        if 'additional_fields' in cleaned_doc:
+            # If it's a string (JSON), try to parse it
+            if isinstance(cleaned_doc['additional_fields'], str):
+                try:
+                    cleaned_doc['additional_fields'] = json.loads(cleaned_doc['additional_fields'])
+                except (TypeError, ValueError):
+                    # If it can't be parsed, set to an empty dict
+                    cleaned_doc['additional_fields'] = {
+                        'teacher_name': '',
+                        'general_comments': ''
+                    }
+            # If it's neither a dict nor a string, set to an empty dict
+            elif not isinstance(cleaned_doc['additional_fields'], dict):
+                cleaned_doc['additional_fields'] = {
+                    'teacher_name': '',
+                    'general_comments': ''
+                }
                 
         # Log what we're about to index    
         logger.info(f"Prepared document for indexing: ID={cleaned_doc.get('id')}")
