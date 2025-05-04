@@ -88,6 +88,28 @@ async def create_learning_plan(
             is_active=True
         )
         
+        # Set up start and end dates based on learning period
+        from models.learning_plan import LearningPeriod
+        
+        # Parse learning period from string to enum
+        period = None
+        if learning_period:
+            try:
+                period = LearningPeriod(learning_period)
+            except ValueError:
+                logger.warning(f"Invalid learning period: {learning_period}. Using default.")
+                period = LearningPeriod.ONE_MONTH
+        else:
+            period = LearningPeriod.ONE_MONTH
+        
+        # Calculate start and end dates
+        start_date = datetime.utcnow()
+        days = LearningPeriod.to_days(period)
+        end_date = start_date + timedelta(days=days)
+        
+        # For very long periods, limit the number of days for activities to keep the plan manageable
+        activity_days = min(days, 14) if days > 14 else days
+        
         # Get relevant content for the learning plan with more items to ensure sufficient content for all activities
         relevant_content = await retrieve_relevant_content(
             student_profile=user,
@@ -181,27 +203,12 @@ async def create_learning_plan(
         # Create learning plan object from the returned dictionary with enhanced activities
         now = datetime.utcnow()
         
-        # Set up start and end dates based on learning period
-        from models.learning_plan import LearningPeriod
-        
-        # Parse learning period from string to enum
-        period = None
-        if learning_period:
-            try:
-                period = LearningPeriod(learning_period)
-            except ValueError:
-                logger.warning(f"Invalid learning period: {learning_period}. Using default.")
-                period = LearningPeriod.ONE_MONTH
-        else:
-            period = LearningPeriod.ONE_MONTH
-        
-        # Calculate start and end dates
-        start_date = now
-        days = LearningPeriod.to_days(period)
-        end_date = now + timedelta(days=days)
-        
-        # For very long periods, limit the number of days for activities to keep the plan manageable
-        activity_days = min(days, 14) if days > 14 else days
+        # Create metadata with learning period
+        metadata = {
+            "learning_period": period.value,
+            "period_days": days,
+            "activity_days": activity_days
+        }
         
         # Create metadata with learning period
         metadata = {

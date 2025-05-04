@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(python:*)",
+      "Bash(curl:*)",
+      "Bash(curl:*)",
+      "Bash(ls:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(cat:*)",
+      "Bash(sed:*)",
+      "Bash(sed:*)",
+      "Bash(grep:*)",
+      "Bash(grep:*)",
+      "Bash(chmod:*)",
+      "Bash(chmod:*)",
+      "Bash(cp:*)",
+      "Bash(cp:*)",
+      "Bash(find:*)",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(touch:*)"
+    ],
+    "deny": []
+  }
+}
