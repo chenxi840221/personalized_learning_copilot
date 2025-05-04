@@ -208,6 +208,25 @@ export const createLearningPlan = async (subject) => {
 };
 
 /**
+ * Create a new learning plan using student profile
+ * @param {Object} planData - Learning plan data
+ * @param {string} planData.student_profile_id - ID of the student profile
+ * @param {string} [planData.subject] - Subject for a single-subject plan
+ * @param {number} [planData.daily_minutes] - Daily study time in minutes
+ * @param {string} [planData.type] - Plan type ('balanced' or 'focused')
+ * @returns {Promise<Object>} Created learning plan
+ */
+export const createProfileBasedPlan = async (planData) => {
+  try {
+    console.log(`🔍 Creating profile-based learning plan with data:`, planData);
+    return await api.post('/learning-plans/profile-based', planData);
+  } catch (error) {
+    console.error('Failed to create profile-based learning plan:', error);
+    throw error;
+  }
+};
+
+/**
  * Update learning activity status
  * @param {string} planId - Learning plan ID
  * @param {string} activityId - Activity ID
@@ -223,6 +242,50 @@ export const updateActivityStatus = async (planId, activityId, status, completed
     });
   } catch (error) {
     console.error('Failed to update activity status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete a learning plan
+ * @param {string} planId - Learning plan ID to delete
+ * @returns {Promise<Object>} Delete result
+ */
+export const deleteLearningPlan = async (planId) => {
+  try {
+    return await api.delete(`/learning-plans/${planId}`);
+  } catch (error) {
+    console.error('Failed to delete learning plan:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update a learning plan
+ * @param {string} planId - Learning plan ID
+ * @param {Object} planData - Updated plan data
+ * @returns {Promise<Object>} Updated learning plan
+ */
+export const updateLearningPlan = async (planId, planData) => {
+  try {
+    return await api.put(`/learning-plans/${planId}`, planData);
+  } catch (error) {
+    console.error('Failed to update learning plan:', error);
+    throw error;
+  }
+};
+
+/**
+ * Export a learning plan
+ * @param {string} planId - Learning plan ID
+ * @param {string} format - Export format (json, html, pdf)
+ * @returns {Promise<Object>} Exported learning plan
+ */
+export const exportLearningPlan = async (planId, format = 'json') => {
+  try {
+    return await api.get(`/learning-plans/${planId}/export`, { format });
+  } catch (error) {
+    console.error('Failed to export learning plan:', error);
     throw error;
   }
 };
@@ -256,15 +319,37 @@ export const getAIRecommendations = async (subject = null) => {
 
 /**
  * Create an AI-generated learning plan
- * @param {string} subject - Subject for the learning plan
+ * @param {Object} planData - Learning plan data
+ * @param {string} [planData.subject] - Subject for a single-subject plan
+ * @param {string} [planData.student_profile_id] - ID of the student profile
+ * @param {number} [planData.daily_minutes] - Daily study time in minutes
+ * @param {string} [planData.type] - Plan type ('balanced' or 'focused')
  * @returns {Promise<Object>} Created learning plan
  */
-export const createAILearningPlan = async (subject) => {
+export const createAILearningPlan = async (planData) => {
   try {
-    return await api.post('/ai/learning-plan', { subject });
+    // If this is a profile-based plan
+    if (planData.student_profile_id) {
+      return await createProfileBasedPlan(planData);
+    }
+    
+    // Legacy subject-only plan
+    if (typeof planData === 'string' || (planData && planData.subject && !planData.student_profile_id)) {
+      const subject = typeof planData === 'string' ? planData : planData.subject;
+      return await api.post('/ai/learning-plan', { subject });
+    }
+    
+    throw new Error('Invalid plan data - must provide either subject or student_profile_id');
   } catch (error) {
     console.error('Failed to create AI learning plan:', error);
-    // Fall back to regular plan creation
-    return await createLearningPlan(subject);
+    
+    // Fall back to regular plan creation only for subject-based plans
+    if (typeof planData === 'string') {
+      return await createLearningPlan(planData);
+    } else if (planData.subject && !planData.student_profile_id) {
+      return await createLearningPlan(planData.subject);
+    }
+    
+    throw error;
   }
 };

@@ -579,6 +579,188 @@ async def get_learning_plan(
             detail=f"Error getting learning plan: {str(e)}"
         )
 
+@router.delete("/{plan_id}")
+async def delete_learning_plan(
+    plan_id: str = Path(..., description="Learning plan ID"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Delete a learning plan.
+    
+    Args:
+        plan_id: Learning plan ID
+        current_user: Current authenticated user
+        
+    Returns:
+        Success message
+    """
+    try:
+        # Get learning plan service
+        learning_plan_service = await get_learning_plan_service()
+        
+        # Check if plan exists and belongs to user
+        plan = await learning_plan_service.get_learning_plan(
+            plan_id=plan_id,
+            user_id=current_user["id"]
+        )
+        
+        if not plan:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learning plan not found"
+            )
+        
+        # Delete the learning plan
+        success = await learning_plan_service.delete_learning_plan(
+            plan_id=plan_id,
+            user_id=current_user["id"]
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete learning plan"
+            )
+        
+        # Return success
+        return {"message": "Learning plan deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting learning plan: {str(e)}"
+        )
+
+@router.put("/{plan_id}")
+async def update_learning_plan(
+    plan_id: str = Path(..., description="Learning plan ID"),
+    plan_data: Dict[str, Any] = Body(...),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Update a learning plan.
+    
+    Args:
+        plan_id: Learning plan ID
+        plan_data: Updated plan data
+        current_user: Current authenticated user
+        
+    Returns:
+        Updated learning plan
+    """
+    try:
+        # Get learning plan service
+        learning_plan_service = await get_learning_plan_service()
+        
+        # Check if plan exists and belongs to user
+        existing_plan = await learning_plan_service.get_learning_plan(
+            plan_id=plan_id,
+            user_id=current_user["id"]
+        )
+        
+        if not existing_plan:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learning plan not found"
+            )
+        
+        # Update fields from plan_data
+        for field, value in plan_data.items():
+            # Skip id, student_id, and owner_id fields for security
+            if field not in ["id", "student_id", "owner_id"]:
+                setattr(existing_plan, field, value)
+        
+        # Always update the updated_at timestamp
+        existing_plan.updated_at = datetime.utcnow()
+        
+        # Update the learning plan
+        updated_plan = await learning_plan_service.update_learning_plan(
+            plan=existing_plan,
+            user_id=current_user["id"]
+        )
+        
+        if not updated_plan:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update learning plan"
+            )
+        
+        # Return the updated plan
+        return updated_plan.dict()
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating learning plan: {str(e)}"
+        )
+
+@router.get("/{plan_id}/export")
+async def export_learning_plan(
+    plan_id: str = Path(..., description="Learning plan ID"),
+    format: str = Query("json", description="Export format (json, pdf, html)"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Export a learning plan in the specified format.
+    
+    Args:
+        plan_id: Learning plan ID
+        format: Export format (json, pdf, html)
+        current_user: Current authenticated user
+        
+    Returns:
+        Learning plan in the specified format
+    """
+    try:
+        # Get learning plan service
+        learning_plan_service = await get_learning_plan_service()
+        
+        # Get learning plan
+        plan = await learning_plan_service.get_learning_plan(
+            plan_id=plan_id,
+            user_id=current_user["id"]
+        )
+        
+        if not plan:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learning plan not found"
+            )
+        
+        # Format as requested
+        if format.lower() == "json":
+            # Return the plan as JSON
+            return plan.dict()
+        elif format.lower() == "html":
+            # Generate HTML representation
+            html_content = await learning_plan_service.generate_html_export(plan)
+            return {"content": html_content, "format": "html"}
+        elif format.lower() == "pdf":
+            # PDF not directly supported yet, fall back to HTML
+            html_content = await learning_plan_service.generate_html_export(plan)
+            return {
+                "content": html_content, 
+                "format": "html",
+                "message": "PDF format is not currently supported. HTML content provided instead."
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported export format: {format}"
+            )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error exporting learning plan: {str(e)}"
+        )
+
 @router.options("/{plan_id}/activities/{activity_id}")
 async def options_activity_status(
     plan_id: str = Path(..., description="Learning plan ID"),

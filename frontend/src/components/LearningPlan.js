@@ -1,14 +1,24 @@
 import React, { useState } from 'react';
 import { updateActivityStatus } from '../services/content';
+import LearningPlanManager from './LearningPlanManager';
 
-const LearningPlan = ({ plan }) => {
+const LearningPlan = ({ plan, onUpdate, onDelete }) => {
   const [expandedPlan, setExpandedPlan] = useState(false);
+  const [showManager, setShowManager] = useState(false);
   const [localPlan, setLocalPlan] = useState(plan);
   const [updating, setUpdating] = useState(false);
   
   // Toggle expansion of plan details
   const toggleExpand = () => {
     setExpandedPlan(!expandedPlan);
+    // Close manager if expanding/collapsing the plan
+    if (showManager) setShowManager(false);
+  };
+
+  // Toggle manager visibility
+  const toggleManager = (e) => {
+    e.stopPropagation(); // Prevent triggering the plan expansion
+    setShowManager(!showManager);
   };
   
   // Handle updating activity status
@@ -44,17 +54,51 @@ const LearningPlan = ({ plan }) => {
         : completedActivities > 0 ? 'in_progress' : 'not_started';
       
       // Update local plan
-      setLocalPlan({
+      const updatedPlan = {
         ...localPlan,
         activities: updatedActivities,
         progress_percentage: newProgressPercentage,
         status: newPlanStatus
-      });
+      };
+      
+      setLocalPlan(updatedPlan);
+      
+      // Notify parent
+      if (onUpdate) {
+        onUpdate(updatedPlan);
+      }
     } catch (error) {
       console.error('Failed to update activity status:', error);
       // You could show an error toast here
     } finally {
       setUpdating(false);
+    }
+  };
+  
+  // Handle plan update from manager
+  const handlePlanUpdate = (updatedPlan) => {
+    setLocalPlan({
+      ...localPlan,
+      ...updatedPlan
+    });
+    
+    // Notify parent
+    if (onUpdate) {
+      onUpdate({
+        ...localPlan,
+        ...updatedPlan
+      });
+    }
+    
+    // Close manager
+    setShowManager(false);
+  };
+  
+  // Handle plan deletion from manager
+  const handlePlanDelete = (planId) => {
+    // Notify parent
+    if (onDelete) {
+      onDelete(planId);
     }
   };
   
@@ -99,6 +143,17 @@ const LearningPlan = ({ plan }) => {
         </div>
         
         <div className="flex flex-wrap items-center gap-3 mt-2 sm:mt-0">
+          {/* Manage Button */}
+          <button
+            onClick={toggleManager}
+            className="text-sm text-gray-600 hover:text-indigo-600 hover:underline flex items-center border border-gray-200 rounded px-2 py-1"
+          >
+            <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+            Manage
+          </button>
+          
           {/* Progress Badge */}
           <div className="text-sm font-medium">
             {localPlan.progress_percentage}% Complete
@@ -121,6 +176,17 @@ const LearningPlan = ({ plan }) => {
           </svg>
         </div>
       </div>
+      
+      {/* Plan Manager */}
+      {showManager && (
+        <div className="border-t border-gray-200">
+          <LearningPlanManager
+            plan={localPlan}
+            onUpdate={handlePlanUpdate}
+            onDelete={handlePlanDelete}
+          />
+        </div>
+      )}
       
       {/* Plan Details */}
       {expandedPlan && (

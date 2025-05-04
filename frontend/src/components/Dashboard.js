@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useEntraAuth } from '../hooks/useEntraAuth';
 import { getLearningPlans, getRecommendations, createLearningPlan } from '../services/content';
+import { getStudentProfiles } from '../services/api';
 
 // Components
 import LearningPlan from './LearningPlan';
 import ContentRecommendation from './ContentRecommendation';
+import LearningPlanCreator from './LearningPlanCreator';
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const { getAccessToken, isAuthenticated } = useEntraAuth();
   const [learningPlans, setLearningPlans] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [isLoadingPlans, setIsLoadingPlans] = useState(true);
@@ -16,9 +20,13 @@ const Dashboard = () => {
   const [error, setError] = useState('');
   const [isCreatingPlan, setIsCreatingPlan] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState('');
+  const [showPlanCreator, setShowPlanCreator] = useState(false);
+  const [studentProfiles, setStudentProfiles] = useState([]);
+  const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
+  const [authError, setAuthError] = useState(false);
   
   // Available subjects
-  const subjects = ['Mathematics', 'Science', 'English'];
+  const subjects = ['Mathematics', 'Science', 'English', 'History', 'Geography', 'Art'];
   
   // Fetch learning plans and recommendations on component mount
   useEffect(() => {
@@ -44,13 +52,57 @@ const Dashboard = () => {
       } finally {
         setIsLoadingRecommendations(false);
       }
+      
+      try {
+        // Fetch student profiles for learning plan creation
+        setIsLoadingProfiles(true);
+        const profiles = await getStudentProfiles();
+        setStudentProfiles(profiles || []);
+        console.log('Fetched student profiles:', profiles?.length || 0);
+      } catch (err) {
+        console.error('Error fetching student profiles:', err);
+        console.error('Error details:', err.message, err.response?.status);
+        
+        // Handle authentication errors or redirects
+        if (err.response?.status === 401 || err.response?.status === 307) {
+          console.warn('Authentication issue detected. User may need to log in again.');
+          // You can show a message to the user here if needed
+        }
+        
+        // Don't set error for profiles to avoid blocking the UI
+        setStudentProfiles([]);
+      } finally {
+        setIsLoadingProfiles(false);
+      }
     };
     
     fetchData();
   }, []);
   
-  // Handle creating a new learning plan
-  const handleCreatePlan = async () => {
+  // Handle opening the advanced plan creator
+  const handleOpenAdvancedCreator = () => {
+    setShowPlanCreator(true);
+    setError('');
+  };
+  
+  // Handle closing the advanced plan creator
+  const handleCloseAdvancedCreator = () => {
+    setShowPlanCreator(false);
+  };
+  
+  // Handle plan created from the advanced creator
+  const handlePlanCreated = (newPlan) => {
+    // Add new plan to state
+    setLearningPlans([newPlan, ...learningPlans]);
+    
+    // Close the creator after a short delay
+    setTimeout(() => {
+      setShowPlanCreator(false);
+    }, 2000);
+  };
+  
+  // Handle creating a new simple learning plan (legacy)
+  const handleCreateSimplePlan = async () => {
     if (!selectedSubject) {
       setError('Please select a subject');
       return;
@@ -138,55 +190,102 @@ const Dashboard = () => {
       
       {/* Learning Plans Section */}
       <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 sm:mb-8">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-          <h2 className="text-xl font-bold text-gray-800">Your Learning Plans</h2>
-          
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center w-full sm:w-auto gap-2 sm:gap-0 sm:space-x-2">
-            <select
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm flex-grow sm:flex-grow-0"
-              value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
-              disabled={isCreatingPlan}
-              aria-label="Select subject"
-            >
-              <option value="">Select a subject</option>
-              {subjects.map(subject => (
-                <option key={subject} value={subject}>{subject}</option>
-              ))}
-            </select>
-            
-            <button
-              onClick={handleCreatePlan}
-              disabled={isCreatingPlan || !selectedSubject}
-              className="bg-blue-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-            >
-              {isCreatingPlan ? 'Creating...' : 'Create Plan'}
-            </button>
-          </div>
-        </div>
-        
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            {error}
-          </div>
-        )}
-        
-        {isLoadingPlans ? (
-          <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-            <p className="mt-2 text-gray-500">Loading your learning plans...</p>
-          </div>
-        ) : learningPlans.length > 0 ? (
-          <div className="space-y-4">
-            {learningPlans.map(plan => (
-              <LearningPlan key={plan.id} plan={plan} />
-            ))}
-          </div>
+        {showPlanCreator ? (
+          /* Advanced Learning Plan Creator */
+          <LearningPlanCreator 
+            onPlanCreated={handlePlanCreated}
+            onCancel={handleCloseAdvancedCreator}
+          />
         ) : (
-          <div className="text-center py-8 bg-gray-50 rounded-lg">
-            <p className="text-gray-500 mb-2">You don't have any learning plans yet.</p>
-            <p className="text-gray-500">Select a subject and click "Create Plan" to get started.</p>
-          </div>
+          /* Regular Learning Plans View */
+          <>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+              <h2 className="text-xl font-bold text-gray-800">Your Learning Plans</h2>
+              
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center w-full sm:w-auto gap-2 sm:gap-0 sm:space-x-2">
+                {studentProfiles.length > 0 ? (
+                  <button
+                    onClick={handleOpenAdvancedCreator}
+                    className="bg-green-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-green-700"
+                  >
+                    Create Personalized Plan
+                  </button>
+                ) : (
+                  <>
+                    <select
+                      className="border border-gray-300 rounded-md px-3 py-2 text-sm flex-grow sm:flex-grow-0"
+                      value={selectedSubject}
+                      onChange={(e) => setSelectedSubject(e.target.value)}
+                      disabled={isCreatingPlan}
+                      aria-label="Select subject"
+                    >
+                      <option value="">Select a subject</option>
+                      {subjects.map(subject => (
+                        <option key={subject} value={subject}>{subject}</option>
+                      ))}
+                    </select>
+                    
+                    <button
+                      onClick={handleCreateSimplePlan}
+                      disabled={isCreatingPlan || !selectedSubject}
+                      className="bg-blue-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {isCreatingPlan ? 'Creating...' : 'Create Plan'}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+            
+            {error && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                {error}
+              </div>
+            )}
+            
+            {!studentProfiles.length && (
+              <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded mb-4">
+                No student profiles found. <Link to="/profiles" className="underline">Create a student profile</Link> to unlock personalized learning plans.
+              </div>
+            )}
+            
+            {isLoadingPlans ? (
+              <div className="text-center py-8">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                <p className="mt-2 text-gray-500">Loading your learning plans...</p>
+              </div>
+            ) : learningPlans.length > 0 ? (
+              <div className="space-y-4">
+                {learningPlans.map(plan => (
+                  <LearningPlan 
+                    key={plan.id} 
+                    plan={plan} 
+                    onUpdate={(updatedPlan) => {
+                      // Update the specific plan in the plans array
+                      const updatedPlans = learningPlans.map(p => 
+                        p.id === updatedPlan.id ? updatedPlan : p
+                      );
+                      setLearningPlans(updatedPlans);
+                    }}
+                    onDelete={(planId) => {
+                      // Remove the plan from the plans array
+                      const filteredPlans = learningPlans.filter(p => p.id !== planId);
+                      setLearningPlans(filteredPlans);
+                    }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 bg-gray-50 rounded-lg">
+                <p className="text-gray-500 mb-2">You don't have any learning plans yet.</p>
+                {studentProfiles.length > 0 ? (
+                  <p className="text-gray-500">Click "Create Personalized Plan" to get started with a plan tailored to a student's profile.</p>
+                ) : (
+                  <p className="text-gray-500">Select a subject and click "Create Plan" to get started.</p>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
       
