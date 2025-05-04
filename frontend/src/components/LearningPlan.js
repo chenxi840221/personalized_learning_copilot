@@ -253,32 +253,48 @@ const LearningPlan = ({ plan, onUpdate, onDelete }) => {
                   </div>
                 </div>
                 
-                {/* Content Link with direct URL if available */}
-                {(activity.content_url || activity.content_id) && (
-                  <div className="mt-3 pt-3 border-t border-gray-100">
-                    <a 
-                      href={activity.content_url || `/content/${activity.content_id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline text-sm flex items-center"
-                    >
-                      <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                      Open learning resource
-                    </a>
-                  </div>
-                )}
-                
-                {/* Learning Benefit - why this activity helps */}
-                {activity.learning_benefit && (
-                  <div className="mt-3 pt-3 border-t border-gray-100">
-                    <div className="bg-blue-50 text-blue-700 p-2 rounded text-sm">
+                {/* Education Content Information Section */}
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  {/* Display content information if available */}
+                  {activity.metadata && activity.metadata.content_info && (
+                    <div className="mb-3 bg-gray-50 p-3 rounded-md">
+                      <h6 className="font-medium text-gray-700 mb-1">Education Resource:</h6>
+                      <p className="text-sm font-medium text-gray-800 mb-1">
+                        {activity.metadata.content_info.title || "Untitled Resource"}
+                      </p>
+                      {activity.metadata.content_info.description && (
+                        <p className="text-sm text-gray-600">
+                          {activity.metadata.content_info.description}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Learning Benefit - why this activity helps */}
+                  {activity.learning_benefit && (
+                    <div className="mb-3 bg-blue-50 text-blue-700 p-3 rounded-md text-sm">
                       <div className="font-medium mb-1">How this helps you:</div>
                       <p>{activity.learning_benefit}</p>
                     </div>
-                  </div>
-                )}
+                  )}
+                  
+                  {/* Content Link with direct URL if available */}
+                  {(activity.content_url || activity.content_id) && (
+                    <div className="mt-2">
+                      <a 
+                        href={activity.content_url || `/content/${activity.content_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline text-sm flex items-center"
+                      >
+                        <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                        Open learning resource
+                      </a>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>

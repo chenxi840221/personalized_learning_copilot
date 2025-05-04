@@ -185,9 +185,22 @@ class LearningPlanGenerator:
                 
                 # Add metadata field to store additional information if needed
                 if "metadata" not in activity:
+                    content_info = None
+                    if matched_content:
+                        # Extract important content information to display in the UI
+                        content_info = {
+                            "title": matched_content.title,
+                            "description": matched_content.description,
+                            "subject": matched_content.subject,
+                            "difficulty_level": matched_content.difficulty_level.value if hasattr(matched_content, "difficulty_level") else None,
+                            "content_type": matched_content.content_type.value if hasattr(matched_content, "content_type") else None,
+                            "grade_level": matched_content.grade_level if hasattr(matched_content, "grade_level") else None
+                        }
+                    
                     activity["metadata"] = {
                         "generated_at": datetime.utcnow().isoformat(),
-                        "content_type": matched_content.content_type.value if matched_content else None
+                        "content_type": matched_content.content_type.value if matched_content else None,
+                        "content_info": content_info
                     }
                 
             return plan_dict
