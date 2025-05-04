@@ -149,24 +149,24 @@ const Dashboard = () => {
       {/* Welcome Section */}
       <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 sm:mb-8">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
-          Welcome, {user?.full_name || user?.username}!
+          Welcome dear educator!
         </h1>
         <p className="text-gray-600 mt-2">
-          Your personalized learning dashboard
+          Personalized Learning Plans for your students
         </p>
         
         {/* Quick Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
           <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-            <p className="text-sm text-blue-700 font-medium">Learning Plans</p>
+            <p className="text-sm text-blue-700 font-medium">Total Learning Plans</p>
             <p className="text-2xl font-bold text-blue-800">{stats.total}</p>
           </div>
           <div className="bg-green-50 p-4 rounded-lg border border-green-100">
-            <p className="text-sm text-green-700 font-medium">Completed</p>
+            <p className="text-sm text-green-700 font-medium">Plans Completed</p>
             <p className="text-2xl font-bold text-green-800">{stats.completed}</p>
           </div>
           <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-100">
-            <p className="text-sm text-yellow-700 font-medium">In Progress</p>
+            <p className="text-sm text-yellow-700 font-medium">Plans In Progress</p>
             <p className="text-2xl font-bold text-yellow-800">{stats.inProgress}</p>
           </div>
         </div>
@@ -175,8 +175,8 @@ const Dashboard = () => {
         {stats.total > 0 && (
           <div className="mt-4">
             <div className="flex justify-between items-center mb-2">
-              <p className="text-sm text-gray-600">Overall Progress</p>
-              <p className="text-sm font-medium text-gray-900">{stats.percentage}%</p>
+              <p className="text-sm text-gray-600">Overall Student Progress</p>
+              <p className="text-sm font-medium text-gray-900">{stats.percentage}% Complete</p>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2.5">
               <div 
@@ -200,7 +200,7 @@ const Dashboard = () => {
           /* Regular Learning Plans View */
           <>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-              <h2 className="text-xl font-bold text-gray-800">Your Learning Plans</h2>
+              <h2 className="text-xl font-bold text-gray-800">Students' Learning Plans</h2>
               
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center w-full sm:w-auto gap-2 sm:gap-0 sm:space-x-2">
                 {studentProfiles.length > 0 ? (
@@ -277,11 +277,11 @@ const Dashboard = () => {
               </div>
             ) : (
               <div className="text-center py-8 bg-gray-50 rounded-lg">
-                <p className="text-gray-500 mb-2">You don't have any learning plans yet.</p>
+                <p className="text-gray-500 mb-2">No learning plans have been created yet.</p>
                 {studentProfiles.length > 0 ? (
-                  <p className="text-gray-500">Click "Create Personalized Plan" to get started with a plan tailored to a student's profile.</p>
+                  <p className="text-gray-500">Click "Create Personalized Plan" to create a tailored learning plan for a student.</p>
                 ) : (
-                  <p className="text-gray-500">Select a subject and click "Create Plan" to get started.</p>
+                  <p className="text-gray-500">Select a subject and click "Create Plan" to get started, or create student profiles first.</p>
                 )}
               </div>
             )}
@@ -291,7 +291,7 @@ const Dashboard = () => {
       
       {/* Recommendations Section */}
       <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-6">Recommended for You</h2>
+        <h2 className="text-xl font-bold text-gray-800 mb-6">Recommended Educational Resources</h2>
         
         {isLoadingRecommendations ? (
           <div className="text-center py-8">
