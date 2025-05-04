@@ -59,6 +59,7 @@ async def get_learning_plans(
 @router.post("/")
 async def create_learning_plan(
     subject: str = Body(..., embed=True),
+    learning_period: Optional[str] = Body(None, embed=True),
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
@@ -66,6 +67,7 @@ async def create_learning_plan(
     
     Args:
         subject: Subject for the learning plan
+        learning_period: Optional period for the learning plan (one_week, two_weeks, one_month, two_months, school_term)
         current_user: Current authenticated user
         
     Returns:
@@ -177,11 +179,37 @@ async def create_learning_plan(
         
         # Create learning plan object from the returned dictionary with enhanced activities
         now = datetime.utcnow()
+        
+        # Set up start and end dates based on learning period
+        from models.learning_plan import LearningPeriod
+        
+        # Parse learning period from string to enum
+        period = None
+        if learning_period:
+            try:
+                period = LearningPeriod(learning_period)
+            except ValueError:
+                logger.warning(f"Invalid learning period: {learning_period}. Using default.")
+                period = LearningPeriod.ONE_MONTH
+        else:
+            period = LearningPeriod.ONE_MONTH
+        
+        # Calculate start and end dates
+        start_date = now
+        days = LearningPeriod.to_days(period)
+        end_date = now + timedelta(days=days)
+        
+        # Create metadata with learning period
+        metadata = {
+            "learning_period": period.value,
+            "period_days": days
+        }
+        
         learning_plan = LearningPlan(
             id=str(uuid.uuid4()),
             student_id=user.id,
-            title=plan_dict.get("title", f"{subject} Learning Plan"),
-            description=plan_dict.get("description", f"A learning plan for {subject}"),
+            title=plan_dict.get("title", f"{subject} Learning Plan for {period.value.replace('_', ' ').title()}"),
+            description=plan_dict.get("description", f"A {period.value.replace('_', ' ')} learning plan for {subject}"),
             subject=plan_dict.get("subject", subject),
             topics=plan_dict.get("topics", [subject]),
             activities=[LearningActivity(**activity) for activity in activities],
@@ -189,6 +217,9 @@ async def create_learning_plan(
             progress_percentage=0.0,
             created_at=now,
             updated_at=now,
+            start_date=start_date,
+            end_date=end_date,
+            metadata=metadata,
             owner_id=current_user["id"]  # Set the owner_id to the current user
         )
         
@@ -220,7 +251,8 @@ async def create_profile_based_learning_plan(
     Create a new personalized learning plan based on a student profile.
     
     Args:
-        plan_data: Learning plan data with student_profile_id
+        plan_data: Learning plan data with student_profile_id, optional learning_period
+                  (one_week, two_weeks, one_month, two_months, school_term)
         current_user: Current authenticated user
         
     Returns:
@@ -321,6 +353,29 @@ async def create_profile_based_learning_plan(
         # Get plan parameters
         plan_type = plan_data.get("type", "balanced")
         daily_minutes = plan_data.get("daily_minutes", 60)
+        
+        # Get learning period
+        from models.learning_plan import LearningPeriod
+        learning_period_str = plan_data.get("learning_period")
+        
+        # Parse learning period from string to enum
+        period = None
+        if learning_period_str:
+            try:
+                period = LearningPeriod(learning_period_str)
+            except ValueError:
+                logger.warning(f"Invalid learning period: {learning_period_str}. Using default.")
+                period = LearningPeriod.ONE_MONTH
+        else:
+            period = LearningPeriod.ONE_MONTH
+            
+        # Calculate start and end dates
+        now = datetime.utcnow()
+        start_date = now
+        days = LearningPeriod.to_days(period)
+        end_date = now + timedelta(days=days)
+        
+        logger.info(f"Creating plan with learning period: {period.value} ({days} days)")
         
         # For balanced plans, we need to determine subjects and time allocation
         if plan_type == "balanced":
@@ -522,23 +577,28 @@ async def create_profile_based_learning_plan(
                     combined_activities.append(activity)
                 
             # Create the combined plan
+            period_name = period.value.replace('_', ' ').title()
             learning_plan = LearningPlan(
                 id=str(uuid.uuid4()),
                 student_id=user.id,
-                title=f"Balanced Learning Plan for {user.full_name}",
-                description=f"A personalized daily learning plan with {daily_minutes} minutes of balanced study across multiple subjects.",
+                title=f"Balanced Learning Plan for {user.full_name} - {period_name}",
+                description=f"A personalized {period_name} learning plan with {daily_minutes} minutes of daily balanced study across multiple subjects.",
                 subject="Multiple Subjects",
                 topics=focus_subjects,
                 activities=combined_activities,
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),
+                start_date=start_date,
+                end_date=end_date,
                 status=ActivityStatus.NOT_STARTED,
                 progress_percentage=0.0,
                 metadata={
                     "plan_type": "balanced",
                     "daily_minutes": daily_minutes,
                     "focus_areas": focus_subjects,
-                    "student_profile_id": student_profile_id
+                    "student_profile_id": student_profile_id,
+                    "learning_period": period.value,
+                    "period_days": days
                 },
                 owner_id=current_user["id"]  # Set the owner_id to the current user
             )
@@ -669,16 +729,19 @@ async def create_profile_based_learning_plan(
                 activities.append(activity)
                 
             # Create learning plan with the correct data
+            period_name = period.value.replace('_', ' ').title()
             learning_plan = LearningPlan(
                 id=str(uuid.uuid4()),
                 student_id=user.id,
-                title=plan_dict.get("title", f"{subject} Learning Plan"),
-                description=plan_dict.get("description", f"A learning plan for {subject}"),
+                title=plan_dict.get("title", f"{subject} Learning Plan - {period_name}"),
+                description=plan_dict.get("description", f"A {period_name} learning plan for {subject}"),
                 subject=subject,
                 topics=plan_dict.get("topics", [subject]),
                 activities=activities,
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),
+                start_date=start_date,
+                end_date=end_date,
                 status=ActivityStatus.NOT_STARTED,
                 progress_percentage=0.0,
                 owner_id=current_user["id"]  # Set the owner_id to the current user
@@ -688,7 +751,9 @@ async def create_profile_based_learning_plan(
             learning_plan.metadata = {
                 "plan_type": "focused",
                 "daily_minutes": daily_minutes,
-                "student_profile_id": student_profile_id
+                "student_profile_id": student_profile_id,
+                "learning_period": period.value,
+                "period_days": days
             }
         
         # Get learning plan service and save the plan

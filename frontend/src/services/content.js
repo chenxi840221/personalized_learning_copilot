@@ -196,11 +196,12 @@ export const getLearningPlans = async (subject = null) => {
 /**
  * Create a new learning plan
  * @param {string} subject - Subject for the learning plan
+ * @param {string} [learning_period] - Learning period (one_week, two_weeks, one_month, two_months, school_term)
  * @returns {Promise<Object>} Created learning plan
  */
-export const createLearningPlan = async (subject) => {
+export const createLearningPlan = async (subject, learning_period = 'one_month') => {
   try {
-    return await api.post('/learning-plans/', { subject });
+    return await api.post('/learning-plans/', { subject, learning_period });
   } catch (error) {
     console.error('Failed to create learning plan:', error);
     throw error;
@@ -214,6 +215,7 @@ export const createLearningPlan = async (subject) => {
  * @param {string} [planData.subject] - Subject for a single-subject plan
  * @param {number} [planData.daily_minutes] - Daily study time in minutes
  * @param {string} [planData.type] - Plan type ('balanced' or 'focused')
+ * @param {string} [planData.learning_period] - Learning period (one_week, two_weeks, one_month, two_months, school_term)
  * @returns {Promise<Object>} Created learning plan
  */
 export const createProfileBasedPlan = async (planData) => {
@@ -324,6 +326,7 @@ export const getAIRecommendations = async (subject = null) => {
  * @param {string} [planData.student_profile_id] - ID of the student profile
  * @param {number} [planData.daily_minutes] - Daily study time in minutes
  * @param {string} [planData.type] - Plan type ('balanced' or 'focused')
+ * @param {string} [planData.learning_period] - Learning period (one_week, two_weeks, one_month, two_months, school_term)
  * @returns {Promise<Object>} Created learning plan
  */
 export const createAILearningPlan = async (planData) => {
@@ -336,7 +339,8 @@ export const createAILearningPlan = async (planData) => {
     // Legacy subject-only plan
     if (typeof planData === 'string' || (planData && planData.subject && !planData.student_profile_id)) {
       const subject = typeof planData === 'string' ? planData : planData.subject;
-      return await api.post('/ai/learning-plan', { subject });
+      const learning_period = typeof planData === 'string' ? 'one_month' : (planData.learning_period || 'one_month');
+      return await api.post('/ai/learning-plan', { subject, learning_period });
     }
     
     throw new Error('Invalid plan data - must provide either subject or student_profile_id');
@@ -347,7 +351,7 @@ export const createAILearningPlan = async (planData) => {
     if (typeof planData === 'string') {
       return await createLearningPlan(planData);
     } else if (planData.subject && !planData.student_profile_id) {
-      return await createLearningPlan(planData.subject);
+      return await createLearningPlan(planData.subject, planData.learning_period || 'one_month');
     }
     
     throw error;

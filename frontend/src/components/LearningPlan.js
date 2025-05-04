@@ -194,6 +194,28 @@ const LearningPlan = ({ plan, onUpdate, onDelete }) => {
           {/* Description */}
           <p className="text-gray-600 mb-4">{localPlan.description}</p>
           
+          {/* Plan Period Info */}
+          {localPlan.start_date && localPlan.end_date && (
+            <div className="mb-4 bg-indigo-50 p-3 rounded-md">
+              <div className="flex flex-wrap gap-4">
+                <div>
+                  <span className="text-xs text-indigo-600 font-medium">Start Date:</span>
+                  <p className="text-sm font-medium">{new Date(localPlan.start_date).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <span className="text-xs text-indigo-600 font-medium">End Date:</span>
+                  <p className="text-sm font-medium">{new Date(localPlan.end_date).toLocaleDateString()}</p>
+                </div>
+                {localPlan.metadata?.learning_period && (
+                  <div>
+                    <span className="text-xs text-indigo-600 font-medium">Learning Period:</span>
+                    <p className="text-sm font-medium">{localPlan.metadata.learning_period.replace('_', ' ').charAt(0).toUpperCase() + localPlan.metadata.learning_period.replace('_', ' ').slice(1)}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
           {/* Progress Bar */}
           <div className="w-full bg-gray-200 rounded-full h-2.5 mb-6">
             <div 
