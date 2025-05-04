@@ -149,7 +149,7 @@ const Dashboard = () => {
       {/* Welcome Section */}
       <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 sm:mb-8">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
-          Welcome dear educator!
+          Welcome Dear Educator!
         </h1>
         <p className="text-gray-600 mt-2">
           Personalized Learning Plans for your students
