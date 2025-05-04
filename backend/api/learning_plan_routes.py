@@ -86,12 +86,19 @@ async def create_learning_plan(
             is_active=True
         )
         
-        # Get relevant content for the learning plan
+        # Get relevant content for the learning plan with more items to ensure sufficient content for all activities
         relevant_content = await retrieve_relevant_content(
             student_profile=user,
             subject=subject,
-            k=15
+            k=15  # Get more content to ensure we have enough for all activities
         )
+        
+        # Add fallback content if no content was found
+        if not relevant_content:
+            logger.warning(f"No content found for subject {subject}. Using fallback content.")
+            # Import fallback content function
+            from scripts.add_fallback_content import get_fallback_content
+            relevant_content = get_fallback_content(subject)
         
         # Get plan generator
         plan_generator = await get_plan_generator()
@@ -103,7 +110,72 @@ async def create_learning_plan(
             relevant_content=relevant_content
         )
         
-        # Create learning plan object from the returned dictionary
+        # Process activities to ensure each has associated content
+        activities = []
+        for i, activity_dict in enumerate(plan_dict.get("activities", [])):
+            # Get existing content URL and ID from the activity
+            content_url = activity_dict.get("content_url")
+            content_id = activity_dict.get("content_id")
+            matching_content = None
+            
+            # Try to find matching content if the activity has a content_id
+            if content_id:
+                matching_content = next(
+                    (content for content in relevant_content if str(content.id) == content_id),
+                    None
+                )
+                if matching_content and not content_url:
+                    content_url = matching_content.url
+            
+            # If the activity doesn't have a content reference, assign one from available content
+            if not content_id and relevant_content:
+                # Pick a content item that hasn't been used yet
+                used_content_ids = [a.get("content_id") for a in plan_dict.get("activities", []) if a.get("content_id")]
+                unused_content = [c for c in relevant_content if str(c.id) not in used_content_ids]
+                
+                if unused_content:
+                    # Use the first unused content
+                    matching_content = unused_content[0]
+                    content_id = str(matching_content.id)
+                    content_url = matching_content.url
+                    logger.info(f"Assigned content {content_id} to activity without content reference")
+                elif relevant_content:
+                    # If all content has been used, reuse the first item
+                    matching_content = relevant_content[0]
+                    content_id = str(matching_content.id)
+                    content_url = matching_content.url
+                    logger.info(f"Reused content {content_id} for activity without content reference")
+            
+            # Prepare content metadata with detailed information about the educational resource
+            metadata = activity_dict.get("metadata", {"subject": subject})
+            if matching_content:
+                content_info = {
+                    "title": matching_content.title,
+                    "description": matching_content.description,
+                    "subject": matching_content.subject,
+                    "difficulty_level": matching_content.difficulty_level.value if hasattr(matching_content, "difficulty_level") else None,
+                    "content_type": matching_content.content_type.value if hasattr(matching_content, "content_type") else None,
+                    "grade_level": matching_content.grade_level if hasattr(matching_content, "grade_level") else None,
+                    "url": matching_content.url
+                }
+                metadata["content_info"] = content_info
+            
+            # Update the activity dictionary with enhanced content information
+            activity_dict["content_id"] = content_id
+            activity_dict["content_url"] = content_url
+            activity_dict["metadata"] = metadata
+            
+            # Add enhanced learning benefit if not present
+            if "learning_benefit" not in activity_dict or not activity_dict["learning_benefit"]:
+                # Create a detailed learning benefit that includes content information
+                if matching_content:
+                    activity_dict["learning_benefit"] = f"This activity helps develop skills in {subject} using {matching_content.title}. The educational resource is tailored to your learning style and grade level, providing an effective learning experience."
+                else:
+                    activity_dict["learning_benefit"] = f"This activity helps develop skills in {subject} by using educational resources tailored to your learning style and needs."
+            
+            activities.append(activity_dict)
+        
+        # Create learning plan object from the returned dictionary with enhanced activities
         now = datetime.utcnow()
         learning_plan = LearningPlan(
             id=str(uuid.uuid4()),
@@ -112,7 +184,7 @@ async def create_learning_plan(
             description=plan_dict.get("description", f"A learning plan for {subject}"),
             subject=plan_dict.get("subject", subject),
             topics=plan_dict.get("topics", [subject]),
-            activities=[LearningActivity(**activity) for activity in plan_dict.get("activities", [])],
+            activities=[LearningActivity(**activity) for activity in activities],
             status=ActivityStatus.NOT_STARTED,
             progress_percentage=0.0,
             created_at=now,
@@ -318,13 +390,20 @@ async def create_profile_based_learning_plan(
             combined_activities = []
             
             for subject, minutes in subject_times.items():
-                # Get relevant content for the subject
+                # Get relevant content for the subject - ask for more content to ensure we have enough
                 relevant_content = await retrieve_relevant_content(
                     student_profile=user,
                     subject=subject,
                     grade_level=student_profile.get("grade_level"),
-                    k=5
+                    k=10  # Request more content to ensure we have enough for activities
                 )
+                
+                # Add fallback content if no content was found
+                if not relevant_content:
+                    logger.warning(f"No content found for subject {subject}. Using fallback content.")
+                    # Import fallback content function
+                    from scripts.add_fallback_content import get_fallback_content
+                    relevant_content = get_fallback_content(subject)
                 
                 # Get plan generator
                 plan_generator = await get_plan_generator()
@@ -361,29 +440,74 @@ async def create_profile_based_learning_plan(
                 for i, activity_dict in enumerate(plan_dict.get("activities", [])[:2]):  # Limit to first 2
                     # Get content URL from either the activity or the matched content
                     content_url = activity_dict.get("content_url")
-                    if not content_url and activity_dict.get("content_id"):
-                        # Try to find matching content to get URL
+                    content_id = activity_dict.get("content_id")
+                    matching_content = None
+                    
+                    # Try to find matching content if the activity has a content_id
+                    if content_id:
                         matching_content = next(
-                            (content for content in relevant_content if str(content.id) == activity_dict.get("content_id")),
+                            (content for content in relevant_content if str(content.id) == content_id),
                             None
                         )
-                        if matching_content:
+                        if matching_content and not content_url:
                             content_url = matching_content.url
                     
-                    # Create enhanced activity with appropriate duration
+                    # If the activity doesn't have a content reference, assign one from available content
+                    if not content_id and relevant_content:
+                        # Pick a content item that hasn't been used yet
+                        used_content_ids = [a.get("content_id") for a in plan_dict.get("activities", []) if a.get("content_id")]
+                        unused_content = [c for c in relevant_content if str(c.id) not in used_content_ids]
+                        
+                        if unused_content:
+                            # Use the first unused content
+                            matching_content = unused_content[0]
+                            content_id = str(matching_content.id)
+                            content_url = matching_content.url
+                            logger.info(f"Assigned content {content_id} to activity without content reference")
+                        elif relevant_content:
+                            # If all content has been used, reuse the first item
+                            matching_content = relevant_content[0]
+                            content_id = str(matching_content.id)
+                            content_url = matching_content.url
+                            logger.info(f"Reused content {content_id} for activity without content reference")
+                    
+                    # Prepare content metadata with detailed information about the educational resource
+                    content_metadata = {"subject": subject}
+                    if matching_content:
+                        content_info = {
+                            "title": matching_content.title,
+                            "description": matching_content.description,
+                            "subject": matching_content.subject,
+                            "difficulty_level": matching_content.difficulty_level.value if hasattr(matching_content, "difficulty_level") else None,
+                            "content_type": matching_content.content_type.value if hasattr(matching_content, "content_type") else None,
+                            "grade_level": matching_content.grade_level if hasattr(matching_content, "grade_level") else None,
+                            "url": matching_content.url
+                        }
+                        content_metadata["content_info"] = content_info
+                    
+                    # Ensure we have a good learning benefit
+                    learning_benefit = activity_dict.get("learning_benefit")
+                    if not learning_benefit:
+                        # Create a detailed learning benefit that includes content information
+                        if matching_content:
+                            learning_benefit = f"This activity helps develop {subject} skills using {matching_content.title}. The educational resource is tailored to the student's learning style and grade level, providing an effective learning experience."
+                        else:
+                            learning_benefit = f"This activity helps develop {subject} skills by using educational resources tailored to the student's learning style and needs."
+                    
+                    # Create enhanced activity with appropriate duration and content reference
                     activity = LearningActivity(
                         id=str(uuid.uuid4()),
                         title=activity_dict.get("title", f"Activity {i+1}"),
                         description=activity_dict.get("description", "Complete this activity"),
-                        content_id=activity_dict.get("content_id"),
+                        content_id=content_id,
                         content_url=content_url,
                         # Scale duration to fit within allocated minutes
                         duration_minutes=min(activity_dict.get("duration_minutes", 15), 
                                             int(minutes / 2)),  # Cap at half the allocated time
                         order=i + 1,
                         status=ActivityStatus.NOT_STARTED,
-                        learning_benefit=activity_dict.get("learning_benefit", f"This activity helps develop {subject} skills"),
-                        metadata=activity_dict.get("metadata", {"subject": subject})
+                        learning_benefit=learning_benefit,
+                        metadata=activity_dict.get("metadata", content_metadata)
                     )
                     activities_to_add.append(activity)
                 
@@ -451,6 +575,13 @@ async def create_profile_based_learning_plan(
                 k=15  # Get more content for better selection
             )
             
+            # Add fallback content if no content was found
+            if not relevant_content:
+                logger.warning(f"No content found for subject {subject}. Using fallback content.")
+                # Import fallback content function
+                from scripts.add_fallback_content import get_fallback_content
+                relevant_content = get_fallback_content(subject)
+            
             logger.info(f"Retrieved {len(relevant_content)} relevant content items for learning plan")
             
             # Get plan generator
@@ -466,29 +597,74 @@ async def create_profile_based_learning_plan(
             # Convert to LearningPlan object with enhanced activity details
             activities = []
             for i, activity_dict in enumerate(plan_dict.get("activities", [])):
-                # Get any existing content URL from the activity or from matching content
+                # Get any existing content URL and ID from the activity
                 content_url = activity_dict.get("content_url")
-                if not content_url and activity_dict.get("content_id"):
-                    # Try to find matching content to get URL
+                content_id = activity_dict.get("content_id")
+                matching_content = None
+                
+                # Try to find matching content if the activity has a content_id
+                if content_id:
                     matching_content = next(
-                        (content for content in relevant_content if str(content.id) == activity_dict.get("content_id")),
+                        (content for content in relevant_content if str(content.id) == content_id),
                         None
                     )
-                    if matching_content:
+                    if matching_content and not content_url:
                         content_url = matching_content.url
                 
-                # Create enhanced activity with new fields
+                # If the activity doesn't have a content reference, assign one from available content
+                if not content_id and relevant_content:
+                    # Pick a content item that hasn't been used yet
+                    used_content_ids = [a.get("content_id") for a in plan_dict.get("activities", []) if a.get("content_id")]
+                    unused_content = [c for c in relevant_content if str(c.id) not in used_content_ids]
+                    
+                    if unused_content:
+                        # Use the first unused content
+                        matching_content = unused_content[0]
+                        content_id = str(matching_content.id)
+                        content_url = matching_content.url
+                        logger.info(f"Assigned content {content_id} to activity without content reference")
+                    elif relevant_content:
+                        # If all content has been used, reuse the first item
+                        matching_content = relevant_content[0]
+                        content_id = str(matching_content.id)
+                        content_url = matching_content.url
+                        logger.info(f"Reused content {content_id} for activity without content reference")
+                
+                # Prepare content metadata with detailed information about the educational resource
+                content_metadata = {"subject": subject}
+                if matching_content:
+                    content_info = {
+                        "title": matching_content.title,
+                        "description": matching_content.description,
+                        "subject": matching_content.subject,
+                        "difficulty_level": matching_content.difficulty_level.value if hasattr(matching_content, "difficulty_level") else None,
+                        "content_type": matching_content.content_type.value if hasattr(matching_content, "content_type") else None,
+                        "grade_level": matching_content.grade_level if hasattr(matching_content, "grade_level") else None,
+                        "url": matching_content.url
+                    }
+                    content_metadata["content_info"] = content_info
+                
+                # Ensure we have a good learning benefit
+                learning_benefit = activity_dict.get("learning_benefit")
+                if not learning_benefit:
+                    # Create a detailed learning benefit that includes content information
+                    if matching_content:
+                        learning_benefit = f"This activity helps develop skills in {subject} using {matching_content.title}. The educational resource is tailored to the student's learning style and grade level, providing an effective learning experience."
+                    else:
+                        learning_benefit = f"This activity helps develop skills in {subject} by using educational resources tailored to the student's learning style and needs."
+                
+                # Create enhanced activity with new fields and ensure it has content
                 activity = LearningActivity(
                     id=str(uuid.uuid4()),
                     title=activity_dict.get("title", f"Activity {i+1}"),
                     description=activity_dict.get("description", "Complete this activity"),
-                    content_id=activity_dict.get("content_id"),
+                    content_id=content_id,
                     content_url=content_url,
                     duration_minutes=activity_dict.get("duration_minutes", 15),
                     order=i + 1,
                     status=ActivityStatus.NOT_STARTED,
-                    learning_benefit=activity_dict.get("learning_benefit", f"This activity helps develop skills in {subject}"),
-                    metadata=activity_dict.get("metadata", {})
+                    learning_benefit=learning_benefit,
+                    metadata=activity_dict.get("metadata", content_metadata)
                 )
                 activities.append(activity)
                 

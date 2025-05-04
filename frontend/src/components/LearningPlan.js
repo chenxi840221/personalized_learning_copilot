@@ -343,11 +343,11 @@ const LearningPlan = ({ plan, onUpdate, onDelete }) => {
                     </p>
                   </div>
                   
-                  {/* Always show resource link - either direct URL or fallback message */}
+                  {/* Always show resource link - prioritize metadata URL if available */}
                   <div className="mt-2">
-                    {(activity.content_url || activity.content_id) ? (
+                    {(activity.metadata?.content_info?.url || activity.content_url || activity.content_id) ? (
                       <a 
-                        href={activity.content_url || `/content/${activity.content_id}`}
+                        href={activity.metadata?.content_info?.url || activity.content_url || `/content/${activity.content_id}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:underline text-sm flex items-center"
