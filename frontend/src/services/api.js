@@ -193,3 +193,79 @@ export const deleteReport = async (reportId) => {
     throw error;
   }
 };
+
+// Student Profiles API
+export const getStudentProfiles = async (params = {}) => {
+  try {
+    console.log('🔍 API Service: Requesting student profiles from backend');
+    const result = await api.get('/student-profiles', params);
+    console.log('📊 API Service: Received', result?.length || 0, 'profiles from backend');
+    return result;
+  } catch (error) {
+    console.error('❌ API Service Error fetching student profiles:', error);
+    throw error;
+  }
+};
+
+export const getStudentProfile = async (profileId, params = {}) => {
+  try {
+    return await api.get(`/student-profiles/${profileId}`, params);
+  } catch (error) {
+    console.error('Error fetching student profile:', error);
+    throw error;
+  }
+};
+
+export const getStudentProfileHistory = async (profileId) => {
+  try {
+    return await api.get(`/student-profiles/${profileId}/history`);
+  } catch (error) {
+    console.error('Error fetching student profile history:', error);
+    throw error;
+  }
+};
+
+export const deleteStudentProfile = async (profileId) => {
+  try {
+    return await api.delete(`/student-profiles/${profileId}`);
+  } catch (error) {
+    console.error('Error deleting student profile:', error);
+    throw error;
+  }
+};
+
+export const createStudentProfile = async (profileData) => {
+  try {
+    return await api.post('/student-profiles', profileData);
+  } catch (error) {
+    console.error('Error creating student profile:', error);
+    throw error;
+  }
+};
+
+export const updateStudentProfile = async (profileId, profileData) => {
+  try {
+    return await api.put(`/student-profiles/${profileId}`, profileData);
+  } catch (error) {
+    console.error('Error updating student profile:', error);
+    throw error;
+  }
+};
+
+export const extractProfileFromReport = async (reportId) => {
+  try {
+    return await api.post(`/debug/extract-profile/${reportId}`);
+  } catch (error) {
+    console.error('Error extracting profile from report:', error);
+    throw error;
+  }
+};
+
+export const directCreateProfile = async (profileData) => {
+  try {
+    return await api.post('/direct-index/profile', profileData);
+  } catch (error) {
+    console.error('Error direct creating student profile:', error);
+    throw error;
+  }
+};

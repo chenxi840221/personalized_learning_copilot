@@ -105,13 +105,52 @@ async def create_learning_plan(
         # Get plan generator
         plan_generator = await get_plan_generator()
         
-        # Generate learning plan using the generate_plan method with activity days
-        plan_dict = await plan_generator.generate_plan(
-            student=user,
-            subject=subject,
-            relevant_content=relevant_content,
-            days=activity_days  # Pass the number of days to generate activities for
-        )
+        # Set up start and end dates based on learning period
+        from models.learning_plan import LearningPeriod
+        
+        # Parse learning period from string to enum
+        period = None
+        if learning_period:
+            try:
+                period = LearningPeriod(learning_period)
+            except ValueError:
+                logger.warning(f"Invalid learning period: {learning_period}. Using default.")
+                period = LearningPeriod.ONE_MONTH
+        else:
+            period = LearningPeriod.ONE_MONTH
+        
+        # Calculate days and activity_days
+        days = LearningPeriod.to_days(period)
+        # For very long periods, split into weeks and generate activities for all days
+        weeks_in_period = (days + 6) // 7  # Ceiling division to get full weeks
+        all_activities = []
+        logger.info(f"Creating plan with {weeks_in_period} weeks for learning period: {period.value} ({days} days)")
+        
+        # Generate a plan for each week of the learning period
+        for week_num in range(weeks_in_period):
+            week_plan_dict = await plan_generator.generate_plan(
+                student=user,
+                subject=subject,
+                relevant_content=relevant_content,
+                days=7,  # Always use 7 days for a weekly plan
+                is_weekly_plan=True
+            )
+            
+            # Adjust day numbers to be relative to the entire learning period
+            week_activities = week_plan_dict.get("activities", [])
+            for activity in week_activities:
+                # Update day number to be relative to the full learning period
+                activity["day"] = activity["day"] + (week_num * 7)
+                all_activities.append(activity)
+        
+        # Create a combined plan dictionary with all weeks' activities
+        plan_dict = {
+            "title": week_plan_dict.get("title", f"{subject} Learning Plan for {period.value.replace('_', ' ').title()}"),
+            "description": f"A comprehensive {period.value.replace('_', ' ')} learning plan for {subject} spanning {weeks_in_period} weeks",
+            "subject": week_plan_dict.get("subject", subject),
+            "topics": week_plan_dict.get("topics", [subject]) if 'week_plan_dict' in locals() else [subject],
+            "activities": all_activities
+        }
         
         # Process activities to ensure each has associated content
         activities = []
@@ -181,33 +220,16 @@ async def create_learning_plan(
         # Create learning plan object from the returned dictionary with enhanced activities
         now = datetime.utcnow()
         
-        # Set up start and end dates based on learning period
-        from models.learning_plan import LearningPeriod
-        
-        # Parse learning period from string to enum
-        period = None
-        if learning_period:
-            try:
-                period = LearningPeriod(learning_period)
-            except ValueError:
-                logger.warning(f"Invalid learning period: {learning_period}. Using default.")
-                period = LearningPeriod.ONE_MONTH
-        else:
-            period = LearningPeriod.ONE_MONTH
-        
         # Calculate start and end dates
         start_date = now
-        days = LearningPeriod.to_days(period)
         end_date = now + timedelta(days=days)
-        
-        # For very long periods, limit the number of days for activities to keep the plan manageable
-        activity_days = min(days, 14) if days > 14 else days
         
         # Create metadata with learning period
         metadata = {
             "learning_period": period.value,
             "period_days": days,
-            "activity_days": activity_days
+            "weeks_in_period": weeks_in_period,
+            "activity_days": days  # Now we create activities for all days
         }
         
         learning_plan = LearningPlan(
@@ -451,11 +473,18 @@ async def create_profile_based_learning_plan(
             
             for subject, minutes in subject_times.items():
                 # Get relevant content for the subject - ask for more content to ensure we have enough
+                # Estimate how many content items we need for the entire learning period
+                # For weekly planning, we need about 3-5 activities per day × 7 days × number of weeks
+                weeks_in_period = (days + 6) // 7  # Ceiling division to get full weeks
+                estimated_content_needed = min(30, weeks_in_period * 7 * 3)  # Maximum 30 to avoid API limits
+                
+                logger.info(f"Retrieving {estimated_content_needed} content items for {subject} to cover {weeks_in_period} weeks")
+                
                 relevant_content = await retrieve_relevant_content(
                     student_profile=user,
                     subject=subject,
                     grade_level=student_profile.get("grade_level"),
-                    k=10  # Request more content to ensure we have enough for activities
+                    k=estimated_content_needed  # Request more content to ensure we have enough for all weeks
                 )
                 
                 # Add fallback content if no content was found
@@ -472,18 +501,38 @@ async def create_profile_based_learning_plan(
                 # Note: Using generate_plan (the method that exists in LearningPlanGenerator)
                 # instead of create_learning_plan which doesn't exist
                 
-                # Determine days for this subject's plan (fewer days for multi-subject plans)
-                # Calculate days proportionally based on subject count and total activity days
-                # For very long periods, limit the number of days for activities to keep the plan manageable
-                activity_days = min(days, 14) if days > 14 else days
-                subject_days = max(1, activity_days // len(subject_times))
+                # For weekly planning, always use 7 days per week
+                # We'll create activities for all weeks of the learning period
+                weeks_in_period = (days + 6) // 7  # Ceiling division to get full weeks
+                all_activities = []
                 
-                plan_dict = await plan_generator.generate_plan(
-                    student=user,
-                    subject=subject,
-                    relevant_content=relevant_content,
-                    days=subject_days  # Allocate proportional number of days
-                )
+                logger.info(f"Creating balanced plan for subject {subject} with {weeks_in_period} weeks")
+                
+                # For each week, generate a weekly plan
+                for week_num in range(weeks_in_period):
+                    week_plan_dict = await plan_generator.generate_plan(
+                        student=user,
+                        subject=subject,
+                        relevant_content=relevant_content,
+                        days=7,  # Always 7 days for a week
+                        is_weekly_plan=True
+                    )
+                    
+                    # Offset the day numbers based on the week number
+                    week_activities = week_plan_dict.get("activities", [])
+                    for activity in week_activities:
+                        # Update day number to be relative to the full learning period
+                        activity["day"] = activity["day"] + (week_num * 7)
+                        all_activities.append(activity)
+                
+                # Create a combined plan dictionary
+                plan_dict = {
+                    "title": f"{subject} Learning Plan for {period.value.replace('_', ' ').title()}",
+                    "description": f"A comprehensive {period.value.replace('_', ' ')} learning plan for {subject} spanning {weeks_in_period} weeks",
+                    "subject": subject,
+                    "topics": week_plan_dict.get("topics", [subject]),
+                    "activities": all_activities
+                }
                 
                 # Create a mini plan manually from the plan dictionary
                 # The generator doesn't have parameters for max_activities,
@@ -641,11 +690,17 @@ async def create_profile_based_learning_plan(
             logger.info(f"Areas for improvement: {areas_for_improvement}")
             
             # Get relevant content for the subject with enhanced filtering based on student profile
+            # Estimate how many content items we need for the entire learning period
+            weeks_in_period = (days + 6) // 7  # Ceiling division to get full weeks
+            estimated_content_needed = min(40, weeks_in_period * 7 * 3)  # Maximum 40 to avoid API limits
+            
+            logger.info(f"Retrieving {estimated_content_needed} content items for focused {subject} plan to cover {weeks_in_period} weeks")
+            
             relevant_content = await retrieve_relevant_content(
                 student_profile=user,
                 subject=subject,
                 grade_level=student_profile.get("grade_level"),
-                k=15  # Get more content for better selection
+                k=estimated_content_needed  # Get enough content for all weeks of the learning period
             )
             
             # Add fallback content if no content was found
@@ -660,13 +715,38 @@ async def create_profile_based_learning_plan(
             # Get plan generator
             plan_generator = await get_plan_generator()
             
-            # Generate enhanced plan using improved generate_plan method with days
-            plan_dict = await plan_generator.generate_plan(
-                student=user,
-                subject=subject,
-                relevant_content=relevant_content,
-                days=activity_days  # Use the full activity days for single subject
-            )
+            # For weekly planning, determine how many weeks we need for the full learning period
+            weeks_in_period = (days + 6) // 7  # Ceiling division to get full weeks
+            all_activities = []
+            
+            logger.info(f"Creating focused plan for subject {subject} with {weeks_in_period} weeks")
+            
+            # Generate a plan for each week of the learning period
+            for week_num in range(weeks_in_period):
+                # For each week, generate a weekly plan using 7 days
+                week_plan_dict = await plan_generator.generate_plan(
+                    student=user,
+                    subject=subject,
+                    relevant_content=relevant_content,
+                    days=7,  # Always use 7 days for a weekly plan
+                    is_weekly_plan=True
+                )
+                
+                # Adjust day numbers to be relative to the entire learning period
+                week_activities = week_plan_dict.get("activities", [])
+                for activity in week_activities:
+                    # Update day number to be relative to the full learning period
+                    activity["day"] = activity["day"] + (week_num * 7)
+                    all_activities.append(activity)
+            
+            # Create a combined plan dictionary with all weeks' activities
+            plan_dict = {
+                "title": f"{subject} Learning Plan for {period.value.replace('_', ' ').title()}",
+                "description": f"A comprehensive {period.value.replace('_', ' ')} learning plan for {subject} spanning {weeks_in_period} weeks",
+                "subject": subject,
+                "topics": week_plan_dict.get("topics", [subject]) if 'week_plan_dict' in locals() else [subject],
+                "activities": all_activities
+            }
             
             # Convert to LearningPlan object with enhanced activity details
             activities = []

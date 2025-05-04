@@ -15,8 +15,10 @@ import ContentPage from './pages/ContentPage';
 import ProfilePage from './pages/ProfilePage';
 import AuthCallback from './components/AuthCallback';
 
-// Student Report Component
+// Student Components
 import StudentReport from './components/StudentReport';
+import StudentProfiles from './components/StudentProfiles';
+import StudentProfileCreator from './components/StudentProfileCreator';
 
 // Protected Route Component
 import ProtectedRoute from './components/ProtectedRoute';
@@ -55,6 +57,24 @@ function App() {
             <Route path="/reports" element={
               <ProtectedRoute>
                 <StudentReport />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/profiles" element={
+              <ProtectedRoute>
+                <StudentProfiles />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/profiles/create" element={
+              <ProtectedRoute>
+                <StudentProfileCreator />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/profiles/edit/:profileId" element={
+              <ProtectedRoute>
+                <StudentProfileCreator />
               </ProtectedRoute>
             } />
             

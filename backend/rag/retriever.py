@@ -266,7 +266,8 @@ async def get_content_retriever():
 async def retrieve_relevant_content(
     student_profile: User,
     subject: Optional[str] = None,
-    k: int = 5
+    k: int = 5,
+    grade_level: Optional[int] = None
 ) -> List[Content]:
     """
     Retrieve relevant content for a student with enhanced personalization.
@@ -283,8 +284,28 @@ async def retrieve_relevant_content(
     retriever = await get_content_retriever()
     
     # Get personalized recommendations
+    # Use provided grade_level parameter if available, otherwise use the one from student_profile
+    effective_grade = grade_level if grade_level is not None else student_profile.grade_level
+    
+    # If grade_level parameter is provided and different from profile, create a modified profile
+    modified_profile = student_profile
+    if grade_level is not None and grade_level != student_profile.grade_level:
+        # Create a new User object with the modified grade level
+        from models.user import User
+        modified_profile = User(
+            id=student_profile.id,
+            username=student_profile.username,
+            email=student_profile.email,
+            full_name=student_profile.full_name,
+            grade_level=grade_level,  # Use the provided grade level
+            subjects_of_interest=student_profile.subjects_of_interest,
+            areas_for_improvement=getattr(student_profile, 'areas_for_improvement', []),
+            learning_style=student_profile.learning_style,
+            is_active=student_profile.is_active
+        )
+    
     content_dicts = await retriever.get_personalized_recommendations(
-        user_profile=student_profile,
+        user_profile=modified_profile,
         subject=subject,
         count=k
     )
@@ -314,8 +335,11 @@ async def retrieve_relevant_content(
     
     # Filter the results to ensure they're grade-appropriate
     grade_appropriate_content = []
-    if student_profile.grade_level:
-        grade = student_profile.grade_level
+    # Use provided grade_level parameter if available, otherwise use student_profile.grade_level
+    effective_grade = grade_level if grade_level is not None else student_profile.grade_level
+    
+    if effective_grade:
+        grade = effective_grade
         for content in contents:
             # Include content if it's targeted at the student's grade level ±1
             if not content.grade_level or grade in content.grade_level or (grade-1) in content.grade_level or (grade+1) in content.grade_level:
