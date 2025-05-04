@@ -105,11 +105,12 @@ async def create_learning_plan(
         # Get plan generator
         plan_generator = await get_plan_generator()
         
-        # Generate learning plan using the generate_plan method
+        # Generate learning plan using the generate_plan method with activity days
         plan_dict = await plan_generator.generate_plan(
             student=user,
             subject=subject,
-            relevant_content=relevant_content
+            relevant_content=relevant_content,
+            days=activity_days  # Pass the number of days to generate activities for
         )
         
         # Process activities to ensure each has associated content
@@ -199,10 +200,14 @@ async def create_learning_plan(
         days = LearningPeriod.to_days(period)
         end_date = now + timedelta(days=days)
         
+        # For very long periods, limit the number of days for activities to keep the plan manageable
+        activity_days = min(days, 14) if days > 14 else days
+        
         # Create metadata with learning period
         metadata = {
             "learning_period": period.value,
-            "period_days": days
+            "period_days": days,
+            "activity_days": activity_days
         }
         
         learning_plan = LearningPlan(
@@ -463,13 +468,19 @@ async def create_profile_based_learning_plan(
                 # Get plan generator
                 plan_generator = await get_plan_generator()
                 
-                # Create mini-plan for the subject
+                # Create mini-plan for the subject with days
                 # Note: Using generate_plan (the method that exists in LearningPlanGenerator)
                 # instead of create_learning_plan which doesn't exist
+                
+                # Determine days for this subject's plan (fewer days for multi-subject plans)
+                # Calculate days proportionally based on subject count and total activity days
+                subject_days = max(1, activity_days // len(subject_times))
+                
                 plan_dict = await plan_generator.generate_plan(
                     student=user,
                     subject=subject,
-                    relevant_content=relevant_content
+                    relevant_content=relevant_content,
+                    days=subject_days  # Allocate proportional number of days
                 )
                 
                 # Create a mini plan manually from the plan dictionary
@@ -647,11 +658,12 @@ async def create_profile_based_learning_plan(
             # Get plan generator
             plan_generator = await get_plan_generator()
             
-            # Generate enhanced plan using improved generate_plan method
+            # Generate enhanced plan using improved generate_plan method with days
             plan_dict = await plan_generator.generate_plan(
                 student=user,
                 subject=subject,
-                relevant_content=relevant_content
+                relevant_content=relevant_content,
+                days=activity_days  # Use the full activity days for single subject
             )
             
             # Convert to LearningPlan object with enhanced activity details

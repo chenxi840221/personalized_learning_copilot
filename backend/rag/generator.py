@@ -24,7 +24,8 @@ class LearningPlanGenerator:
         self,
         student: User,
         subject: str,
-        relevant_content: List[Content]
+        relevant_content: List[Content],
+        days: int = 1  # Default to 1 day, can be expanded based on learning period
     ) -> Dict[str, Any]:
         """Generate a learning plan for a student based on relevant content."""
         # Format content resources for the prompt with enhanced details
@@ -70,7 +71,7 @@ class LearningPlanGenerator:
         
         improvement_text = ", ".join(areas_for_improvement) if areas_for_improvement else "Not specified"
         
-        # Construct the enhanced prompt
+        # Construct the enhanced prompt for multi-day learning plan
         prompt = f"""
         You are an expert educational AI assistant tasked with creating personalized learning plans based on content in Azure AI Search.
         
@@ -82,16 +83,19 @@ class LearningPlanGenerator:
         - Areas for Improvement: {improvement_text}
         
         SUBJECT TO FOCUS ON: {subject}
+        LEARNING PERIOD DURATION: {days} days
         
         AVAILABLE LEARNING RESOURCES FROM AZURE AI SEARCH:
         {resources_text}
         
-        Based on the student profile and available resources, create a highly personalized learning plan that addresses the student's needs.
+        Based on the student profile and available resources, create a highly personalized learning plan that addresses the student's needs over a period of {days} days.
         
         INSTRUCTIONS:
         1. Create a coherent learning journey starting with foundational concepts and progressing to more advanced material
         2. Include a descriptive title and comprehensive plan description
-        3. Create a sequence of 3-5 learning activities that build upon each other
+        3. Create a sequence of learning activities distributed across {days} days
+        4. Aim for 1-3 activities per day depending on their duration
+        5. Total daily activities should take approximately 30-60 minutes to complete
         
         For each activity:
         1. Choose the most appropriate content from the available resources that matches:
@@ -101,6 +105,7 @@ class LearningPlanGenerator:
            - Areas where the student needs improvement
         
         2. Each activity should:
+           - Be assigned to a specific day number (from 1 to {days})
            - Use the actual duration_minutes from the content (if available)
            - Provide a clear description of what the student should do
            - Explain WHY this activity helps address the student's learning needs
@@ -120,6 +125,7 @@ class LearningPlanGenerator:
                     "description": "Detailed activity description explaining what to do and how it helps the student's learning goals",
                     "content_id": "<ID of content resource>",
                     "duration_minutes": <minutes from content>,
+                    "day": <day number>,
                     "order": <order number>,
                     "content_url": "<URL of the content>",
                     "learning_benefit": "Explanation of how this specific activity addresses the student's learning needs"

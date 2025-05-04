@@ -41,6 +41,7 @@ class LearningActivity(BaseModel):
     content_url: Optional[str] = None
     duration_minutes: int
     order: int
+    day: int = 1  # Which day of the plan this activity belongs to
     status: ActivityStatus = ActivityStatus.NOT_STARTED
     completed_at: Optional[datetime] = None
     learning_benefit: Optional[str] = None
