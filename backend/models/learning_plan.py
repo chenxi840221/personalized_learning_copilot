@@ -14,10 +14,13 @@ class LearningActivity(BaseModel):
     title: str
     description: str
     content_id: Optional[str] = None
+    content_url: Optional[str] = None
     duration_minutes: int
     order: int
     status: ActivityStatus = ActivityStatus.NOT_STARTED
     completed_at: Optional[datetime] = None
+    learning_benefit: Optional[str] = None
+    metadata: Dict[str, Any] = {}
 # Learning Plan model
 class LearningPlan(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -34,6 +37,7 @@ class LearningPlan(BaseModel):
     status: ActivityStatus = ActivityStatus.NOT_STARTED
     progress_percentage: float = 0.0
     metadata: Dict[str, Any] = {}
+    owner_id: Optional[str] = None  # ID of the teacher who created this plan
     class Config:
         orm_mode = True
 # Learning Plan Creation model

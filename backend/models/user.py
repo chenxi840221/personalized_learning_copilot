@@ -22,6 +22,7 @@ class UserBase(BaseModel):
     full_name: Optional[str] = None
     grade_level: Optional[int] = None
     subjects_of_interest: List[str] = []
+    areas_for_improvement: List[str] = []
     learning_style: Optional[LearningStyle] = None
     is_active: bool = True
 class UserCreate(UserBase):

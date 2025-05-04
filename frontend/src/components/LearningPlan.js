@@ -86,7 +86,16 @@ const LearningPlan = ({ plan }) => {
       >
         <div className="flex-1 min-w-0">
           <h3 className="text-lg font-medium text-gray-900 truncate">{localPlan.title}</h3>
-          <p className="text-sm text-gray-500">{localPlan.subject}</p>
+          <div className="flex items-center space-x-2">
+            <p className="text-sm text-gray-500">{localPlan.subject}</p>
+            {/* Ownership badge */}
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+              <svg className="h-3 w-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+              </svg>
+              Created by you
+            </span>
+          </div>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 mt-2 sm:mt-0">
@@ -178,11 +187,11 @@ const LearningPlan = ({ plan }) => {
                   </div>
                 </div>
                 
-                {/* Content Link (if available) */}
-                {activity.content_id && (
+                {/* Content Link with direct URL if available */}
+                {(activity.content_url || activity.content_id) && (
                   <div className="mt-3 pt-3 border-t border-gray-100">
                     <a 
-                      href={`/content/${activity.content_id}`}
+                      href={activity.content_url || `/content/${activity.content_id}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline text-sm flex items-center"
@@ -192,6 +201,16 @@ const LearningPlan = ({ plan }) => {
                       </svg>
                       Open learning resource
                     </a>
+                  </div>
+                )}
+                
+                {/* Learning Benefit - why this activity helps */}
+                {activity.learning_benefit && (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <div className="bg-blue-50 text-blue-700 p-2 rounded text-sm">
+                      <div className="font-medium mb-1">How this helps you:</div>
+                      <p>{activity.learning_benefit}</p>
+                    </div>
                   </div>
                 )}
               </div>
