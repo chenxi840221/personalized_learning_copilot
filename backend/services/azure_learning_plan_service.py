@@ -26,6 +26,43 @@ class AzureLearningPlanService:
         self.search_endpoint = settings.AZURE_SEARCH_ENDPOINT
         self.search_key = settings.AZURE_SEARCH_KEY
         self.index_name = settings.PLANS_INDEX_NAME
+        
+    def _parse_datetime(self, datetime_str: str) -> datetime:
+        """
+        Parse datetime string from Azure Search with improved error handling.
+        Handles various ISO formats including those with milliseconds and timezone information.
+        
+        Args:
+            datetime_str: ISO datetime string to parse
+            
+        Returns:
+            Parsed datetime object
+        """
+        if not datetime_str:
+            return datetime.utcnow()
+            
+        try:
+            # Try standard parsing
+            # First attempt to remove any timezone information as Python < 3.11 fromisoformat
+            # has issues with some timezone formats
+            if '+' in datetime_str:
+                # Handle format like "2023-04-30T12:34:56.789+00:00"
+                # Split at the timezone marker and keep only the first part
+                datetime_str = datetime_str.split('+')[0]
+            elif 'Z' in datetime_str:
+                # Handle ISO format with Z (UTC) suffix
+                datetime_str = datetime_str.replace('Z', '')
+
+            # Remove milliseconds if they exist
+            if '.' in datetime_str:
+                parts = datetime_str.split('.')
+                datetime_str = parts[0]
+                
+            # Parse the simplified string
+            return datetime.fromisoformat(datetime_str)
+        except Exception as e:
+            logger.warning(f"Error parsing datetime '{datetime_str}': {e}. Using current time.")
+            return datetime.utcnow()
     
     async def get_learning_plans(
         self, 
@@ -86,9 +123,57 @@ class AzureLearningPlanService:
                     plans = []
                     for item in result.get("value", []):
                         try:
-                            # Get activities from activities_json field if present
+                            # Get activities based on chunking method
                             activities = []
-                            if "activities_json" in item and item["activities_json"]:
+                            chunking_method = item.get("activities_chunking", "none")
+                            
+                            # Handle weekly chunked activities
+                            if chunking_method == "weekly":
+                                logger.info("Processing weekly chunked activities")
+                                week_numbers = item.get("activities_weeks", [])
+                                
+                                # If no week numbers specified, try to find activity_week_* fields
+                                if not week_numbers:
+                                    week_numbers = []
+                                    for key in item.keys():
+                                        if key.startswith("activities_week_"):
+                                            try:
+                                                week_num = int(key.replace("activities_week_", ""))
+                                                week_numbers.append(week_num)
+                                            except ValueError:
+                                                continue
+                                
+                                # Sort week numbers to ensure correct order
+                                week_numbers.sort()
+                                
+                                # Process each week's activities
+                                for week_num in week_numbers:
+                                    week_field = f"activities_week_{week_num}"
+                                    if week_field in item and item[week_field]:
+                                        try:
+                                            week_activities = json.loads(item[week_field])
+                                            logger.info(f"Found {len(week_activities)} activities for week {week_num}")
+                                            
+                                            for activity_dict in week_activities:
+                                                activity = LearningActivity(
+                                                    id=activity_dict.get("id", str(uuid.uuid4())),
+                                                    title=activity_dict.get("title", f"Week {week_num} Activity"),
+                                                    description=activity_dict.get("description", ""),
+                                                    content_id=activity_dict.get("content_id"),
+                                                    content_url=activity_dict.get("content_url"),
+                                                    duration_minutes=activity_dict.get("duration_minutes", 30),
+                                                    order=activity_dict.get("order", 1),
+                                                    day=activity_dict.get("day", 1),
+                                                    status=ActivityStatus(activity_dict.get("status", "not_started")),
+                                                    completed_at=activity_dict.get("completed_at"),
+                                                    learning_benefit=activity_dict.get("learning_benefit", ""),
+                                                    metadata=activity_dict.get("metadata", {})
+                                                )
+                                                activities.append(activity)
+                                        except json.JSONDecodeError:
+                                            logger.error(f"Error parsing activities for week {week_num}: {item.get(week_field)}")
+                            # Handle single activities_json field (non-chunked)
+                            elif "activities_json" in item and item["activities_json"]:
                                 try:
                                     activities_data = json.loads(item["activities_json"])
                                     for activity_dict in activities_data:
@@ -97,10 +182,14 @@ class AzureLearningPlanService:
                                             title=activity_dict.get("title", "Activity"),
                                             description=activity_dict.get("description", ""),
                                             content_id=activity_dict.get("content_id"),
+                                            content_url=activity_dict.get("content_url"),
                                             duration_minutes=activity_dict.get("duration_minutes", 30),
                                             order=activity_dict.get("order", 1),
+                                            day=activity_dict.get("day", 1),
                                             status=ActivityStatus(activity_dict.get("status", "not_started")),
-                                            completed_at=activity_dict.get("completed_at")
+                                            completed_at=activity_dict.get("completed_at"),
+                                            learning_benefit=activity_dict.get("learning_benefit", ""),
+                                            metadata=activity_dict.get("metadata", {})
                                         )
                                         activities.append(activity)
                                 except json.JSONDecodeError:
@@ -121,12 +210,19 @@ class AzureLearningPlanService:
                                         title=activity_dict.get("title", "Activity"),
                                         description=activity_dict.get("description", ""),
                                         content_id=activity_dict.get("content_id"),
+                                        content_url=activity_dict.get("content_url"),
                                         duration_minutes=activity_dict.get("duration_minutes", 30),
                                         order=activity_dict.get("order", 1),
+                                        day=activity_dict.get("day", 1),
                                         status=ActivityStatus(activity_dict.get("status", "not_started")),
-                                        completed_at=activity_dict.get("completed_at")
+                                        completed_at=activity_dict.get("completed_at"),
+                                        learning_benefit=activity_dict.get("learning_benefit", ""),
+                                        metadata=activity_dict.get("metadata", {})
                                     )
                                     activities.append(activity)
+                            
+                            # Sort activities by day and order
+                            activities.sort(key=lambda x: (getattr(x, "day", 1), x.order))
                             
                             # Parse metadata if it exists
                             metadata = {}
@@ -150,10 +246,10 @@ class AzureLearningPlanService:
                                 activities=activities,
                                 status=ActivityStatus(item.get("status", "not_started")),
                                 progress_percentage=item.get("progress_percentage", 0.0),
-                                created_at=datetime.fromisoformat(item.get("created_at").replace('Z', '+00:00')) if item.get("created_at") else datetime.utcnow(),
-                                updated_at=datetime.fromisoformat(item.get("updated_at").replace('Z', '+00:00')) if item.get("updated_at") else datetime.utcnow(),
-                                start_date=datetime.fromisoformat(item.get("start_date").replace('Z', '+00:00')) if item.get("start_date") else None,
-                                end_date=datetime.fromisoformat(item.get("end_date").replace('Z', '+00:00')) if item.get("end_date") else None,
+                                created_at=self._parse_datetime(item.get("created_at")) if item.get("created_at") else datetime.utcnow(),
+                                updated_at=self._parse_datetime(item.get("updated_at")) if item.get("updated_at") else datetime.utcnow(),
+                                start_date=self._parse_datetime(item.get("start_date")) if item.get("start_date") else None,
+                                end_date=self._parse_datetime(item.get("end_date")) if item.get("end_date") else None,
                                 metadata=metadata
                             )
                             plans.append(plan)
@@ -206,8 +302,87 @@ class AzureLearningPlanService:
                 activities_json.append(activity_dict)
             
             try:
-                # Store activities as a JSON string instead of a nested object
-                plan_dict["activities_json"] = json.dumps(activities_json)
+                # For longer plans, break activities into weekly chunks to avoid Azure Search limits
+                # Get the number of weeks in the plan from metadata if available
+                weeks_in_period = 1
+                use_weekly_chunking = False
+                
+                # Check if this plan has been explicitly marked for weekly chunking
+                if hasattr(plan, "use_weekly_chunking") and getattr(plan, "use_weekly_chunking", False):
+                    use_weekly_chunking = True
+                    # Estimate number of weeks based on activity count
+                    weeks_in_period = (len(activities_json) + 6) // 7  # Ceiling division to get full weeks
+                # Otherwise check metadata or activity count
+                elif "metadata" in plan_dict and isinstance(plan_dict["metadata"], dict) and "weeks_in_period" in plan_dict["metadata"]:
+                    weeks_in_period = plan_dict["metadata"]["weeks_in_period"]
+                    use_weekly_chunking = weeks_in_period > 1
+                elif len(activities_json) > 20:  # Estimate number of weeks based on activity count
+                    weeks_in_period = (len(activities_json) + 6) // 7  # Ceiling division to get full weeks
+                    use_weekly_chunking = True
+                
+                logger.info(f"Plan has {len(activities_json)} activities across {weeks_in_period} weeks")
+                
+                # If the plan has a lot of activities or spans multiple weeks, store activities by week
+                if use_weekly_chunking:
+                    try:
+                        # Check if index fields for chunking are available
+                        # This info is not directly available, so we need to try and catch exceptions
+                        # First, organize activities into weekly chunks
+                        weekly_activities = {}
+                        for activity in activities_json:
+                            # Calculate which week this activity belongs to
+                            day = activity.get("day", 1)
+                            week_num = (day - 1) // 7 + 1  # Week 1, 2, 3, etc.
+                            
+                            # Initialize the week's activity list if it doesn't exist
+                            if week_num not in weekly_activities:
+                                weekly_activities[week_num] = []
+                                
+                            # Add the activity to the appropriate week
+                            weekly_activities[week_num].append(activity)
+                        
+                        # Only use chunking for weeks 1-8, as these are defined in our schema
+                        valid_weeks = {k: v for k, v in weekly_activities.items() if 1 <= k <= 8}
+                        
+                        if valid_weeks:
+                            # Clear the activities to store them in weekly chunks
+                            plan_dict.pop("activities_json", None)
+                            
+                            # Store each week's activities in a separate field
+                            for week_num, week_activities in valid_weeks.items():
+                                week_json = json.dumps(week_activities)
+                                plan_dict[f"activities_week_{week_num}"] = week_json
+                                logger.info(f"Week {week_num} activities: {len(week_activities)} activities, {len(week_json)} bytes")
+                            
+                            # Add fields to indicate we're using weekly chunking
+                            plan_dict["activities_chunking"] = "weekly"
+                            plan_dict["activities_weeks"] = list(valid_weeks.keys())
+                            
+                            # If we had weeks > 8, store them in activities_json as overflow
+                            overflow_weeks = {k: v for k, v in weekly_activities.items() if k > 8}
+                            if overflow_weeks:
+                                overflow_activities = []
+                                for week_activities in overflow_weeks.values():
+                                    overflow_activities.extend(week_activities)
+                                
+                                if overflow_activities:
+                                    logger.info(f"Storing {len(overflow_activities)} overflow activities in activities_json")
+                                    plan_dict["activities_json"] = json.dumps(overflow_activities)
+                        else:
+                            # No valid weeks found, use activities_json
+                            logger.info("No valid weeks found, using activities_json")
+                            plan_dict["activities_json"] = json.dumps(activities_json)
+                            plan_dict["activities_chunking"] = "none"
+                    except Exception as chunking_error:
+                        # If there's any error during chunking, fall back to using activities_json
+                        logger.error(f"Error during activity chunking: {chunking_error}")
+                        logger.info("Falling back to using activities_json")
+                        plan_dict["activities_json"] = json.dumps(activities_json)
+                        plan_dict["activities_chunking"] = "none"
+                else:
+                    # For smaller plans, store all activities in a single field
+                    plan_dict["activities_json"] = json.dumps(activities_json)
+                    plan_dict["activities_chunking"] = "none"
                 
                 # Remove the original activities field to avoid the Azure Search error
                 if "activities" in plan_dict:
@@ -335,9 +510,57 @@ class AzureLearningPlanService:
                     # Get plan data
                     item = result["value"][0]
                     
-                    # Get activities from activities_json field if present
+                    # Get activities based on chunking method
                     activities = []
-                    if "activities_json" in item and item["activities_json"]:
+                    chunking_method = item.get("activities_chunking", "none")
+                    
+                    # Handle weekly chunked activities
+                    if chunking_method == "weekly":
+                        logger.info("Processing weekly chunked activities")
+                        week_numbers = item.get("activities_weeks", [])
+                        
+                        # If no week numbers specified, try to find activity_week_* fields
+                        if not week_numbers:
+                            week_numbers = []
+                            for key in item.keys():
+                                if key.startswith("activities_week_"):
+                                    try:
+                                        week_num = int(key.replace("activities_week_", ""))
+                                        week_numbers.append(week_num)
+                                    except ValueError:
+                                        continue
+                        
+                        # Sort week numbers to ensure correct order
+                        week_numbers.sort()
+                        
+                        # Process each week's activities
+                        for week_num in week_numbers:
+                            week_field = f"activities_week_{week_num}"
+                            if week_field in item and item[week_field]:
+                                try:
+                                    week_activities = json.loads(item[week_field])
+                                    logger.info(f"Found {len(week_activities)} activities for week {week_num}")
+                                    
+                                    for activity_dict in week_activities:
+                                        activity = LearningActivity(
+                                            id=activity_dict.get("id", str(uuid.uuid4())),
+                                            title=activity_dict.get("title", f"Week {week_num} Activity"),
+                                            description=activity_dict.get("description", ""),
+                                            content_id=activity_dict.get("content_id"),
+                                            content_url=activity_dict.get("content_url"),
+                                            duration_minutes=activity_dict.get("duration_minutes", 30),
+                                            order=activity_dict.get("order", 1),
+                                            day=activity_dict.get("day", 1),
+                                            status=ActivityStatus(activity_dict.get("status", "not_started")),
+                                            completed_at=activity_dict.get("completed_at"),
+                                            learning_benefit=activity_dict.get("learning_benefit", ""),
+                                            metadata=activity_dict.get("metadata", {})
+                                        )
+                                        activities.append(activity)
+                                except json.JSONDecodeError:
+                                    logger.error(f"Error parsing activities for week {week_num}: {item.get(week_field)}")
+                    # Handle single activities_json field (non-chunked)
+                    elif "activities_json" in item and item["activities_json"]:
                         try:
                             activities_data = json.loads(item["activities_json"])
                             for activity_dict in activities_data:
@@ -346,10 +569,14 @@ class AzureLearningPlanService:
                                     title=activity_dict.get("title", "Activity"),
                                     description=activity_dict.get("description", ""),
                                     content_id=activity_dict.get("content_id"),
+                                    content_url=activity_dict.get("content_url"),
                                     duration_minutes=activity_dict.get("duration_minutes", 30),
                                     order=activity_dict.get("order", 1),
+                                    day=activity_dict.get("day", 1),
                                     status=ActivityStatus(activity_dict.get("status", "not_started")),
-                                    completed_at=activity_dict.get("completed_at")
+                                    completed_at=activity_dict.get("completed_at"),
+                                    learning_benefit=activity_dict.get("learning_benefit", ""),
+                                    metadata=activity_dict.get("metadata", {})
                                 )
                                 activities.append(activity)
                         except json.JSONDecodeError:
@@ -370,12 +597,19 @@ class AzureLearningPlanService:
                                 title=activity_dict.get("title", "Activity"),
                                 description=activity_dict.get("description", ""),
                                 content_id=activity_dict.get("content_id"),
+                                content_url=activity_dict.get("content_url"),
                                 duration_minutes=activity_dict.get("duration_minutes", 30),
                                 order=activity_dict.get("order", 1),
+                                day=activity_dict.get("day", 1),
                                 status=ActivityStatus(activity_dict.get("status", "not_started")),
-                                completed_at=activity_dict.get("completed_at")
+                                completed_at=activity_dict.get("completed_at"),
+                                learning_benefit=activity_dict.get("learning_benefit", ""),
+                                metadata=activity_dict.get("metadata", {})
                             )
                             activities.append(activity)
+                    
+                    # Sort activities by day and order
+                    activities.sort(key=lambda x: (getattr(x, "day", 1), x.order))
                     
                     # Parse metadata if it exists
                     metadata = {}
@@ -399,10 +633,10 @@ class AzureLearningPlanService:
                         activities=activities,
                         status=ActivityStatus(item.get("status", "not_started")),
                         progress_percentage=item.get("progress_percentage", 0.0),
-                        created_at=datetime.fromisoformat(item.get("created_at").replace('Z', '+00:00')) if item.get("created_at") else datetime.utcnow(),
-                        updated_at=datetime.fromisoformat(item.get("updated_at").replace('Z', '+00:00')) if item.get("updated_at") else datetime.utcnow(),
-                        start_date=datetime.fromisoformat(item.get("start_date").replace('Z', '+00:00')) if item.get("start_date") else None,
-                        end_date=datetime.fromisoformat(item.get("end_date").replace('Z', '+00:00')) if item.get("end_date") else None,
+                        created_at=self._parse_datetime(item.get("created_at")) if item.get("created_at") else datetime.utcnow(),
+                        updated_at=self._parse_datetime(item.get("updated_at")) if item.get("updated_at") else datetime.utcnow(),
+                        start_date=self._parse_datetime(item.get("start_date")) if item.get("start_date") else None,
+                        end_date=self._parse_datetime(item.get("end_date")) if item.get("end_date") else None,
                         metadata=metadata
                     )
                     
@@ -479,6 +713,12 @@ class AzureLearningPlanService:
                     # Convert to dict first to catch any serialization issues
                     plan_dict = plan.dict()
                     logger.info(f"Plan converted to dict successfully with {len(plan_dict['activities'])} activities")
+                    
+                    # Check if this is a plan with many activities that should use chunking
+                    if len(plan_dict['activities']) > 20:
+                        logger.info("Plan has many activities, setting weekly chunking for efficient storage")
+                        # Set a custom attribute on the plan object to indicate it should use weekly chunking
+                        setattr(plan, "use_weekly_chunking", True)
                 except Exception as dict_err:
                     logger.exception(f"Error converting plan to dict: {dict_err}")
                     return None

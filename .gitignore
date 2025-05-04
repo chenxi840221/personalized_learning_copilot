@@ -147,3 +147,9 @@ scraper_output/
 crawl_data/
 test_outputs/
 snapshots/
+**/.claude/settings.local.json
+.claude/
+DEBUG_*.md
+*_FIX.md
+PROFILE_*.md
+LEARNING_*.md

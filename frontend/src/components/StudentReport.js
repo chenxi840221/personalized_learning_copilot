@@ -616,7 +616,7 @@ const StudentReport = () => {
       
       {/* Reports List */}
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold mb-4">Your Reports</h2>
+        <h2 className="text-xl font-semibold mb-4">Student Reports</h2>
         
         {loading && !selectedReport && (
           <p className="text-gray-500 text-center py-4">Loading reports...</p>
@@ -661,7 +661,7 @@ const StudentReport = () => {
                 <div className="bg-blue-50 border-b border-gray-200 px-4 py-3">
                   <div className="flex justify-between items-center">
                     <div className="font-medium text-blue-900 truncate">
-                      {report.school_name || 'School Report'}
+                      {report.student_name || 'Unknown Student'}
                     </div>
                     <div className="text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-1 rounded-full">
                       {formatDate(report.report_date || report.created_at)}
