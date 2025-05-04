@@ -474,6 +474,8 @@ async def create_profile_based_learning_plan(
                 
                 # Determine days for this subject's plan (fewer days for multi-subject plans)
                 # Calculate days proportionally based on subject count and total activity days
+                # For very long periods, limit the number of days for activities to keep the plan manageable
+                activity_days = min(days, 14) if days > 14 else days
                 subject_days = max(1, activity_days // len(subject_times))
                 
                 plan_dict = await plan_generator.generate_plan(
